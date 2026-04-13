@@ -89,22 +89,28 @@ class Hub:
     async def _on_mpchc_update(self, updates: dict[str, Any]) -> None:
         new_active = updates.get("active_player")
 
-        if new_active == "mpchc":
+        if new_active == "mpchc" and not self._mpchc_active:
             self._mpchc_active = True
-            _LOG.info("MPC-HC became active player")
+            _LOG.info("ACTIVE PLAYER → mpchc  (file: %s)", updates.get("filepath", ""))
         elif new_active == "none" and self._mpchc_active:
             self._mpchc_active = False
-            _LOG.info("MPC-HC became idle — Kodi may take over")
+            _LOG.info("ACTIVE PLAYER → none   (mpchc idle, kodi may take over)")
 
         # MKV parsing on filepath change
         new_filepath = updates.get("filepath")
         if new_filepath is not None and new_filepath != self._last_filepath:
             self._last_filepath = new_filepath
+            _LOG.info("MPC-HC filepath: %s", new_filepath)
             if new_filepath and new_filepath.lower().endswith(".mkv"):
+                _LOG.info("Parsing MKV tracks…")
                 mkv_updates = await asyncio.get_running_loop().run_in_executor(
                     None, self._parse_mkv_sync, new_filepath
                 )
                 updates.update(mkv_updates)
+
+        # Log significant state changes
+        if "state" in updates:
+            _LOG.info("MPCHC state: %s  pos=%.1fs", updates["state"], updates.get("position", 0))
 
         await self._push(updates)
 
@@ -116,8 +122,18 @@ class Hub:
             # Filter: only volume/mute pass through while MPC-HC is playing
             filtered = {k: v for k, v in updates.items() if k in _KODI_PASSTHROUGH_WHILE_MPCHC}
             if filtered:
+                _LOG.debug("Kodi update while mpchc active — passing only: %s", list(filtered))
                 await self._push(filtered)
+            else:
+                _LOG.debug("Kodi update while mpchc active — dropped: %s", list(updates))
             return
+
+        # Log active player transitions from Kodi
+        if updates.get("active_player") == "kodi" and self._state.state.active_player != "kodi":
+            _LOG.info("ACTIVE PLAYER → kodi   (state=%s, title=%s)",
+                      updates.get("state", "?"), updates.get("title", ""))
+        if "state" in updates and updates.get("active_player") != "kodi":
+            _LOG.debug("Kodi state: %s  pos=%.1fs", updates["state"], updates.get("position", 0))
 
         await self._push(updates)
 

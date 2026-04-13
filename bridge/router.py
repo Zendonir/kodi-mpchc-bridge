@@ -51,18 +51,21 @@ class CommandRouter:
 
         Returns True if the command was handled.
         """
-        _LOG.debug("dispatch cmd=%s value=%s active=%s", cmd, value, self._active)
+        active = self._active
 
         # Navigation always goes to Kodi
         if cmd in _KODI_ONLY:
+            _LOG.info("CMD %-22s → kodi (navigation)", cmd)
             return await self._kodi_navigate(cmd)
 
-        if self._active == "mpchc":
+        if active == "mpchc":
+            _LOG.info("CMD %-22s → mpchc  (value=%s)", cmd, value)
             return await self._handle_mpchc(cmd, value)
-        elif self._active == "kodi":
+        elif active == "kodi":
+            _LOG.info("CMD %-22s → kodi   (value=%s)", cmd, value)
             return await self._handle_kodi(cmd, value)
         else:
-            _LOG.debug("No active player for cmd=%s", cmd)
+            _LOG.info("CMD %-22s → DROPPED (no active player)", cmd)
             return False
 
     # ------------------------------------------------------------------

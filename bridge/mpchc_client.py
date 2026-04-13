@@ -157,9 +157,13 @@ class MpcHcClient:
 
     async def _poll_loop(self) -> None:
         _LOG.info("MPC-HC polling started at %s", self._base)
+        _was_reachable = False
         while self._running:
             fields = await self._fetch_status()
             if fields is None:
+                if _was_reachable:
+                    _LOG.info("MPC-HC unreachable at %s", self._base)
+                    _was_reachable = False
                 if self._last:
                     # Was connected, now lost
                     self._last = {}
@@ -167,8 +171,14 @@ class MpcHcClient:
                 await asyncio.sleep(RECONNECT_DELAY)
                 continue
 
+            if not _was_reachable:
+                _LOG.info("MPC-HC reachable at %s  (state=%s, file=%s)",
+                          self._base, fields.get("statestring", "?"), fields.get("file", "none"))
+                _was_reachable = True
+
             updates = self._parse_status(fields)
             if updates:
+                _LOG.debug("MPC-HC update: %s", {k: v for k, v in updates.items() if k != "filepath"})
                 await self._on_state(updates)
 
             await asyncio.sleep(POLL_INTERVAL)
