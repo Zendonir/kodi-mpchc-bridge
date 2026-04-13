@@ -187,10 +187,11 @@ class MpcHcClient:
                     self._base, list(fields.keys()),
                 )
                 _LOG.info(
-                    "MPC-HC state=%s statestring=%s file=%s",
+                    "MPC-HC state=%s (%s)  file=%s  filepath=%s",
                     fields.get("state", "?"),
                     fields.get("statestring", "?"),
-                    fields.get("file", "<not present>") or "<empty>",
+                    fields.get("file", "<missing>") or "<empty>",
+                    fields.get("filepath", "<missing>") or "<empty>",
                 )
                 _was_reachable = True
 
@@ -208,21 +209,27 @@ class MpcHcClient:
         updates: dict[str, Any] = {}
 
         raw_state = int(fields.get("state", "-1"))
-        filepath = fields.get("file", "")
+        # Prefer "filepath" (full path) over "file" (filename only)
+        filepath = fields.get("filepath", "") or fields.get("file", "")
+        title = fields.get("file", "")  # short filename for display
         position_ms = int(fields.get("position", "0") or 0)
         duration_ms = int(fields.get("duration", "0") or 0)
         volume = int(fields.get("volumelevel", "0") or 0)
         muted = fields.get("muted", "0") == "1"
+        # current track positions (0-based integers, empty string if unknown)
+        audiotrack = fields.get("audiotrack", "")
+        subtitletrack = fields.get("subtitletrack", "")
 
         # Active player: MPC-HC is active when a file is loaded (not idle/no-source)
         is_active = raw_state >= _STATE_STOPPED and bool(filepath)
 
-        prev_filepath = self._last.get("file", "")
-        prev_state = self._last.get("state")
+        prev_filepath = self._last.get("filepath", "")
 
         if is_active and not self._last.get("active"):
             updates["active_player"] = "mpchc"
             updates["filepath"] = filepath
+            if title:
+                updates["title"] = title
             self._last["active"] = True
 
         if not is_active and self._last.get("active"):
@@ -244,7 +251,9 @@ class MpcHcClient:
 
         if filepath != prev_filepath:
             updates["filepath"] = filepath
-            self._last["file"] = filepath
+            if title:
+                updates["title"] = title
+            self._last["filepath"] = filepath
 
         pos_sec = position_ms / 1000.0
         dur_sec = duration_ms / 1000.0
@@ -264,5 +273,21 @@ class MpcHcClient:
         if muted != self._last.get("muted"):
             updates["muted"] = muted
             self._last["muted"] = muted
+
+        # Active track indices (MPC-HC reports 0-based)
+        if audiotrack != "" and audiotrack != self._last.get("audiotrack"):
+            try:
+                updates["current_audio"] = int(audiotrack)
+                self._last["audiotrack"] = audiotrack
+            except ValueError:
+                pass
+
+        if subtitletrack != "" and subtitletrack != self._last.get("subtitletrack"):
+            try:
+                sub_idx = int(subtitletrack)
+                updates["current_subtitle"] = sub_idx if sub_idx >= 0 else -1
+                self._last["subtitletrack"] = subtitletrack
+            except ValueError:
+                pass
 
         return updates
