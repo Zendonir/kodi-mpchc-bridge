@@ -116,7 +116,7 @@ class KodiClient:
                 result = await asyncio.wait_for(fut, timeout=REQUEST_TIMEOUT)
                 return result
             except asyncio.TimeoutError:
-                _LOG.warning("Kodi WS RPC timeout: %s — retrying via HTTP", method)
+                _LOG.debug("Kodi WS RPC timeout: %s — retrying via HTTP", method)
                 self._pending.pop(req_id, None)
                 # Fall through to HTTP retry below
             finally:
@@ -129,10 +129,15 @@ class KodiClient:
             if self._auth:
                 kwargs["auth"] = self._auth
             async with session.post(self._http_url, **kwargs) as resp:
+                if resp.status == 401:
+                    _LOG.warning("Kodi HTTP auth failed (401) for %s — check kodi_username/kodi_password in config.json", method)
+                    return None
                 data = await resp.json()
-                return data.get("result")
+                result = data.get("result")
+                _LOG.debug("Kodi HTTP RPC OK: %s → %s", method, type(result).__name__)
+                return result
         except Exception as exc:
-            _LOG.debug("Kodi HTTP RPC failed: %s", exc)
+            _LOG.warning("Kodi HTTP RPC failed: %s — %s", method, exc)
             return None
 
     async def _get_session(self) -> aiohttp.ClientSession:
