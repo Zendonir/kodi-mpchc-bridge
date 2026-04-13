@@ -267,21 +267,26 @@ class KodiClient:
             self._ws = ws
             _LOG.info("Kodi WebSocket connected")
 
-            # Initial state sync
-            await self._sync_initial()
-
-            # Start position polling
+            # Start message reader FIRST so RPC responses can be received
+            # while _sync_initial() awaits its futures.
+            reader_task = asyncio.create_task(self._read_loop(ws), name="kodi-reader")
             self._poll_task = asyncio.create_task(self._position_poll(), name="kodi-pos")
 
             try:
-                async for msg in ws:
-                    if msg.type == aiohttp.WSMsgType.TEXT:
-                        await self._handle_message(json.loads(msg.data))
-                    elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
-                        break
+                await self._sync_initial()
+                # Wait for reader to finish (disconnected)
+                await reader_task
             finally:
+                reader_task.cancel()
                 self._poll_task.cancel()
                 self._ws = None
+
+    async def _read_loop(self, ws: aiohttp.ClientWebSocketResponse) -> None:
+        async for msg in ws:
+            if msg.type == aiohttp.WSMsgType.TEXT:
+                await self._handle_message(json.loads(msg.data))
+            elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                break
 
     # ------------------------------------------------------------------
     # Initial state sync
