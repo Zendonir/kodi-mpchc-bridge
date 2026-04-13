@@ -3,6 +3,12 @@ Hub — orchestrates all components.
 
 Wires together StateManager, KodiClient, MpcHcClient, MkV parser,
 CommandRouter, and BridgeServer.
+
+Priority rule:
+  MPC-HC wins whenever it has a file loaded (active_player == "mpchc").
+  While MPC-HC is active, Kodi state updates are filtered out — only
+  volume/mute pass through so the Kodi volume control still works.
+  When MPC-HC becomes idle again, Kodi state is immediately re-synced.
 """
 
 from __future__ import annotations
@@ -21,12 +27,16 @@ from bridge.state import StateManager
 
 _LOG = logging.getLogger(__name__)
 
+# Fields that Kodi may update even while MPC-HC is active
+_KODI_PASSTHROUGH_WHILE_MPCHC = {"volume", "muted"}
+
 
 class Hub:
     def __init__(self, config: ConfigManager) -> None:
         self._config = config
         self._state = StateManager()
         self._last_filepath: str = ""
+        self._mpchc_active = False  # True while MPC-HC has a file loaded
 
         cfg = config.cfg
 
@@ -35,14 +45,14 @@ class Hub:
             port=cfg.kodi_ws_port,
             username=cfg.kodi_username,
             password=cfg.kodi_password,
-            on_state=self._on_state_update,
+            on_state=self._on_kodi_update,
             ssl=cfg.kodi_ssl,
         )
 
         self._mpchc = MpcHcClient(
             host=cfg.mpchc_host,
             port=cfg.mpchc_port,
-            on_state=self._on_state_update,
+            on_state=self._on_mpchc_update,
         )
 
         self._router = CommandRouter(self._state, self._kodi, self._mpchc)
@@ -74,29 +84,55 @@ class Hub:
         _LOG.info("Hub stopped")
 
     # ------------------------------------------------------------------
-    # State update callback (called by both clients)
+    # MPC-HC state handler
     # ------------------------------------------------------------------
-    async def _on_state_update(self, updates: dict[str, Any]) -> None:
-        """
-        Receive partial state updates from a client, apply them,
-        trigger MKV parsing if filepath changed, then push diffs to WS.
-        """
-        # MPC-HC filepath change → parse MKV
+    async def _on_mpchc_update(self, updates: dict[str, Any]) -> None:
+        new_active = updates.get("active_player")
+
+        if new_active == "mpchc":
+            self._mpchc_active = True
+            _LOG.info("MPC-HC became active player")
+        elif new_active == "none" and self._mpchc_active:
+            self._mpchc_active = False
+            _LOG.info("MPC-HC became idle — Kodi may take over")
+
+        # MKV parsing on filepath change
         new_filepath = updates.get("filepath")
         if new_filepath is not None and new_filepath != self._last_filepath:
             self._last_filepath = new_filepath
             if new_filepath and new_filepath.lower().endswith(".mkv"):
-                mkv_updates = await asyncio.get_event_loop().run_in_executor(
+                mkv_updates = await asyncio.get_running_loop().run_in_executor(
                     None, self._parse_mkv_sync, new_filepath
                 )
                 updates.update(mkv_updates)
 
+        await self._push(updates)
+
+    # ------------------------------------------------------------------
+    # Kodi state handler
+    # ------------------------------------------------------------------
+    async def _on_kodi_update(self, updates: dict[str, Any]) -> None:
+        if self._mpchc_active:
+            # Filter: only volume/mute pass through while MPC-HC is playing
+            filtered = {k: v for k, v in updates.items() if k in _KODI_PASSTHROUGH_WHILE_MPCHC}
+            if filtered:
+                await self._push(filtered)
+            return
+
+        await self._push(updates)
+
+    # ------------------------------------------------------------------
+    # Common push
+    # ------------------------------------------------------------------
+    async def _push(self, updates: dict[str, Any]) -> None:
         patch = self._state.apply(updates)
         if patch:
             await self._server.push_patch(patch)
 
+    # ------------------------------------------------------------------
+    # MKV parser (blocking, runs in thread pool)
+    # ------------------------------------------------------------------
     def _parse_mkv_sync(self, filepath: str) -> dict[str, Any]:
-        """Parse MKV file and return state updates (runs in thread pool)."""
         try:
             tracks = parse_mkv(filepath)
             audio, subs, chapters = tracks_to_dicts(tracks)

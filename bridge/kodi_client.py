@@ -109,7 +109,7 @@ class KodiClient:
             payload["params"] = params
 
         if self._ws and not self._ws.closed:
-            fut: asyncio.Future = asyncio.get_event_loop().create_future()
+            fut: asyncio.Future = asyncio.get_running_loop().create_future()
             self._pending[req_id] = fut
             try:
                 await self._ws.send_json(payload)
@@ -340,6 +340,11 @@ class KodiClient:
             },
         ) or {}
 
+        # Only claim active if we actually got meaningful data from Kodi
+        if not props and not item:
+            _LOG.debug("Kodi _sync_player: both calls returned None, skipping active claim")
+            return
+
         updates = self._build_state_update(item, props)
         updates["active_player"] = "kodi"
         self._last["active"] = True
@@ -450,11 +455,16 @@ class KodiClient:
     # Message handler
     # ------------------------------------------------------------------
     async def _handle_message(self, msg: dict) -> None:
-        # JSON-RPC response
-        if "id" in msg and "result" in msg:
+        # JSON-RPC response (result or error)
+        if "id" in msg and ("result" in msg or "error" in msg):
             fut = self._pending.get(msg["id"])
             if fut and not fut.done():
-                fut.set_result(msg["result"])
+                if "result" in msg:
+                    fut.set_result(msg["result"])
+                else:
+                    # Resolve with None on error so callers don't hang
+                    _LOG.debug("Kodi RPC error for id %s: %s", msg["id"], msg.get("error"))
+                    fut.set_result(None)
             return
 
         method = msg.get("method", "")
