@@ -465,7 +465,7 @@ class App(tk.Tk):
 
         if "chapters" in patch or is_full:
             chapters = s.get("chapters", [])
-            labels = [f"{c['pos']}: {c['name'] or f'Chapter {c[\"pos\"]+1}'}" for c in chapters]
+            labels = [f"{c['pos']}: {c['name'] if c['name'] else 'Chapter ' + str(c['pos'] + 1)}" for c in chapters]
             self._ch_cb["values"] = labels
             cur = s.get("current_chapter", 0)
             if labels and cur < len(labels):
