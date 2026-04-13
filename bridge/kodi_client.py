@@ -113,22 +113,22 @@ class KodiClient:
             self._pending[req_id] = fut
             try:
                 await self._ws.send_json(payload)
-                return await asyncio.wait_for(fut, timeout=REQUEST_TIMEOUT)
+                result = await asyncio.wait_for(fut, timeout=REQUEST_TIMEOUT)
+                return result
             except asyncio.TimeoutError:
-                _LOG.warning("Kodi RPC timeout: %s", method)
-                return None
+                _LOG.warning("Kodi WS RPC timeout: %s — retrying via HTTP", method)
+                self._pending.pop(req_id, None)
+                # Fall through to HTTP retry below
             finally:
                 self._pending.pop(req_id, None)
 
-        # Fallback: HTTP JSON-RPC
+        # HTTP JSON-RPC (primary when WS not connected, fallback after WS timeout)
         try:
             session = await self._get_session()
-            async with session.post(
-                self._http_url,
-                json=payload,
-                auth=self._auth,
-                timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT),
-            ) as resp:
+            kwargs: dict[str, Any] = {"json": payload, "timeout": aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)}
+            if self._auth:
+                kwargs["auth"] = self._auth
+            async with session.post(self._http_url, **kwargs) as resp:
                 data = await resp.json()
                 return data.get("result")
         except Exception as exc:

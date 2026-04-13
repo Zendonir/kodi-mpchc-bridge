@@ -145,15 +145,25 @@ class MpcHcClient:
             return False
 
     async def _fetch_status(self) -> dict[str, str] | None:
-        try:
-            session = await self._get_session()
-            async with session.get(self._base + "/status.html") as resp:
-                if resp.status != 200:
-                    return None
-                html = await resp.text()
-                return {m.group(1): m.group(2).strip() for m in _RE_FIELD.finditer(html)}
-        except Exception:
-            return None
+        # Try /variables.html first (more reliable in newer MPC-HC builds),
+        # fall back to /status.html
+        for path in ("/variables.html", "/status.html"):
+            try:
+                session = await self._get_session()
+                async with session.get(self._base + path) as resp:
+                    if resp.status != 200:
+                        continue
+                    html = await resp.text()
+                    fields = {m.group(1): m.group(2).strip() for m in _RE_FIELD.finditer(html)}
+                    # Accept if we got at least a "state" field
+                    if "state" in fields:
+                        if not hasattr(self, "_status_path") or self._status_path != path:
+                            self._status_path = path
+                            _LOG.info("MPC-HC: using endpoint %s", path)
+                        return fields
+            except Exception:
+                continue
+        return None
 
     async def _poll_loop(self) -> None:
         _LOG.info("MPC-HC polling started at %s", self._base)
@@ -172,8 +182,16 @@ class MpcHcClient:
                 continue
 
             if not _was_reachable:
-                _LOG.info("MPC-HC reachable at %s  (state=%s, file=%s)",
-                          self._base, fields.get("statestring", "?"), fields.get("file", "none"))
+                _LOG.info(
+                    "MPC-HC reachable at %s — parsed fields: %s",
+                    self._base, list(fields.keys()),
+                )
+                _LOG.info(
+                    "MPC-HC state=%s statestring=%s file=%s",
+                    fields.get("state", "?"),
+                    fields.get("statestring", "?"),
+                    fields.get("file", "<not present>") or "<empty>",
+                )
                 _was_reachable = True
 
             updates = self._parse_status(fields)
