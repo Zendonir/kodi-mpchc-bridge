@@ -137,7 +137,7 @@ class KodiClient:
                 _LOG.debug("Kodi HTTP RPC OK: %s → %s", method, type(result).__name__)
                 return result
         except Exception as exc:
-            _LOG.warning("Kodi HTTP RPC failed: %s — %s", method, exc)
+            _LOG.warning("Kodi HTTP RPC failed: %s — %s: %s", method, type(exc).__name__, exc)
             return None
 
     async def _get_session(self) -> aiohttp.ClientSession:

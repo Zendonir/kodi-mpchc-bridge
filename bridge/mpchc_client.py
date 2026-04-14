@@ -106,18 +106,16 @@ class MpcHcClient:
 
     async def seek(self, position_ms: int) -> bool:
         """Seek to absolute position in milliseconds."""
-        return await self._get("/command.html", {"wm_command": -1, "position": position_ms})
+        # MPC-HC web API: POST or GET /command.html with position=<ms>
+        # wm_command must be omitted (or 0) for a pure position seek
+        return await self._get("/command.html", {"position": position_ms})
 
     async def set_volume(self, volume: int) -> bool:
-        """Set volume 0-100 (MPC-HC accepts 0-100)."""
-        # MPC-HC doesn't have a direct set-volume endpoint; we use the slider
-        return await self._get("/command.html", {"wm_command": -1, "volume": max(0, min(100, volume))})
+        """Set volume 0-100."""
+        return await self._get("/command.html", {"volume": max(0, min(100, volume))})
 
     async def set_audio_track(self, pos: int) -> bool:
         """Select audio track by 0-based position."""
-        # MPC-HC API: audioid parameter (1-based in some versions, 0-based in others)
-        # We navigate from track 0 by sending next-audio-track commands
-        # Simpler: use audioid directly if supported
         return await self._get("/command.html", {"wm_command": -1, "audioid": pos})
 
     async def set_subtitle_track(self, pos: int) -> bool:
@@ -136,12 +134,19 @@ class MpcHcClient:
         return self._session
 
     async def _get(self, path: str, params: dict | None = None) -> bool:
+        url = self._base + path
         try:
             session = await self._get_session()
-            async with session.get(self._base + path, params=params) as resp:
-                return resp.status == 200
+            async with session.get(url, params=params) as resp:
+                ok = resp.status == 200
+                if not ok:
+                    body = await resp.text()
+                    _LOG.warning("MPC-HC %s params=%s → HTTP %d  body=%r", path, params, resp.status, body[:200])
+                else:
+                    _LOG.debug("MPC-HC %s params=%s → OK", path, params)
+                return ok
         except Exception as exc:
-            _LOG.debug("MPC-HC request failed: %s", exc)
+            _LOG.warning("MPC-HC request failed: %s  url=%s  params=%s", exc, url, params)
             return False
 
     async def _fetch_status(self) -> dict[str, str] | None:
