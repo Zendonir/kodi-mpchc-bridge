@@ -30,16 +30,17 @@ _STATE_MAP = {
 }
 
 # /command.html wm_command values
-CMD_PLAY_PAUSE = 887
-CMD_PLAY = 888
+CMD_PLAY_PAUSE = 889   # ID_PLAY_PLAYPAUSE (toggle)
+CMD_PLAY = 887         # ID_PLAY_PLAY
+CMD_PAUSE = 888        # ID_PLAY_PAUSE
 CMD_STOP = 890
 CMD_SEEK_FORWARD_SMALL = 902
 CMD_SEEK_BACKWARD_SMALL = 903
 CMD_VOLUME_UP = 904
 CMD_VOLUME_DOWN = 905
 CMD_MUTE = 907
-CMD_NEXT_CHAPTER = 921
-CMD_PREV_CHAPTER = 922
+CMD_NEXT_CHAPTER = 922   # swapped: 922 = next
+CMD_PREV_CHAPTER = 921   # swapped: 921 = prev
 CMD_NEXT_AUDIO = 952
 CMD_PREV_AUDIO = 953
 CMD_SKIP_FORWARD = 900
@@ -116,13 +117,40 @@ class MpcHcClient:
 
     async def set_audio_track(self, pos: int) -> bool:
         """Select audio track by 0-based position."""
-        return await self._get("/command.html", {"wm_command": -1, "audioid": pos})
+        return await self._get("/command.html", {"audiotrack": pos})
 
     async def set_subtitle_track(self, pos: int) -> bool:
         """Select subtitle track by 0-based position. pos=-1 disables subtitles."""
-        if pos < 0:
-            return await self._get("/command.html", {"wm_command": -1, "subid": -1})
-        return await self._get("/command.html", {"wm_command": -1, "subid": pos})
+        return await self._get("/command.html", {"subtitletrack": pos})
+
+    async def close(self) -> None:
+        """Close MPC-HC by killing the process that listens on our port."""
+        import subprocess
+        import sys
+        if sys.platform != "win32":
+            return
+        try:
+            # Find PID listening on the MPC-HC port
+            port = int(self._base.rsplit(":", 1)[-1])
+            out = subprocess.check_output(
+                ["netstat", "-ano"], text=True, stderr=subprocess.DEVNULL
+            )
+            for line in out.splitlines():
+                if f":{port}" in line and "LISTENING" in line:
+                    pid = line.split()[-1]
+                    subprocess.run(["taskkill", "/f", "/pid", pid], capture_output=True)
+                    _LOG.info("MPC-HC closed (PID %s)", pid)
+                    return
+            # Fallback: kill by known exe names
+            for name in ("mpc-hc64.exe", "mpc-hc.exe", "mpc-be64.exe", "mpc-be.exe"):
+                result = subprocess.run(
+                    ["taskkill", "/f", "/im", name], capture_output=True
+                )
+                if result.returncode == 0:
+                    _LOG.info("MPC-HC closed (%s)", name)
+                    return
+        except Exception as exc:
+            _LOG.warning("MPC-HC close failed: %s", exc)
 
     # ------------------------------------------------------------------
     # Internal polling

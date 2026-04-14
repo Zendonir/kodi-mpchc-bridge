@@ -83,7 +83,9 @@ class CommandRouter:
         if cmd == "play_pause":
             return await self._mpchc.send_command(CMD_PLAY_PAUSE)
         elif cmd == "stop":
-            return await self._mpchc.send_command(CMD_STOP)
+            # Stop = close MPC-HC entirely
+            await self._mpchc.close()
+            return True
         elif cmd == "next_chapter":
             return await self._mpchc.send_command(CMD_NEXT_CHAPTER)
         elif cmd == "prev_chapter":
