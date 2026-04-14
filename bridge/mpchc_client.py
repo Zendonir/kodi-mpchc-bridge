@@ -107,21 +107,20 @@ class MpcHcClient:
 
     async def seek(self, position_ms: int) -> bool:
         """Seek to absolute position in milliseconds."""
-        # MPC-HC web API: POST or GET /command.html with position=<ms>
-        # wm_command must be omitted (or 0) for a pure position seek
-        return await self._get("/command.html", {"position": position_ms})
+        # wm_command=-1 signals MPC-HC to process the extra parameters
+        return await self._get("/command.html", {"wm_command": -1, "position": position_ms})
 
     async def set_volume(self, volume: int) -> bool:
         """Set volume 0-100."""
-        return await self._get("/command.html", {"volume": max(0, min(100, volume))})
+        return await self._get("/command.html", {"wm_command": -1, "volume": max(0, min(100, volume))})
 
     async def set_audio_track(self, pos: int) -> bool:
         """Select audio track by 0-based position."""
-        return await self._get("/command.html", {"audiotrack": pos})
+        return await self._get("/command.html", {"wm_command": -1, "audiotrack": pos})
 
     async def set_subtitle_track(self, pos: int) -> bool:
         """Select subtitle track by 0-based position. pos=-1 disables subtitles."""
-        return await self._get("/command.html", {"subtitletrack": pos})
+        return await self._get("/command.html", {"wm_command": -1, "subtitletrack": pos})
 
     async def close(self) -> None:
         """Close MPC-HC by killing the process that listens on our port."""
@@ -170,8 +169,9 @@ class MpcHcClient:
                 if not ok:
                     body = await resp.text()
                     _LOG.warning("MPC-HC %s params=%s → HTTP %d  body=%r", path, params, resp.status, body[:200])
-                else:
-                    _LOG.debug("MPC-HC %s params=%s → OK", path, params)
+                elif params and "wm_command" in params:
+                    # Log all actual commands (not polling)
+                    _LOG.info("MPC-HC cmd %s → OK", params)
                 return ok
         except Exception as exc:
             _LOG.warning("MPC-HC request failed: %s  url=%s  params=%s", exc, url, params)
