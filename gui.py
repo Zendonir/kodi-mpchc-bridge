@@ -43,13 +43,18 @@ _C_BTN_HOV  = "#4444aa"
 # Helpers — Windows admin / subprocess
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _run_as_admin(cmd: str) -> bool:
-    """Run *cmd* via cmd.exe with UAC elevation. Returns True if launched."""
+def _elevate(exe: str, args: str) -> bool:
+    """
+    Launch *exe* with *args* via UAC elevation (ShellExecuteW runas).
+    SW_SHOWNORMAL=1 is required so the UAC dialog is actually visible.
+    Returns True if the shell accepted the request (does NOT wait for completion).
+    """
     if sys.platform != "win32":
         return False
     import ctypes
+    SW_SHOWNORMAL = 1
     rc = ctypes.windll.shell32.ShellExecuteW(
-        None, "runas", "cmd.exe", f"/c {cmd}", None, 0
+        None, "runas", exe, args, None, SW_SHOWNORMAL
     )
     return int(rc) > 32
 
@@ -89,16 +94,16 @@ def service_status() -> str:
 
 def service_install(exe: str) -> tuple[bool, str]:
     """Install Windows Service (admin required)."""
-    binpath = f"\"{exe}\" --headless"
-    cmd = (
-        f'sc create {_SERVICE_NAME} '
-        f'binpath= "{binpath}" '
+    # cmd.exe /c is needed to chain multiple sc commands with &&
+    args = (
+        f'/c sc create {_SERVICE_NAME} '
+        f'binpath= "{exe} --headless" '
         f'start= auto '
         f'DisplayName= "{_SERVICE_DISPLAY}" '
         f'&& sc description {_SERVICE_NAME} "Bridges Kodi and MPC-HC for remote control" '
         f'&& sc start {_SERVICE_NAME}'
     )
-    ok = _run_as_admin(cmd)
+    ok = _elevate("cmd.exe", args)
     if ok:
         return True, "Service-Installation gestartet (UAC-Fenster beachten)."
     return False, "Service-Installation abgebrochen."
@@ -106,8 +111,8 @@ def service_install(exe: str) -> tuple[bool, str]:
 
 def service_uninstall() -> tuple[bool, str]:
     """Remove Windows Service (admin required)."""
-    cmd = f"sc stop {_SERVICE_NAME} & sc delete {_SERVICE_NAME}"
-    ok = _run_as_admin(cmd)
+    args = f"/c sc stop {_SERVICE_NAME} & sc delete {_SERVICE_NAME}"
+    ok = _elevate("cmd.exe", args)
     if ok:
         return True, "Service-Deinstallation gestartet."
     return False, "Abgebrochen."
@@ -118,30 +123,35 @@ def service_uninstall() -> tuple[bool, str]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def firewall_rule_exists(port: int) -> bool:
+    # subprocess list-form passes the name as a single token — no shell quoting needed
     rc, out = _run_hidden(
-        ["netsh", "advfirewall", "firewall", "show", "rule", f"name={_FIREWALL_RULE}"]
+        ["netsh", "advfirewall", "firewall", "show", "rule",
+         f"name={_FIREWALL_RULE}", "verbose"]
     )
-    return rc == 0 and "Rule Name" in out
+    # rc=0 + "Rule Name" in output means rule exists
+    # rc!=0 or "No rules match" means absent
+    return "Rule Name" in out
 
 
 def firewall_add(port: int) -> tuple[bool, str]:
-    cmd = (
-        f'netsh advfirewall firewall add rule '
+    # Run netsh DIRECTLY (not via cmd.exe) so no shell-quoting issues with the name
+    args = (
+        f'advfirewall firewall add rule '
         f'name="{_FIREWALL_RULE}" '
         f'dir=in action=allow protocol=TCP localport={port} '
         f'description="Kodi-MPC-HC Bridge inbound port"'
     )
-    ok = _run_as_admin(cmd)
+    ok = _elevate("netsh", args)
     if ok:
-        return True, f"Firewall-Regel für Port {port} wird hinzugefügt."
-    return False, "Abgebrochen."
+        return True, f"Firewall-Regel für Port {port} wird hinzugefügt (UAC-Fenster bestätigen)."
+    return False, "Abgebrochen — UAC verweigert oder kein Admin."
 
 
 def firewall_remove() -> tuple[bool, str]:
-    cmd = f'netsh advfirewall firewall delete rule name="{_FIREWALL_RULE}"'
-    ok = _run_as_admin(cmd)
+    args = f'advfirewall firewall delete rule name="{_FIREWALL_RULE}"'
+    ok = _elevate("netsh", args)
     if ok:
-        return True, "Firewall-Regel wird entfernt."
+        return True, "Firewall-Regel wird entfernt (UAC-Fenster bestätigen)."
     return False, "Abgebrochen."
 
 
