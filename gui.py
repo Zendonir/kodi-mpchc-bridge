@@ -231,7 +231,7 @@ class InstallerApp:
         self._root.title("Kodi ↔ MPC-HC Bridge")
         self._root.configure(bg=_C_BG)
         self._root.resizable(True, True)
-        self._root.minsize(560, 500)
+        self._root.minsize(600, 580)
 
         self._build_ui()
         self._refresh_status()
@@ -260,24 +260,34 @@ class InstallerApp:
     # ── UI construction ──────────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
-        # Header
+        # Header (packed top → first)
         hdr = tk.Frame(self._root, bg=_C_ACCENT, height=56)
-        hdr.pack(fill="x")
+        hdr.pack(side="top", fill="x")
         hdr.pack_propagate(False)
         tk.Label(
             hdr, text="  🔷  Kodi ↔ MPC-HC Bridge",
             bg=_C_ACCENT, fg="white", font=("Segoe UI", 14, "bold"), anchor="w"
         ).pack(side="left", padx=12, pady=10)
 
-        # Status bar
+        # Status bar (packed top → second)
         self._status_var = tk.StringVar(value="…")
         self._status_lbl = tk.Label(
             self._root, textvariable=self._status_var,
             bg=_C_PANEL, fg=_C_FG_DIM, font=("Segoe UI", 9), anchor="w", padx=12, pady=6
         )
-        self._status_lbl.pack(fill="x")
+        self._status_lbl.pack(side="top", fill="x")
 
-        # Notebook
+        # Bottom action bar — packed BEFORE notebook so expand=True doesn't steal its space
+        bar = tk.Frame(self._root, bg=_C_PANEL, pady=10)
+        bar.pack(side="bottom", fill="x")
+        self._btn_start = self._btn(bar, "▶  Bridge starten", self._on_start, _C_SUCCESS)
+        self._btn_start.pack(side="left", padx=(14, 6))
+        self._btn_stop = self._btn(bar, "■  Stoppen", self._on_stop, _C_ERROR)
+        self._btn_stop.pack(side="left", padx=6)
+        self._btn(bar, "🧪  Test-Client", self._on_test_client, _C_ACCENT).pack(side="left", padx=6)
+        self._btn(bar, "✖  Beenden", self._root.destroy, _C_BTN).pack(side="right", padx=14)
+
+        # Notebook (packed last with expand — fills all remaining space)
         style = ttk.Style(self._root)
         style.theme_use("clam")
         style.configure("TNotebook", background=_C_BG, borderwidth=0)
@@ -289,7 +299,7 @@ class InstallerApp:
                   foreground=[("selected", _C_FG)])
 
         nb = ttk.Notebook(self._root)
-        nb.pack(fill="both", expand=True, padx=0, pady=0)
+        nb.pack(side="top", fill="both", expand=True)
 
         self._tab_settings = tk.Frame(nb, bg=_C_BG)
         self._tab_install  = tk.Frame(nb, bg=_C_BG)
@@ -302,16 +312,6 @@ class InstallerApp:
         self._build_settings_tab()
         self._build_install_tab()
         self._build_log_tab()
-
-        # Bottom action bar
-        bar = tk.Frame(self._root, bg=_C_PANEL, pady=8)
-        bar.pack(fill="x", side="bottom")
-        self._btn_start = self._btn(bar, "▶  Bridge starten", self._on_start, _C_SUCCESS)
-        self._btn_start.pack(side="left", padx=(12, 4))
-        self._btn_stop = self._btn(bar, "■  Stoppen", self._on_stop, _C_ERROR)
-        self._btn_stop.pack(side="left", padx=4)
-        self._btn(bar, "🧪  Test-Client", self._on_test_client, _C_ACCENT).pack(side="left", padx=4)
-        self._btn(bar, "✖  Beenden", self._root.destroy, _C_BTN).pack(side="right", padx=12)
 
     def _btn(self, parent, text: str, cmd, color=_C_BTN, width: int = 0) -> tk.Button:
         b = tk.Button(
@@ -568,22 +568,79 @@ class InstallerApp:
               f"{sys.executable} {os.path.abspath('main.py')}"
         ok, msg = service_install(exe)
         self._log(("[INFO] " if ok else "[ERROR] ") + msg)
-        self._root.after(3000, self._refresh_status)
+        if ok:
+            self._lbl_service.config(text="⏳  Warte auf UAC-Bestätigung…", fg=_C_WARN)
+            self._poll_service(expect_installed=True, attempts=8)
 
     def _on_svc_remove(self) -> None:
         ok, msg = service_uninstall()
         self._log(("[INFO] " if ok else "[ERROR] ") + msg)
-        self._root.after(3000, self._refresh_status)
+        if ok:
+            self._lbl_service.config(text="⏳  Warte auf UAC-Bestätigung…", fg=_C_WARN)
+            self._poll_service(expect_installed=False, attempts=8)
+
+    def _poll_service(self, expect_installed: bool, attempts: int) -> None:
+        """Poll every 2 s until service state matches expectation."""
+        def _check(remaining: int) -> None:
+            ss = service_status()
+            installed = ss != "not_installed"
+            if installed == expect_installed:
+                if expect_installed:
+                    self._log(f"[INFO] ✅ Service '{_SERVICE_NAME}' installiert (Status: {ss}).")
+                else:
+                    self._log(f"[INFO] ✅ Service '{_SERVICE_NAME}' entfernt.")
+                self._refresh_status()
+            elif remaining > 0:
+                self._root.after(2000, lambda: _check(remaining - 1))
+            else:
+                self._log("[WARN] ⚠  Service-Status hat sich nicht geändert — UAC abgelehnt?")
+                self._refresh_status()
+
+        self._root.after(2000, lambda: _check(attempts - 1))
 
     def _on_fw_add(self) -> None:
         ok, msg = firewall_add(self._port)
         self._log(("[INFO] " if ok else "[ERROR] ") + msg)
-        self._root.after(3000, self._refresh_status)
+        if ok:
+            self._lbl_firewall.config(text="⏳  Warte auf UAC-Bestätigung…", fg=_C_WARN)
+            self._poll_firewall(expect_present=True, attempts=8)
 
     def _on_fw_remove(self) -> None:
         ok, msg = firewall_remove()
         self._log(("[INFO] " if ok else "[ERROR] ") + msg)
-        self._root.after(3000, self._refresh_status)
+        if ok:
+            self._lbl_firewall.config(text="⏳  Warte auf UAC-Bestätigung…", fg=_C_WARN)
+            self._poll_firewall(expect_present=False, attempts=8)
+
+    def _poll_firewall(self, expect_present: bool, attempts: int) -> None:
+        """Poll every 2 s until firewall state matches *expect_present*, max *attempts* tries."""
+        def _check(remaining: int) -> None:
+            exists = firewall_rule_exists(self._port)
+            if exists == expect_present:
+                # Reached expected state
+                if expect_present:
+                    self._log(f"[INFO] ✅ Firewall-Regel erfolgreich hinzugefügt (Port {self._port}).")
+                    self._lbl_firewall.config(
+                        text=f"✅  Firewall-Regel vorhanden (Port {self._port})", fg=_C_SUCCESS
+                    )
+                else:
+                    self._log("[INFO] ✅ Firewall-Regel erfolgreich entfernt.")
+                    self._lbl_firewall.config(
+                        text=f"❌  Keine Firewall-Regel für Port {self._port}", fg=_C_FG_DIM
+                    )
+                self._refresh_status()
+            elif remaining > 0:
+                # Not yet — try again after 2 s
+                self._root.after(2000, lambda: _check(remaining - 1))
+            else:
+                # Timeout
+                if expect_present:
+                    self._log("[WARN] ⚠  Firewall-Regel nicht gefunden — UAC abgelehnt oder Fehler.")
+                else:
+                    self._log("[WARN] ⚠  Firewall-Regel noch vorhanden — UAC abgelehnt oder Fehler.")
+                self._refresh_status()
+
+        self._root.after(2000, lambda: _check(attempts - 1))
 
     def _on_clear_log(self) -> None:
         self._log_text.configure(state="normal")
@@ -608,7 +665,7 @@ class InstallerApp:
     def run(self) -> None:
         # Centre on screen
         self._root.update_idletasks()
-        w, h = 620, 580
+        w, h = 660, 700
         sw = self._root.winfo_screenwidth()
         sh = self._root.winfo_screenheight()
         self._root.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
