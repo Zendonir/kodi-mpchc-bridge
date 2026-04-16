@@ -8,6 +8,7 @@ player (Kodi or MPC-HC) based on which is currently active.
 from __future__ import annotations
 
 import logging
+import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -17,17 +18,78 @@ if TYPE_CHECKING:
 
 _LOG = logging.getLogger(__name__)
 
-# Commands that are always routed to Kodi (UI/app-level)
+# Commands that are always routed to Kodi (UI/app-level), regardless of active player
 _KODI_ONLY = {
+    "show_osd",
+}
+
+# Navigation commands with smart routing:
+#   MPC-HC active → handled by MPC-HC (keyboard/close/context)
+#   otherwise     → forwarded to Kodi
+_SMART_NAV = {
     "navigate_up", "navigate_down", "navigate_left", "navigate_right",
     "navigate_select", "navigate_back", "navigate_home",
-    "context_menu", "show_osd", "show_info",
+    "show_info", "context_menu",
 }
+
+# Windows virtual-key codes used for MPC-HC keyboard control
+_VK_LEFT    = 0x25
+_VK_RIGHT   = 0x27
+_VK_UP      = 0x26
+_VK_DOWN    = 0x28
+_VK_RETURN  = 0x0D
+_VK_J       = 0x4A
+_VK_APPS    = 0x5D  # "Menu / Applications" key — opens context menus
 
 # Commands that are always routed to MPC-HC when it is active
 _MPCHC_SPECIFIC = {
     "mpchc_next_audio", "mpchc_prev_audio",
 }
+
+
+def _find_process_window(exe_name: str) -> int:
+    """
+    Return the HWND of the first visible top-level window belonging to
+    *exe_name* (e.g. "kodi.exe").  Returns 0 if not found.
+    Only works on Windows.
+    """
+    if sys.platform != "win32":
+        return 0
+    import ctypes
+    import ctypes.wintypes
+    import subprocess
+
+    # Resolve PID via tasklist
+    try:
+        out = subprocess.check_output(
+            ["tasklist", "/fi", f"imagename eq {exe_name}", "/fo", "csv", "/nh"],
+            text=True, stderr=subprocess.DEVNULL,
+        )
+        target_pid = 0
+        for line in out.strip().splitlines():
+            parts = line.strip('"').split('","')
+            if parts and parts[0].lower() == exe_name.lower():
+                target_pid = int(parts[1])
+                break
+        if not target_pid:
+            return 0
+    except Exception:
+        return 0
+
+    # Enumerate top-level windows to find one owned by that PID
+    found: list[int] = [0]
+    EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
+
+    def _cb(hwnd: int, _: int) -> bool:
+        pid = ctypes.wintypes.DWORD()
+        ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if pid.value == target_pid and ctypes.windll.user32.IsWindowVisible(hwnd):
+            found[0] = hwnd
+            return False  # stop enumeration
+        return True
+
+    ctypes.windll.user32.EnumWindows(EnumWindowsProc(_cb), 0)
+    return found[0]
 
 
 class CommandRouter:
@@ -53,10 +115,24 @@ class CommandRouter:
         """
         active = self._active
 
-        # Navigation always goes to Kodi
+        # System-level commands (player-independent)
+        if cmd == "kodi_windows":
+            _LOG.info("CMD %-22s → system (Kodi/Windows toggle)", cmd)
+            return self._toggle_kodi_windows()
+
+        # Always-Kodi navigation (OSD)
         if cmd in _KODI_ONLY:
-            _LOG.info("CMD %-22s → kodi (navigation)", cmd)
+            _LOG.info("CMD %-22s → kodi (always)", cmd)
             return await self._kodi_navigate(cmd)
+
+        # Smart navigation: MPC-HC gets keyboard control when active
+        if cmd in _SMART_NAV:
+            if active == "mpchc":
+                _LOG.info("CMD %-22s → mpchc (nav/key)", cmd)
+                return await self._handle_mpchc_nav(cmd)
+            else:
+                _LOG.info("CMD %-22s → kodi (navigation)", cmd)
+                return await self._kodi_navigate(cmd)
 
         if active == "mpchc":
             _LOG.info("CMD %-22s → mpchc  (value=%s)", cmd, value)
@@ -67,6 +143,41 @@ class CommandRouter:
         else:
             _LOG.info("CMD %-22s → DROPPED (no active player)", cmd)
             return False
+
+    # ------------------------------------------------------------------
+    # System commands
+    # ------------------------------------------------------------------
+    def _toggle_kodi_windows(self) -> bool:
+        """
+        Minimize Kodi to show the Windows desktop, or restore it if minimized.
+        Works by finding the main Kodi window via its process name.
+        """
+        if sys.platform != "win32":
+            _LOG.warning("kodi_windows toggle only supported on Windows")
+            return False
+
+        import ctypes
+
+        SW_MINIMIZE = 6
+        SW_RESTORE  = 9
+        user32 = ctypes.windll.user32
+
+        hwnd = _find_process_window("kodi.exe")
+        if not hwnd:
+            _LOG.warning("kodi_windows: Kodi window not found")
+            return False
+
+        if user32.IsIconic(hwnd):
+            # Kodi is minimized → restore and bring to front
+            user32.ShowWindow(hwnd, SW_RESTORE)
+            user32.SetForegroundWindow(hwnd)
+            _LOG.info("kodi_windows: Kodi restored to foreground")
+        else:
+            # Kodi is visible → minimize (Windows desktop becomes visible)
+            user32.ShowWindow(hwnd, SW_MINIMIZE)
+            _LOG.info("kodi_windows: Kodi minimized, Windows desktop visible")
+
+        return True
 
     # ------------------------------------------------------------------
     # MPC-HC commands
@@ -120,6 +231,34 @@ class CommandRouter:
         else:
             _LOG.debug("Unknown MPC-HC cmd: %s", cmd)
             return False
+
+    # ------------------------------------------------------------------
+    # MPC-HC navigation / keyboard commands
+    # ------------------------------------------------------------------
+    async def _handle_mpchc_nav(self, cmd: str) -> bool:
+        if cmd in ("navigate_back", "navigate_home"):
+            # Back / Home → close MPC-HC
+            await self._mpchc.close()
+            return True
+        elif cmd == "show_info":
+            # Info → Ctrl+J
+            return await self._mpchc.send_key(_VK_J, ctrl=True)
+        elif cmd == "context_menu":
+            # Menu → MPC-HC context menu (Applications/Menu key)
+            return await self._mpchc.send_key(_VK_APPS)
+        elif cmd == "navigate_up":
+            return await self._mpchc.send_key(_VK_UP)
+        elif cmd == "navigate_down":
+            return await self._mpchc.send_key(_VK_DOWN)
+        elif cmd == "navigate_left":
+            return await self._mpchc.send_key(_VK_LEFT)
+        elif cmd == "navigate_right":
+            return await self._mpchc.send_key(_VK_RIGHT)
+        elif cmd == "navigate_select":
+            # OK / Enter
+            return await self._mpchc.send_key(_VK_RETURN)
+        _LOG.debug("Unhandled MPC-HC nav cmd: %s", cmd)
+        return False
 
     # ------------------------------------------------------------------
     # Kodi commands
