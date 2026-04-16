@@ -122,6 +122,38 @@ class MpcHcClient:
         """Select subtitle track by 0-based position. pos=-1 disables subtitles."""
         return await self._get("/command.html", {"wm_command": -1, "subtitletrack": pos})
 
+    async def send_key(self, vk_code: int, ctrl: bool = False) -> bool:
+        """Send a keyboard message directly to the MPC-HC window via Windows API."""
+        import sys
+        if sys.platform != "win32":
+            _LOG.warning("send_key only supported on Windows")
+            return False
+        import ctypes
+
+        WM_KEYDOWN = 0x0100
+        WM_KEYUP = 0x0101
+        VK_CONTROL = 0x11
+
+        user32 = ctypes.windll.user32
+
+        # MPC-HC window class name
+        hwnd = user32.FindWindowW("MediaPlayerClassicW", None)
+        if not hwnd:
+            _LOG.warning("MPC-HC window not found (class=MediaPlayerClassicW)")
+            return False
+
+        if ctrl:
+            user32.PostMessageW(hwnd, WM_KEYDOWN, VK_CONTROL, 0)
+            user32.PostMessageW(hwnd, WM_KEYDOWN, vk_code, 0)
+            user32.PostMessageW(hwnd, WM_KEYUP, vk_code, 0)
+            user32.PostMessageW(hwnd, WM_KEYUP, VK_CONTROL, 0)
+        else:
+            user32.PostMessageW(hwnd, WM_KEYDOWN, vk_code, 0)
+            user32.PostMessageW(hwnd, WM_KEYUP, vk_code, 0)
+
+        _LOG.info("MPC-HC key sent: vk=0x%02X ctrl=%s", vk_code, ctrl)
+        return True
+
     async def close(self) -> None:
         """Close MPC-HC by killing the process that listens on our port."""
         import subprocess
