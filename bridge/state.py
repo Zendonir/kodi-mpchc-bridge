@@ -81,6 +81,14 @@ class UnifiedState:
     current_subtitle: int = -1  # -1 = disabled
     current_chapter: int = 0
 
+    # --- video / stream info (populated from MKV parse or Kodi stream details) ---
+    video_width: int = 0
+    video_height: int = 0
+    video_fps: float = 0.0
+    hdr: str = ""               # "HDR10" | "HLG" | "DV" | "" (SDR)
+    video_codec: str = ""
+    video_bitrate_kbps: int = 0
+
     # --- Kodi player controls ---
     volume: int = 0
     muted: bool = False
@@ -164,5 +172,11 @@ class StateManager:
                 "current_subtitle": -1,
                 "current_chapter": 0,
                 "filepath": "",
+                "video_width": 0,
+                "video_height": 0,
+                "video_fps": 0.0,
+                "hdr": "",
+                "video_codec": "",
+                "video_bitrate_kbps": 0,
             }
         )

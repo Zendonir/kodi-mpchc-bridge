@@ -221,9 +221,21 @@ class CommandRouter:
         elif cmd == "set_volume" and value is not None:
             return await self._mpchc.set_volume(int(value))
         elif cmd == "audio_track" and value is not None:
-            return await self._mpchc.set_audio_track(int(value))
+            target = int(value)
+            cur = self._state.state.current_audio
+            total = len(self._state.state.audio_tracks)
+            ok = await self._mpchc.set_audio_track(target, cur, total)
+            if ok:
+                self._state.apply({"current_audio": target})
+            return ok
         elif cmd == "subtitle_track" and value is not None:
-            return await self._mpchc.set_subtitle_track(int(value))
+            target = int(value)
+            cur = self._state.state.current_subtitle
+            total = len(self._state.state.subtitle_tracks)
+            ok = await self._mpchc.set_subtitle_track(target, cur, total)
+            if ok:
+                self._state.apply({"current_subtitle": target})
+            return ok
         elif cmd == "mpchc_next_audio":
             return await self._mpchc.send_command(CMD_NEXT_AUDIO)
         elif cmd == "mpchc_prev_audio":
@@ -244,8 +256,9 @@ class CommandRouter:
             # Info → Ctrl+J
             return await self._mpchc.send_key(_VK_J, ctrl=True)
         elif cmd == "context_menu":
-            # Menu → MPC-HC context menu (Applications/Menu key)
-            return await self._mpchc.send_key(_VK_APPS)
+            # Menu → MPC-HC context menu via wm_command 950
+            from bridge.mpchc_client import CMD_CONTEXT_MENU
+            return await self._mpchc.send_command(CMD_CONTEXT_MENU)
         elif cmd == "navigate_up":
             return await self._mpchc.send_key(_VK_UP)
         elif cmd == "navigate_down":

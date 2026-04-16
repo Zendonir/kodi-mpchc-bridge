@@ -215,7 +215,6 @@ class App(tk.Tk):
         self._v_muted = tk.StringVar(value="")
         self._v_shuffle = tk.StringVar(value="")
         self._v_repeat = tk.StringVar(value="off")
-
         rows = [
             ("State", self._v_state),
             ("Title", self._v_title),
@@ -233,13 +232,26 @@ class App(tk.Tk):
             self._lbl(frame, lbl, i, 0)
             self._val(frame, var, i, 1)
 
-        # Progress bar
+        # Cover art image
+        cover_row = len(rows)
+        self._lbl(frame, "Cover", cover_row, 0)
+        self._artwork_label = tk.Label(
+            frame, bg=PANEL_BG, fg=DIM_FG, font=self._small,
+            text="—", anchor="w", width=22, height=8,
+        )
+        self._artwork_label.grid(
+            row=cover_row, column=1, sticky="w", padx=(0, 8), pady=4
+        )
+        self._img_ref = None       # keep PhotoImage alive
+        self._current_art_url = "" # track last loaded URL
+
+        # Progress bar  (cover is at len(rows), so progress bar goes one below)
         self._progress = ttk.Progressbar(frame, orient="horizontal", mode="determinate")
-        self._progress.grid(row=len(rows), column=0, columnspan=2, sticky="ew",
+        self._progress.grid(row=len(rows) + 1, column=0, columnspan=2, sticky="ew",
                             padx=8, pady=(4, 8))
 
         # Seek entry
-        seek_row = len(rows) + 1
+        seek_row = len(rows) + 2
         self._lbl(frame, "Seek to (s)", seek_row, 0)
         self._seek_var = tk.StringVar(value="0")
         seek_entry = tk.Entry(frame, textvariable=self._seek_var, width=8,
@@ -340,7 +352,7 @@ class App(tk.Tk):
         self._ch_cb.bind("<<ComboboxSelected>>", self._on_chapter_select)
 
         # --- Navigation ---
-        nav = tk.LabelFrame(right, text=" Navigation (Kodi) ", bg=PANEL_BG, fg=DIM_FG,
+        nav = tk.LabelFrame(right, text=" Navigation ", bg=PANEL_BG, fg=DIM_FG,
                             font=self._small, bd=1, relief="groove")
         nav.pack(fill="x", pady=(0, 5))
         nav_inner = tk.Frame(nav, bg=PANEL_BG)
@@ -372,6 +384,7 @@ class App(tk.Tk):
             ("Home", "navigate_home"),
             ("Menu", "context_menu"),
             ("Info", "show_info"),
+            ("Kodi/Win", "kodi_windows"),
         ]:
             b = tk.Button(extra, text=text, command=lambda c=cmd: self._cmd(c))
             _style_btn(b)
@@ -439,6 +452,10 @@ class App(tk.Tk):
         self._v_muted.set("🔇" if s.get("muted") else "")
         self._v_shuffle.set("🔀" if s.get("shuffle") else "")
         self._v_repeat.set(s.get("repeat", "off"))
+        artwork = s.get("artwork_url", "")
+        if artwork != self._current_art_url:
+            self._current_art_url = artwork
+            self._load_artwork_bg(artwork)
 
         if not self._vol_slider.identify(self._vol_slider.winfo_pointerx() - self._vol_slider.winfo_rootx(),
                                          self._vol_slider.winfo_pointery() - self._vol_slider.winfo_rooty()):
@@ -532,6 +549,44 @@ class App(tk.Tk):
                 self._cmd("seek", ch["time_ms"] / 1000.0)
                 return
 
+    # ------------------------------------------------------------------
+    # Cover art
+    # ------------------------------------------------------------------
+    def _load_artwork_bg(self, url: str) -> None:
+        """Fetch *url* in a background thread and update the cover label."""
+        if not url:
+            self.after(0, self._set_artwork, None)
+            return
+
+        def _fetch():
+            try:
+                import urllib.request as _ur
+                with _ur.urlopen(url, timeout=8) as resp:
+                    data = resp.read()
+                self.after(0, self._set_artwork, data)
+            except Exception:
+                self.after(0, self._set_artwork, None)
+
+        threading.Thread(target=_fetch, daemon=True).start()
+
+    def _set_artwork(self, data: bytes | None) -> None:
+        if data is None:
+            self._artwork_label.configure(image="", text="—")
+            self._img_ref = None
+            return
+        try:
+            from PIL import Image, ImageTk
+            import io
+            img = Image.open(io.BytesIO(data))
+            img.thumbnail((180, 180))
+            photo = ImageTk.PhotoImage(img)
+            self._artwork_label.configure(image=photo, text="", width=180, height=180)
+            self._img_ref = photo
+        except ImportError:
+            self._artwork_label.configure(image="", text="(Pillow nicht installiert)")
+        except Exception:
+            self._artwork_label.configure(image="", text="—")
+
     def _on_close(self):
         self._client.stop()
         self.destroy()
@@ -552,14 +607,9 @@ def _fmt_time(seconds: float) -> str:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Bridge test client")
-    parser.add_argument("--host", default="localhost")
-    parser.add_argument("--port", type=int, default=13580)
-    args = parser.parse_args()
 
-    # Apply dark theme to ttk
-    app = App(args.host, args.port)
+def main(host: str = "localhost", port: int = 13590) -> None:
+    app = App(host, port)
     style = ttk.Style(app)
     try:
         style.theme_use("clam")
@@ -568,5 +618,12 @@ if __name__ == "__main__":
     style.configure("TCombobox", fieldbackground=BTN_BG, background=BTN_BG,
                     foreground=TEXT_FG, selectbackground=ACCENT)
     style.configure("Horizontal.TProgressbar", troughcolor=BTN_BG, background=ACCENT)
-
     app.mainloop()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Bridge test client")
+    parser.add_argument("--host", default="localhost")
+    parser.add_argument("--port", type=int, default=13590)
+    args = parser.parse_args()
+    main(args.host, args.port)

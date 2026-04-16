@@ -32,7 +32,7 @@ class BridgeConfig:
 
     # Server
     server_host: str = "0.0.0.0"
-    server_port: int = 13580
+    server_port: int = 13590
 
     def __post_init__(self) -> None:
         for f in fields(self):

@@ -20,7 +20,7 @@ _LOG = logging.getLogger(__name__)
 
 RECONNECT_DELAY = 5.0
 POSITION_POLL_INTERVAL = 1.0
-REQUEST_TIMEOUT = 5.0
+REQUEST_TIMEOUT = 2.0
 
 StateCallback = Callable[[dict[str, Any]], Awaitable[None]]
 
@@ -52,15 +52,18 @@ class KodiClient:
     def __init__(
         self,
         host: str,
-        port: int,
+        ws_port: int,
+        http_port: int,
         username: str,
         password: str,
         on_state: StateCallback,
         ssl: bool = False,
     ) -> None:
         scheme = "wss" if ssl else "ws"
-        self._ws_url = f"{scheme}://{host}:{port}/jsonrpc"
-        self._http_url = f"{'https' if ssl else 'http'}://{host}:{port}/jsonrpc"
+        http_scheme = "https" if ssl else "http"
+        self._ws_url = f"{scheme}://{host}:{ws_port}/jsonrpc"
+        self._http_url = f"{http_scheme}://{host}:{http_port}/jsonrpc"
+        self._http_base = f"{http_scheme}://{host}:{http_port}"
         self._auth = aiohttp.BasicAuth(username, password) if username else None
         self._on_state = on_state
         self._session: aiohttp.ClientSession | None = None
@@ -148,6 +151,139 @@ class KodiClient:
     # ------------------------------------------------------------------
     # Commands
     # ------------------------------------------------------------------
+    async def fetch_image_bytes(self, url: str) -> tuple[bytes, str]:
+        """
+        Download image bytes from *url* using Kodi auth.
+        Returns (data, content_type).  Raises on failure.
+        """
+        from yarl import URL as YarlURL
+
+        session = await self._get_session()
+        kwargs: dict[str, Any] = {"timeout": aiohttp.ClientTimeout(total=10)}
+        if self._auth:
+            kwargs["auth"] = self._auth
+        # encoded=True prevents aiohttp/yarl from decoding and re-encoding the
+        # path, which would corrupt percent-encoded characters like %3A → :
+        async with session.get(YarlURL(url, encoded=True), **kwargs) as resp:
+            resp.raise_for_status()
+            data = await resp.read()
+            return data, resp.content_type or "image/jpeg"
+
+    async def get_file_artwork(self, filepath: str) -> str:
+        """
+        Return an HTTP URL for the thumbnail of *filepath* from Kodi's library.
+        Empty string if not found.
+
+        Strategy (in order):
+        1. Player.GetActivePlayers + Player.GetItem — fast when Kodi has an active item.
+        2. VideoLibrary.GetMovies by filename — path-format-independent library search.
+        3. Files.GetFileDetails — exact path match (last resort, may be slow).
+        Prefers art.poster > art.fanart > thumbnail.
+        """
+        import os
+
+        def _pick_art(item: dict) -> str:
+            art = item.get("art") or {}
+            return (
+                art.get("poster", "")
+                or art.get("fanart", "")
+                or item.get("thumbnail", "")
+                or ""
+            )
+
+        # 1) Active Kodi player → Player.GetItem (fastest, most reliable)
+        players = await self._call("Player.GetActivePlayers") or []
+        for player in players:
+            pid = player.get("playerid")
+            if pid is None:
+                continue
+            result = await self._call("Player.GetItem", {
+                "playerid": pid,
+                "properties": ["art", "thumbnail", "file"],
+            })
+            _LOG.info("Artwork [1/3] Player.GetItem(player=%d) → %s", pid, result)
+            if result and isinstance(result, dict):
+                item = result.get("item", {})
+                thumb = _pick_art(item)
+                _LOG.info("Artwork [1/3] art=%r  thumb=%r", item.get("art"), thumb)
+                if thumb:
+                    url = self._image_url(thumb)
+                    _LOG.info("Artwork [1/3] HTTP URL: %s", url)
+                    return url
+
+        # 2) VideoLibrary search by filename (path-format independent)
+        filename = os.path.basename(filepath)
+        result = await self._call("VideoLibrary.GetMovies", {
+            "filter": {"field": "filename", "operator": "is", "value": filename},
+            "properties": ["thumbnail", "art"],
+            "limits": {"end": 1},
+        })
+        _LOG.info("Artwork [2/3] VideoLibrary.GetMovies(%r) → %s", filename, result)
+        if result and isinstance(result, dict):
+            movies = result.get("movies", [])
+            if movies:
+                m = movies[0]
+                thumb = _pick_art(m)
+                _LOG.info("Artwork [2/3] movie=%r  art=%r  thumbnail=%r  → using=%r",
+                          m.get("label"), m.get("art"), m.get("thumbnail"), thumb)
+                if thumb:
+                    url = self._image_url(thumb)
+                    _LOG.info("Artwork [2/3] HTTP URL: %s", url)
+                    return url
+            else:
+                _LOG.info("Artwork [2/3] no movie found for filename=%r", filename)
+
+        # 3) Exact path lookup (last resort — may time out for remote paths)
+        result = await self._call("Files.GetFileDetails", {
+            "file": filepath,
+            "media": "video",
+            "properties": ["thumbnail", "art"],
+        })
+        _LOG.info("Artwork [3/3] Files.GetFileDetails → %s", result)
+        if result and isinstance(result, dict):
+            item = result.get("filedetails", {})
+            thumb = _pick_art(item)
+            _LOG.info("Artwork [3/3] poster=%r  thumbnail=%r  → using=%r",
+                      (item.get("art") or {}).get("poster"), item.get("thumbnail"), thumb)
+            if thumb:
+                url = self._image_url(thumb)
+                _LOG.info("Artwork [3/3] HTTP URL: %s", url)
+                return url
+
+        _LOG.warning("Artwork: nothing found for %r", filepath)
+        return ""
+
+    def _image_url(self, kodi_url: str) -> str:
+        """
+        Convert a Kodi image:// URL to a fetchable HTTP(S) URL.
+
+        Kodi stores artwork in two forms:
+          image://https%3a%2f%2fassets.fanart.tv%2f...  → remote image (Fanart.tv/TMDB)
+          image://video@Y%3a%5cFilme%5c...              → local video thumbnail
+
+        For remote images the inner HTTP URL is extracted and used directly.
+        For local thumbnails Kodi's image proxy is used.
+        """
+        if not kodi_url:
+            return ""
+        if not kodi_url.startswith("image://"):
+            return kodi_url
+
+        # Decode once so we always work with the unescaped form
+        normalized = urllib.parse.unquote(kodi_url)   # image://https://...  or  image://video@...
+        inner = normalized[len("image://"):].rstrip("/")
+
+        # Remote image wrapped in image:// → use the URL directly
+        if inner.startswith("https://") or inner.startswith("http://"):
+            _LOG.debug("_image_url: direct remote URL %s", inner)
+            return inner
+
+        # Local / Kodi-internal → route through Kodi's image proxy
+        encoded = urllib.parse.quote(normalized, safe="")
+        proxy = f"{self._http_base}/image/{encoded}"
+        _LOG.debug("_image_url: Kodi proxy %s", proxy)
+        return proxy
+
     async def play_pause(self) -> None:
         if self._active_player_id is not None:
             await self._call("Player.PlayPause", {"playerid": self._active_player_id})
@@ -433,6 +569,26 @@ class KodiClient:
         # Shuffle / repeat
         updates["shuffle"] = props.get("shuffled", False)
         updates["repeat"] = props.get("repeat", "off")
+
+        # Video stream info from streamdetails (populated by Kodi scraper)
+        media = item.get("item", item)
+        sd_video = (media.get("streamdetails") or {}).get("video", [])
+        if sd_video:
+            vs = sd_video[0]
+            updates["video_width"] = vs.get("width", 0) or 0
+            updates["video_height"] = vs.get("height", 0) or 0
+            updates["video_fps"] = round(float(vs.get("duration", 0) or 0), 3)
+            updates["video_codec"] = vs.get("codec", "") or ""
+            # hdrtype is present in Kodi 20+ ("dolbyvision", "hdr10", "hlg", "")
+            hdr_raw = (vs.get("hdrtype") or "").lower()
+            if hdr_raw in ("hdr10", "hdr"):
+                updates["hdr"] = "HDR10"
+            elif hdr_raw == "dolbyvision":
+                updates["hdr"] = "DV"
+            elif hdr_raw == "hlg":
+                updates["hdr"] = "HLG"
+            else:
+                updates["hdr"] = ""
 
         return updates
 

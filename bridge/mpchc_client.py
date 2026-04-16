@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import sys
 from typing import Any, Callable, Awaitable
 
 import aiohttp
@@ -45,12 +46,50 @@ CMD_NEXT_AUDIO = 952
 CMD_PREV_AUDIO = 953
 CMD_SKIP_FORWARD = 900
 CMD_SKIP_BACKWARD = 901
+CMD_NEXT_SUBTITLE = 954
+CMD_PREV_SUBTITLE = 955
+CMD_CONTEXT_MENU = 950
 
 POLL_INTERVAL = 0.5  # seconds
-RECONNECT_DELAY = 3.0
+RECONNECT_DELAY = 0.5
 
 # Regex for status.html fields
 _RE_FIELD = re.compile(r'<p id="([^"]+)"[^>]*>([^<]*)</p>', re.DOTALL)
+
+# Base wm_command IDs for track selection via Win32
+_AUDIO_BASE = 50000
+_SUB_BASE = 50935
+
+# Win32 PostMessage for track selection (HTTP API silently ignores these IDs)
+_WM_COMMAND = 0x0111
+_MPCHC_CLASSES = ("MediaPlayerClassicW", "MPC-BE", "MPC-BE64")
+
+if sys.platform == "win32":
+    import ctypes as _ctypes
+    _user32: Any = _ctypes.windll.user32
+else:
+    _user32 = None
+
+
+def _post_wm_command(cmd_id: int) -> bool:
+    """Send WM_COMMAND directly to the MPC-HC window via Win32 PostMessageW."""
+    if _user32 is None:
+        return False
+    for cls in _MPCHC_CLASSES:
+        hwnd = _user32.FindWindowW(cls, None)
+        if hwnd:
+            _user32.PostMessageW(hwnd, _WM_COMMAND, cmd_id, 0)
+            return True
+    return False
+
+
+def _ms_to_hmsms(ms: int) -> str:
+    """Convert milliseconds to MPC-HC position string H:MM:SS:mmm."""
+    ms = max(0, ms)
+    hours, rem = divmod(ms, 3_600_000)
+    minutes, rem = divmod(rem, 60_000)
+    seconds, millis = divmod(rem, 1_000)
+    return f"{hours}:{minutes:02d}:{seconds:02d}:{millis:03d}"
 
 
 StateCallback = Callable[[dict[str, Any]], Awaitable[None]]
@@ -107,20 +146,110 @@ class MpcHcClient:
 
     async def seek(self, position_ms: int) -> bool:
         """Seek to absolute position in milliseconds."""
-        # wm_command=-1 signals MPC-HC to process the extra parameters
-        return await self._get("/command.html", {"wm_command": -1, "position": position_ms})
+        return await self._get("/command.html", {"wm_command": -1, "position": _ms_to_hmsms(position_ms)})
 
     async def set_volume(self, volume: int) -> bool:
         """Set volume 0-100."""
-        return await self._get("/command.html", {"wm_command": -1, "volume": max(0, min(100, volume))})
+        return await self._get("/command.html", {"wm_command": -2, "volume": max(0, min(100, volume))})
 
-    async def set_audio_track(self, pos: int) -> bool:
-        """Select audio track by 0-based position."""
-        return await self._get("/command.html", {"wm_command": -1, "audiotrack": pos})
+    async def set_audio_track(self, target: int, current: int, total: int) -> bool:
+        """Cycle to audio track *target* using next/prev commands, or Win32 PostMessage."""
+        if total <= 0:
+            return False
+        cmd_id = _AUDIO_BASE + target
+        if _post_wm_command(cmd_id):
+            _LOG.info("AUDIO select: target=%d  → PostMessage wm_command=%d", target, cmd_id)
+            return True
+        # Fallback: cycle via HTTP next/prev
+        steps_fwd = (target - current) % total
+        steps_bwd = (current - target) % total
+        if steps_fwd == 0:
+            return True
+        cmd, steps = (CMD_NEXT_AUDIO, steps_fwd) if steps_fwd <= steps_bwd else (CMD_PREV_AUDIO, steps_bwd)
+        direction = "NEXT" if cmd == CMD_NEXT_AUDIO else "PREV"
+        _LOG.info("AUDIO select: target=%d  current=%d  total=%d  → %s x%d", target, current, total, direction, steps)
+        for _ in range(steps):
+            await self.send_command(cmd)
+            await asyncio.sleep(0.05)
+        return True
 
-    async def set_subtitle_track(self, pos: int) -> bool:
-        """Select subtitle track by 0-based position. pos=-1 disables subtitles."""
-        return await self._get("/command.html", {"wm_command": -1, "subtitletrack": pos})
+    async def set_subtitle_track(self, target: int, current: int, total: int) -> bool:
+        """Cycle to subtitle track *target* using next/prev commands. target=-1 disables.
+
+        MPC-HC's subtitle cycle has (total + 1) slots:
+          0, 1, ..., total-1, [No subtitles], 0, 1, ...
+        'No subtitles' (-1) maps to position *total* in the cycle.
+        """
+        if total <= 0:
+            _LOG.warning("SUB select: target=%s  current=%s  total=0  → DROPPED (no tracks)",
+                         "Off" if target < 0 else target, "Off" if current < 0 else current)
+            return False
+
+        cycle_len = total + 1
+        pos_current = total if current < 0 else current
+        pos_target = total if target < 0 else target
+
+        steps_fwd = (pos_target - pos_current) % cycle_len
+        steps_bwd = (pos_current - pos_target) % cycle_len
+
+        t_lbl = "Off" if target < 0 else str(target)
+        c_lbl = "Off" if current < 0 else str(current)
+
+        if steps_fwd == 0:
+            _LOG.info("SUB select: target=%s  current=%s  total=%d  → no-op (already selected)", t_lbl, c_lbl, total)
+            return True
+
+        cmd, steps = (CMD_NEXT_SUBTITLE, steps_fwd) if steps_fwd <= steps_bwd else (CMD_PREV_SUBTITLE, steps_bwd)
+        direction = "NEXT" if cmd == CMD_NEXT_SUBTITLE else "PREV"
+        _LOG.info("SUB select: target=%s  current=%s  total=%d  → %s x%d", t_lbl, c_lbl, total, direction, steps)
+        for _ in range(steps):
+            await self.send_command(cmd)
+            await asyncio.sleep(0.05)
+        return True
+
+    async def send_key(self, vk_code: int, ctrl: bool = False) -> bool:
+        """
+        Send a keystroke to the MPC-HC/MPC-BE window.
+
+        Brings the player window to the foreground and uses keybd_event so the
+        key is delivered as real input (PostMessage is not reliable for shortcuts).
+        """
+        import sys
+        if sys.platform != "win32":
+            _LOG.warning("send_key only supported on Windows")
+            return False
+        import ctypes
+
+        KEYEVENTF_KEYUP = 0x0002
+        VK_CONTROL = 0x11
+
+        user32 = ctypes.windll.user32
+
+        # Try known window class names for MPC-HC and MPC-BE
+        hwnd = 0
+        for cls in ("MediaPlayerClassicW", "MPC-BE", "MPC-BE64"):
+            hwnd = user32.FindWindowW(cls, None)
+            if hwnd:
+                _LOG.debug("MPC window found: class=%s hwnd=%d", cls, hwnd)
+                break
+
+        if not hwnd:
+            _LOG.warning("MPC window not found (tried MediaPlayerClassicW, MPC-BE, MPC-BE64)")
+            return False
+
+        # Bring the player window to foreground so keybd_event reaches it
+        user32.SetForegroundWindow(hwnd)
+        user32.BringWindowToTop(hwnd)
+
+        if ctrl:
+            user32.keybd_event(VK_CONTROL, 0, 0, 0)
+        user32.keybd_event(vk_code, 0, 0, 0)
+        user32.keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0)
+        if ctrl:
+            user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+
+        _LOG.info("MPC key sent: vk=0x%02X ctrl=%s", vk_code, ctrl)
+        return True
 
     async def send_key(self, vk_code: int, ctrl: bool = False) -> bool:
         """Send a keyboard message directly to the MPC-HC window via Windows API."""
@@ -339,20 +468,13 @@ class MpcHcClient:
             updates["muted"] = muted
             self._last["muted"] = muted
 
-        # Active track indices (MPC-HC reports 0-based)
-        if audiotrack != "" and audiotrack != self._last.get("audiotrack"):
-            try:
-                updates["current_audio"] = int(audiotrack)
-                self._last["audiotrack"] = audiotrack
-            except ValueError:
-                pass
+        # Active track names — hub resolves these to indices using MKV track lists
+        if audiotrack != self._last.get("audiotrack"):
+            updates["audiotrack_name"] = audiotrack
+            self._last["audiotrack"] = audiotrack
 
-        if subtitletrack != "" and subtitletrack != self._last.get("subtitletrack"):
-            try:
-                sub_idx = int(subtitletrack)
-                updates["current_subtitle"] = sub_idx if sub_idx >= 0 else -1
-                self._last["subtitletrack"] = subtitletrack
-            except ValueError:
-                pass
+        if subtitletrack != self._last.get("subtitletrack"):
+            updates["subtitletrack_name"] = subtitletrack
+            self._last["subtitletrack"] = subtitletrack
 
         return updates

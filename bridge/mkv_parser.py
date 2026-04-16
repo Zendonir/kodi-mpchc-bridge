@@ -1,5 +1,6 @@
 """
-Minimal EBML/MKV parser — extracts audio tracks, subtitle tracks, and chapters.
+Minimal EBML/MKV parser — extracts audio tracks, subtitle tracks, chapters,
+video info (resolution, FPS, HDR), and total bitrate.
 
 No external dependencies. Reads only the Segment Info, Tracks, and Chapters
 elements near the beginning of the file (up to READ_LIMIT bytes).
@@ -7,6 +8,7 @@ elements near the beginning of the file (up to READ_LIMIT bytes).
 
 from __future__ import annotations
 
+import os
 import struct
 from dataclasses import dataclass, field
 from typing import Optional
@@ -19,6 +21,8 @@ READ_LIMIT = 4 * 1024 * 1024  # 4 MB
 _ID_EBML = 0x1A45DFA3
 _ID_SEGMENT = 0x18538067
 _ID_SEGMENT_INFO = 0x1549A966
+_ID_TIMECODE_SCALE = 0x2AD7B1  # nanoseconds per timecode unit (default 1 000 000)
+_ID_DURATION = 0x4489           # float, in TimecodeScale units
 _ID_TRACKS = 0x1654AE6B
 _ID_TRACK_ENTRY = 0xAE
 _ID_TRACK_NUMBER = 0xD7
@@ -32,6 +36,16 @@ _ID_FLAG_DEFAULT = 0x88
 _ID_FLAG_FORCED = 0x55AA
 _ID_AUDIO = 0xE1
 _ID_CHANNELS = 0x9F
+# Video track elements
+_ID_VIDEO = 0xE0
+_ID_PIXEL_WIDTH = 0xB0
+_ID_PIXEL_HEIGHT = 0xBA
+_ID_COLOUR = 0x55B0
+_ID_TRANSFER_CHARACTERISTICS = 0x55BA
+_ID_COLOUR_PRIMARIES = 0x55BB
+_ID_MAX_CLL = 0x55BC            # presence → HDR10 content light metadata
+_ID_MASTERING_METADATA = 0x55D0
+# Chapters
 _ID_CHAPTERS = 0x1043A770
 _ID_EDITION_ENTRY = 0x45B9
 _ID_CHAPTER_ATOM = 0xB6
@@ -45,6 +59,11 @@ _ID_CHAPTER_HIDDEN = 0x98
 _TRACK_TYPE_VIDEO = 1
 _TRACK_TYPE_AUDIO = 2
 _TRACK_TYPE_SUBTITLE = 17
+
+# TransferCharacteristics values that indicate HDR
+# 16 = SMPTE ST 2084 (PQ / HDR10)   18 = ARIB STD-B67 (HLG)
+_TC_HDR10 = 16
+_TC_HLG = 18
 
 # ---------------------------------------------------------------------------
 # Codec → short name maps
@@ -117,10 +136,22 @@ class Chapter:
 
 
 @dataclass
+class VideoInfo:
+    """Primary video track metadata."""
+    width: int = 0
+    height: int = 0
+    fps: float = 0.0       # frames per second (0 = unknown)
+    hdr: str = ""          # "HDR10" | "HLG" | "DV" | "" (SDR)
+    codec: str = ""        # e.g. "V_MPEGH/ISO/HEVC", "V_MPEG4/ISO/AVC"
+    bitrate_kbps: int = 0  # total file bitrate (audio+video), kbps
+
+
+@dataclass
 class MkvTracks:
     audio: list[AudioTrack] = field(default_factory=list)
     subtitles: list[SubtitleTrack] = field(default_factory=list)
     chapters: list[Chapter] = field(default_factory=list)
+    video: VideoInfo = field(default_factory=VideoInfo)
 
 
 # ---------------------------------------------------------------------------
@@ -264,10 +295,48 @@ def _subtitle_label(track_name: str, codec_id: str, language: str, forced: bool)
 # ---------------------------------------------------------------------------
 # Track parsers
 # ---------------------------------------------------------------------------
+def _parse_video_element(data: bytes, start: int, end: int) -> tuple[int, int, float, str]:
+    """
+    Parse a Video sub-element of TrackEntry.
+    Returns (pixel_width, pixel_height, fps_from_default_duration, hdr_tag).
+    hdr_tag is "HDR10", "HLG", or "".
+    """
+    width = 0
+    height = 0
+    transfer = 0
+    has_max_cll = False
+    has_mastering = False
+
+    for eid, ds, de in _iter_children(data, start, end):
+        size = de - ds
+        if eid == _ID_PIXEL_WIDTH:
+            width = _read_uint(data, ds, size)
+        elif eid == _ID_PIXEL_HEIGHT:
+            height = _read_uint(data, ds, size)
+        elif eid == _ID_COLOUR:
+            for ceid, cds, cde in _iter_children(data, ds, de):
+                csize = cde - cds
+                if ceid == _ID_TRANSFER_CHARACTERISTICS:
+                    transfer = _read_uint(data, cds, csize)
+                elif ceid == _ID_MAX_CLL:
+                    has_max_cll = True
+                elif ceid == _ID_MASTERING_METADATA:
+                    has_mastering = True
+
+    hdr = ""
+    if transfer == _TC_HDR10 or has_max_cll or has_mastering:
+        hdr = "HDR10"
+    elif transfer == _TC_HLG:
+        hdr = "HLG"
+
+    return width, height, hdr
+
+
 def _parse_track_entry(data: bytes, start: int, end: int) -> Optional[tuple]:
     """
     Parse a TrackEntry element.
-    Returns (track_number, track_type, name, codec_id, language, channels, default, forced)
+    Returns (track_number, track_type, name, codec_id, language, channels,
+             default, forced, video_width, video_height, hdr, default_duration_ns)
     or None on error.
     """
     track_number = 0
@@ -279,6 +348,10 @@ def _parse_track_entry(data: bytes, start: int, end: int) -> Optional[tuple]:
     channels = 0
     flag_default = 0
     flag_forced = 0
+    default_duration_ns = 0
+    video_width = 0
+    video_height = 0
+    video_hdr = ""
 
     for eid, ds, de in _iter_children(data, start, end):
         size = de - ds
@@ -298,13 +371,40 @@ def _parse_track_entry(data: bytes, start: int, end: int) -> Optional[tuple]:
             flag_default = _read_uint(data, ds, size)
         elif eid == _ID_FLAG_FORCED:
             flag_forced = _read_uint(data, ds, size)
+        elif eid == _ID_DEFAULT_DURATION:
+            default_duration_ns = _read_uint(data, ds, size)
         elif eid == _ID_AUDIO:
             for aeid, ads, ade in _iter_children(data, ds, de):
                 if aeid == _ID_CHANNELS:
                     channels = _read_uint(data, ads, ade - ads)
+        elif eid == _ID_VIDEO:
+            video_width, video_height, video_hdr = _parse_video_element(data, ds, de)
 
     lang = language_ietf if language_ietf else language
-    return (track_number, track_type, name, codec_id, lang, channels, bool(flag_default), bool(flag_forced))
+    return (track_number, track_type, name, codec_id, lang, channels,
+            bool(flag_default), bool(flag_forced),
+            video_width, video_height, video_hdr, default_duration_ns)
+
+
+def _parse_segment_info(data: bytes, start: int, end: int) -> tuple[int, float]:
+    """
+    Parse SegmentInfo for TimecodeScale and Duration.
+    Returns (timecode_scale_ns, duration_in_scale_units).
+    """
+    timecode_scale = 1_000_000  # default: 1 ms per unit
+    duration = 0.0
+
+    for eid, ds, de in _iter_children(data, start, end):
+        size = de - ds
+        if eid == _ID_TIMECODE_SCALE:
+            timecode_scale = _read_uint(data, ds, size)
+        elif eid == _ID_DURATION:
+            if size == 4:
+                duration = struct.unpack_from(">f", data, ds)[0]
+            elif size == 8:
+                duration = struct.unpack_from(">d", data, ds)[0]
+
+    return timecode_scale, duration
 
 
 def _parse_chapter_atom(data: bytes, start: int, end: int) -> Optional[Chapter]:
@@ -333,11 +433,12 @@ def _parse_chapter_atom(data: bytes, start: int, end: int) -> Optional[Chapter]:
 # ---------------------------------------------------------------------------
 def parse_mkv(path: str) -> MkvTracks:
     """
-    Parse audio tracks, subtitle tracks and chapters from an MKV file.
+    Parse audio tracks, subtitle tracks, chapters, and video info from an MKV.
 
     Reads at most READ_LIMIT bytes. Returns empty MkvTracks on any error.
     """
     try:
+        file_size = os.path.getsize(path)
         with open(path, "rb") as fh:
             data = fh.read(READ_LIMIT)
     except OSError:
@@ -366,16 +467,36 @@ def parse_mkv(path: str) -> MkvTracks:
     audio_pos = 0
     sub_pos = 0
     chapter_pos = 0
+    timecode_scale = 1_000_000  # ns per unit
+    duration_units = 0.0
 
     for eid, ds, de in _iter_children(data, segment_start, min(len(data), segment_start + 32 * 1024 * 1024)):
-        if eid == _ID_TRACKS:
+        if eid == _ID_SEGMENT_INFO:
+            timecode_scale, duration_units = _parse_segment_info(data, ds, de)
+
+        elif eid == _ID_TRACKS:
             for teid, tds, tde in _iter_children(data, ds, de):
                 if teid == _ID_TRACK_ENTRY:
                     parsed = _parse_track_entry(data, tds, tde)
                     if parsed is None:
                         continue
-                    _tn, ttype, tname, codec_id, lang, channels, default, forced = parsed
-                    if ttype == _TRACK_TYPE_AUDIO:
+                    (_tn, ttype, tname, codec_id, lang, channels,
+                     default, forced, v_width, v_height, v_hdr, default_duration_ns) = parsed
+
+                    if ttype == _TRACK_TYPE_VIDEO and not result.video.width:
+                        # First video track wins
+                        fps = 0.0
+                        if default_duration_ns > 0:
+                            fps = round(1_000_000_000 / default_duration_ns, 3)
+                        result.video = VideoInfo(
+                            width=v_width,
+                            height=v_height,
+                            fps=fps,
+                            hdr=v_hdr,
+                            codec=codec_id,
+                        )
+
+                    elif ttype == _TRACK_TYPE_AUDIO:
                         label = _audio_label(tname, codec_id, channels, lang)
                         result.audio.append(
                             AudioTrack(
@@ -389,6 +510,7 @@ def parse_mkv(path: str) -> MkvTracks:
                             )
                         )
                         audio_pos += 1
+
                     elif ttype == _TRACK_TYPE_SUBTITLE:
                         label = _subtitle_label(tname, codec_id, lang, forced)
                         result.subtitles.append(
@@ -415,11 +537,20 @@ def parse_mkv(path: str) -> MkvTracks:
                                 chapter_pos += 1
                     break  # use first edition only
 
+    # Compute total bitrate from file size + duration
+    if duration_units > 0 and timecode_scale > 0:
+        duration_s = duration_units * timecode_scale / 1_000_000_000
+        if duration_s > 0:
+            result.video.bitrate_kbps = int(file_size * 8 / duration_s / 1000)
+
     return result
 
 
-def tracks_to_dicts(tracks: MkvTracks) -> tuple[list[dict], list[dict], list[dict]]:
-    """Convert MkvTracks to plain dicts suitable for JSON serialisation."""
+def tracks_to_dicts(tracks: MkvTracks) -> tuple[list[dict], list[dict], list[dict], dict]:
+    """
+    Convert MkvTracks to plain dicts suitable for JSON serialisation.
+    Returns (audio, subs, chapters, video_info_dict).
+    """
     audio = [
         {
             "pos": t.pos,
@@ -443,6 +574,17 @@ def tracks_to_dicts(tracks: MkvTracks) -> tuple[list[dict], list[dict], list[dic
         }
         for t in tracks.subtitles
     ]
+    # MPC-HC inserts a virtual "Forced Subtitles (auto)" track after all real
+    # subtitle tracks whenever the MKV contains at least one forced subtitle.
+    if any(t.forced for t in tracks.subtitles):
+        subs.append({
+            "pos": len(subs),
+            "label": "Forced (auto)",
+            "language": "UND",
+            "codec": "",
+            "forced": True,
+            "default": False,
+        })
     chapters = [
         {
             "pos": t.pos,
@@ -451,4 +593,13 @@ def tracks_to_dicts(tracks: MkvTracks) -> tuple[list[dict], list[dict], list[dic
         }
         for t in tracks.chapters
     ]
-    return audio, subs, chapters
+    v = tracks.video
+    video_info = {
+        "video_width": v.width,
+        "video_height": v.height,
+        "video_fps": v.fps,
+        "hdr": v.hdr,
+        "video_codec": v.codec,
+        "video_bitrate_kbps": v.bitrate_kbps,
+    }
+    return audio, subs, chapters, video_info

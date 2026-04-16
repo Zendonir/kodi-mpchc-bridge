@@ -1,0 +1,86 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"          # triggered by tags like v1.0.0
+  workflow_dispatch:  # manual trigger from GitHub UI
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Python ──────────────────────────────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      # ── Dependencies ────────────────────────────────────────────────────────
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install aiohttp yarl pyinstaller
+
+      # ── Build one-file exe ───────────────────────────────────────────────────
+      - name: Build bridge.exe
+        run: pyinstaller bridge.spec
+
+      # ── Smoke-test: exe starts and prints help ────────────────────────────
+      - name: Smoke-test exe
+        run: dist\bridge.exe --help
+        shell: cmd
+
+      # ── Determine version ───────────────────────────────────────────────────
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=dev-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Create GitHub Release ────────────────────────────────────────────────
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "Kodi ↔ MPC-HC Bridge ${{ steps.version.outputs.tag }}"
+          body: |
+            ## Kodi ↔ MPC-HC Bridge
+
+            Single-file Windows executable — kein Python oder Installation nötig.
+
+            ### Erste Schritte
+            1. `bridge.exe` herunterladen und in einen beliebigen Ordner legen
+            2. Doppelklick → Installer-GUI öffnet sich
+            3. **Einstellungen** eingeben (Kodi Host, Port, User, Passwort)
+            4. **💾 Einstellungen speichern**
+            5. **Firewall-Regel hinzufügen** (Admin-Bestätigung erforderlich)
+            6. **Autostart aktivieren** (startet mit Windows-Anmeldung, kein Admin nötig)
+            7. **▶ Bridge starten**
+
+            ### Bridge-Port
+            Standard: **13590** (TCP, eingehend)
+
+            ### Anforderungen
+            - Windows 10 / 11 (64-bit)
+            - Kodi mit aktiviertem Web-Server (Port 8080 + WS Port 9090)
+            - MPC-HC (clsid2-Fork) mit aktiviertem Web-Interface (Port 13579)
+          draft: false
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+          files: |
+            dist/bridge.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

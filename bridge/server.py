@@ -33,7 +33,7 @@ class BridgeServer:
         router,
         config_manager,
         host: str = "0.0.0.0",
-        port: int = 13580,
+        port: int = 13590,
     ) -> None:
         self._state = state_manager
         self._router = router
@@ -51,7 +51,10 @@ class BridgeServer:
         self._app.router.add_get("/api/config", self._handle_config_get)
         self._app.router.add_post("/api/config", self._handle_config_post)
         self._app.router.add_get("/api/ws", self._handle_ws)
+        self._app.router.add_get("/api/artwork", self._handle_artwork)
         self._app.router.add_get("/", self._handle_root)
+        self._artwork_data: bytes | None = None
+        self._artwork_ct: str = "image/jpeg"
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -119,6 +122,21 @@ class BridgeServer:
             return web.json_response({"error": "invalid JSON"}, status=400)
         self._config.update(body)
         return web.json_response({"ok": True})
+
+    def set_artwork(self, data: bytes, content_type: str) -> None:
+        """Store artwork fetched from Kodi. Called by the hub."""
+        self._artwork_data = data
+        self._artwork_ct = content_type or "image/jpeg"
+
+    def clear_artwork(self) -> None:
+        """Clear cached artwork (e.g. when playback stops)."""
+        self._artwork_data = None
+
+    async def _handle_artwork(self, request: web.Request) -> web.Response:
+        """GET /api/artwork — serve the cached cover art fetched from Kodi."""
+        if not self._artwork_data:
+            return web.Response(status=404, text="no artwork")
+        return web.Response(body=self._artwork_data, content_type=self._artwork_ct)
 
     async def _handle_ws(self, request: web.Request) -> web.WebSocketResponse:
         ws = web.WebSocketResponse(heartbeat=30)
