@@ -233,6 +233,25 @@ class KodiClient:
             else:
                 _LOG.info("Artwork [2/3] no movie found for filename=%r", filename)
 
+        # 2b) VideoLibrary.GetEpisodes by filename (TV shows)
+        result = await self._call("VideoLibrary.GetEpisodes", {
+            "filter": {"field": "filename", "operator": "is", "value": filename},
+            "properties": ["thumbnail", "art"],
+            "limits": {"end": 1},
+        })
+        _LOG.info("Artwork [2b] VideoLibrary.GetEpisodes(%r) → %s", filename, result)
+        if result and isinstance(result, dict):
+            episodes = result.get("episodes", [])
+            if episodes:
+                e = episodes[0]
+                thumb = _pick_art(e)
+                _LOG.info("Artwork [2b] ep=%r  art=%r  thumbnail=%r  → using=%r",
+                          e.get("label"), e.get("art"), e.get("thumbnail"), thumb)
+                if thumb:
+                    url = self._image_url(thumb)
+                    _LOG.info("Artwork [2b] HTTP URL: %s", url)
+                    return url
+
         # 3) Exact path lookup (last resort — may time out for remote paths)
         result = await self._call("Files.GetFileDetails", {
             "file": filepath,
@@ -646,6 +665,8 @@ class KodiClient:
             await self._on_state({
                 "state": "stopped",
                 "position": 0.0,
+                "artwork_url": "",
+                "title": "",
                 "audio_tracks": [],
                 "subtitle_tracks": [],
                 "chapters": [],

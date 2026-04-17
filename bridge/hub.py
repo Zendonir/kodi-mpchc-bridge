@@ -159,6 +159,7 @@ class Hub:
         elif new_active == "none" and self._mpchc_active:
             self._mpchc_active = False
             self._server.clear_artwork()
+            updates["artwork_url"] = ""   # clear artwork on remote immediately
             _LOG.info("ACTIVE PLAYER → none   (mpchc idle, kodi may take over)")
 
         # Capture raw track names before they are consumed
@@ -219,22 +220,72 @@ class Hub:
 
     async def _fetch_artwork(self, filepath: str) -> None:
         """
-        Background task: find artwork in Kodi, download the bytes,
-        store them in the bridge server, and push the bridge-owned URL to state.
+        Background task: find artwork and push it to state.
+
+        Order of preference:
+        1. Kodi library (Player.GetItem / VideoLibrary search)
+        2. Local poster file next to the video (poster.jpg, folder.jpg, …)
         """
         try:
+            data: bytes | None = None
+            ct = "image/jpeg"
+
             kodi_url = await self._kodi.get_file_artwork(filepath)
-            if not kodi_url:
-                return
-            data, ct = await self._kodi.fetch_image_bytes(kodi_url)
-            self._server.set_artwork(data, ct)
-            bridge_url = f"{self._bridge_base_url()}/api/artwork"
-            _LOG.info("MPC-HC artwork stored, serving at %s (%d bytes)", bridge_url, len(data))
-            await self._push({"artwork_url": bridge_url})
+            if kodi_url:
+                data, ct = await self._kodi.fetch_image_bytes(kodi_url)
+            else:
+                # Filesystem fallback: look for poster/folder images in same dir
+                result = await asyncio.get_running_loop().run_in_executor(
+                    None, self._load_local_poster, filepath
+                )
+                if result:
+                    data, ct = result
+
+            if data:
+                self._server.set_artwork(data, ct)
+                bridge_url = f"{self._bridge_base_url()}/api/artwork"
+                _LOG.info("Artwork stored at %s (%d bytes)", bridge_url, len(data))
+                await self._push({"artwork_url": bridge_url})
+            else:
+                _LOG.info("No artwork found for %r", filepath)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             _LOG.warning("Artwork fetch failed for %r: %s", filepath, exc)
+
+    @staticmethod
+    def _load_local_poster(filepath: str) -> tuple[bytes, str] | None:
+        """
+        Look for a poster/cover image file in the same folder as *filepath*.
+        Common naming conventions for Kodi/Plex/Jellyfin are tried in order.
+        Returns (bytes, content_type) or None.
+        """
+        import os
+        folder = os.path.dirname(filepath)
+        if not folder or not os.path.isdir(folder):
+            return None
+        base = os.path.splitext(os.path.basename(filepath))[0]
+        _EXT_CT = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
+        candidates = [
+            "poster.jpg", "poster.jpeg", "poster.png",
+            "folder.jpg", "folder.png",
+            "cover.jpg",  "cover.png",
+            f"{base}.jpg", f"{base}.jpeg", f"{base}.png",
+            f"{base}-poster.jpg", f"{base}-poster.png",
+        ]
+        for name in candidates:
+            path = os.path.join(folder, name)
+            if os.path.isfile(path):
+                ext = os.path.splitext(name)[1].lower()
+                ct = _EXT_CT.get(ext, "image/jpeg")
+                try:
+                    with open(path, "rb") as fh:
+                        data = fh.read()
+                    _LOG.info("Local poster: %s (%d bytes)", path, len(data))
+                    return data, ct
+                except Exception as exc:
+                    _LOG.warning("Cannot read local poster %s: %s", path, exc)
+        return None
 
     def _bridge_base_url(self) -> str:
         import socket
