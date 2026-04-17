@@ -31,6 +31,25 @@ _LOG = logging.getLogger(__name__)
 # Fields that Kodi may update even while MPC-HC is active
 _KODI_PASSTHROUGH_WHILE_MPCHC = {"volume", "muted"}
 
+# TV-episode filename patterns: S01E02, 1x02, etc.
+_RE_EPISODE = re.compile(r"[Ss]\d{1,2}[Ee]\d{1,2}|\d{1,2}x\d{2}", re.ASCII)
+
+
+def _detect_media_type(filepath: str) -> str:
+    """Guess 'movie' or 'episode' from the video file path."""
+    import os
+    if not filepath:
+        return "movie"
+    # Check filename first
+    name = os.path.basename(filepath)
+    if _RE_EPISODE.search(name):
+        return "episode"
+    # Check immediate parent folder name ("Season 1", "Staffel 2", …)
+    parent = os.path.basename(os.path.dirname(filepath)).lower()
+    if "season" in parent or "staffel" in parent or "serie" in parent:
+        return "episode"
+    return "movie"
+
 
 def _match_track(tracks: list[dict], current_name: str) -> int:
     """
@@ -155,11 +174,15 @@ class Hub:
 
         if new_active == "mpchc" and not self._mpchc_active:
             self._mpchc_active = True
-            _LOG.info("ACTIVE PLAYER → mpchc  (file: %s)", updates.get("filepath", ""))
+            _filepath = updates.get("filepath", "")
+            updates["media_type"] = _detect_media_type(_filepath)
+            _LOG.info("ACTIVE PLAYER → mpchc  (file: %s, type: %s)",
+                      _filepath, updates["media_type"])
         elif new_active == "none" and self._mpchc_active:
             self._mpchc_active = False
             self._server.clear_artwork()
             updates["artwork_url"] = ""   # clear artwork on remote immediately
+            updates["media_type"] = ""    # clear type so Kodi can set its own
             _LOG.info("ACTIVE PLAYER → none   (mpchc idle, kodi may take over)")
 
         # Capture raw track names before they are consumed

@@ -596,7 +596,9 @@ class KodiClient:
             vs = sd_video[0]
             updates["video_width"] = vs.get("width", 0) or 0
             updates["video_height"] = vs.get("height", 0) or 0
-            updates["video_fps"] = round(float(vs.get("duration", 0) or 0), 3)
+            # NOTE: vs["duration"] is the TOTAL film duration in seconds, NOT frame rate.
+            # Kodi JSON-RPC does not expose FPS via streamdetails; leave 0 so the MKV
+            # parser value (set by MPC-HC path) is not overwritten with nonsense.
             updates["video_codec"] = vs.get("codec", "") or ""
             # hdrtype is present in Kodi 20+ ("dolbyvision", "hdr10", "hlg", "")
             hdr_raw = (vs.get("hdrtype") or "").lower()

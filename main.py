@@ -13,12 +13,41 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import glob
 import logging
 import os
+import shutil
 import signal
 import sys
+import tempfile
 
 _LOG = logging.getLogger(__name__)
+
+
+def _cleanup_stale_pyinstaller_dirs() -> None:
+    """
+    Remove leftover _MEI* temp dirs created by previous one-file PyInstaller runs
+    that were killed without a clean shutdown (service stop, Task Manager, crash).
+
+    The PyInstaller bootloader also attempts this at startup, but it runs before
+    Python and shows a warning dialog when it fails due to file locks (antivirus,
+    Windows Search indexer, …).  Running cleanup *before* that on *this* start-up
+    is too late to silence the dialog for the current run, but it ensures the
+    leftover dir is gone so the *next* launch won't see the warning.
+
+    Safe: we never remove the directory our own process is running from.
+    """
+    if not getattr(sys, "frozen", False):
+        return
+    current = getattr(sys, "_MEIPASS", None)
+    tmpdir = tempfile.gettempdir()
+    for path in glob.glob(os.path.join(tmpdir, "_MEI*")):
+        if path == current:
+            continue
+        try:
+            shutil.rmtree(path)
+        except Exception:
+            pass  # best-effort; bootloader will retry on next launch
 
 
 def _setup_logging(level: str) -> None:
@@ -65,6 +94,7 @@ async def _run_bridge(config_dir: str) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main() -> None:
+    _cleanup_stale_pyinstaller_dirs()
     parser = argparse.ArgumentParser(description="kodi-mpchc-bridge")
     parser.add_argument(
         "--config-dir",
