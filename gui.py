@@ -1,8 +1,8 @@
 """
 Kodi ↔ MPC-HC Bridge — Installer / Manager GUI
 
-Pure tkinter, no extra dependencies.
 Tabs: Einstellungen | Installation | Log
+System-tray icon: schließen minimiert ins Tray, Rechtsklick öffnet Menü.
 """
 
 from __future__ import annotations
@@ -17,6 +17,14 @@ import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 
 import service
+
+# pystray is optional — tray icon only shown when it is installed
+try:
+    import pystray
+    from PIL import Image as _PilImage, ImageDraw as _PilDraw
+    _TRAY_AVAILABLE = True
+except ImportError:
+    _TRAY_AVAILABLE = False
 
 _LOG = logging.getLogger(__name__)
 
@@ -290,6 +298,8 @@ class InstallerApp:
     def __init__(self) -> None:
         self._port = 13590
         self._load_config()
+        self._tray: "pystray.Icon | None" = None  # type: ignore[name-defined]
+        self._bridge_running_flag = False          # used to colour the tray icon
 
         self._root = tk.Tk()
         self._root.title("Kodi ↔ MPC-HC Bridge")
@@ -297,19 +307,26 @@ class InstallerApp:
         self._root.resizable(True, True)
         self._root.minsize(600, 580)
 
+        # Closing the window hides to tray instead of exiting
+        self._root.protocol("WM_DELETE_WINDOW", self._hide_to_tray)
+
         self._build_ui()
         self._refresh_status()
 
         # Route logging to GUI
-        handler = _GuiLogHandler(self._log)
-        handler.setFormatter(
+        self._log_handler = _GuiLogHandler(self._log)
+        self._log_handler.setFormatter(
             logging.Formatter("%(asctime)s  %(levelname)-8s  %(name)s — %(message)s",
                               datefmt="%H:%M:%S")
         )
-        logging.getLogger().addHandler(handler)
+        logging.getLogger().addHandler(self._log_handler)
 
         # Periodic status refresh
         self._schedule_refresh()
+
+        # System-tray icon (only when pystray is available)
+        if _TRAY_AVAILABLE:
+            self._create_tray()
 
     # ── config ───────────────────────────────────────────────────────────────
 
@@ -579,6 +596,7 @@ class InstallerApp:
             else:
                 self._status_var.set(f"○ Bridge gestoppt  ·  Port {self._port}")
                 self._status_lbl.config(fg=_C_FG_DIM)
+            self._update_tray(running)
 
             if sys.platform == "win32":
                 self._lbl_autostart.config(
@@ -610,6 +628,98 @@ class InstallerApp:
     def _schedule_refresh(self) -> None:
         self._root.after(5000, self._schedule_refresh)
         self._refresh_status()
+
+    # ── System-tray icon ─────────────────────────────────────────────────────
+
+    def _make_tray_image(self, running: bool) -> "_PilImage.Image":  # type: ignore[name-defined]
+        """Create a 64×64 RGBA icon image for the system tray."""
+        sz = 64
+        img = _PilImage.new("RGBA", (sz, sz), (0, 0, 0, 0))
+        draw = _PilDraw.Draw(img)
+        # Background circle — green when running, grey when stopped
+        bg = (70, 185, 80, 255) if running else (100, 100, 100, 255)
+        draw.ellipse([2, 2, sz - 3, sz - 3], fill=bg)
+        # Simple "bridge" symbol: two vertical pillars + horizontal beam
+        w = (255, 255, 255, 210)
+        draw.rectangle([13, 18, 22, 50], fill=w)   # left pillar
+        draw.rectangle([42, 18, 51, 50], fill=w)   # right pillar
+        draw.rectangle([13, 26, 51, 35], fill=w)   # horizontal beam
+        return img
+
+    def _create_tray(self) -> None:
+        """Create and start the system-tray icon in a background thread."""
+        menu = pystray.Menu(  # type: ignore[name-defined]
+            pystray.MenuItem(  # type: ignore[name-defined]
+                "GUI öffnen / Einstellungen",
+                self._on_tray_open,
+                default=True,   # double-click triggers this action
+            ),
+            pystray.Menu.SEPARATOR,  # type: ignore[name-defined]
+            pystray.MenuItem("Bridge starten", self._on_tray_start),  # type: ignore[name-defined]
+            pystray.MenuItem("Bridge stoppen", self._on_tray_stop),   # type: ignore[name-defined]
+            pystray.Menu.SEPARATOR,  # type: ignore[name-defined]
+            pystray.MenuItem("Beenden",        self._on_tray_quit),   # type: ignore[name-defined]
+        )
+        self._tray = pystray.Icon(  # type: ignore[name-defined]
+            "kodi-mpchc-bridge",
+            self._make_tray_image(False),
+            "kodi-mpchc-bridge — gestoppt",
+            menu,
+        )
+        threading.Thread(target=self._tray.run, daemon=True, name="tray").start()
+
+    def _update_tray(self, running: bool) -> None:
+        """Update tray icon colour and tooltip to reflect bridge status."""
+        if not self._tray:
+            return
+        if running == self._bridge_running_flag:
+            return  # no change — skip the (slightly expensive) icon rebuild
+        self._bridge_running_flag = running
+        try:
+            self._tray.icon  = self._make_tray_image(running)
+            self._tray.title = (
+                f"kodi-mpchc-bridge — läuft  (Port {self._port})"
+                if running else
+                f"kodi-mpchc-bridge — gestoppt  (Port {self._port})"
+            )
+        except Exception:
+            pass
+
+    def _hide_to_tray(self) -> None:
+        """Called when the user clicks the window's X button."""
+        if _TRAY_AVAILABLE and self._tray:
+            self._root.withdraw()   # hide, keep mainloop alive
+        else:
+            self._do_quit()         # no tray — really exit
+
+    def _show_window(self) -> None:
+        """Restore the main window from tray."""
+        self._root.deiconify()
+        self._root.lift()
+        self._root.focus_force()
+
+    def _do_quit(self) -> None:
+        """Clean up and exit the application."""
+        logging.getLogger().removeHandler(self._log_handler)
+        try:
+            self._root.destroy()
+        except Exception:
+            pass
+
+    # ── Tray menu callbacks (called from tray thread) ────────────────────────
+
+    def _on_tray_open(self, icon, item) -> None:  # noqa: ANN001
+        self._root.after(0, self._show_window)
+
+    def _on_tray_start(self, icon, item) -> None:  # noqa: ANN001
+        self._root.after(0, self._on_start)
+
+    def _on_tray_stop(self, icon, item) -> None:   # noqa: ANN001
+        self._root.after(0, self._on_stop)
+
+    def _on_tray_quit(self, icon, item) -> None:   # noqa: ANN001
+        icon.stop()
+        self._root.after(0, self._do_quit)
 
     # ── Button handlers ──────────────────────────────────────────────────────
 

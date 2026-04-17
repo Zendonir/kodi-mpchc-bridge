@@ -47,10 +47,16 @@ a = Analysis(
         "tkinter.ttk",
         "tkinter.scrolledtext",
         "tkinter.messagebox",
-        # Pillow — cover art in test_client
+        # Pillow — cover art, tray icon
         "PIL",
         "PIL.Image",
+        "PIL.ImageDraw",
         "PIL.ImageTk",
+        "PIL.PngImagePlugin",
+        "PIL.JpegImagePlugin",
+        # pystray — system-tray icon
+        "pystray",
+        "pystray._util.win32",
         # Windows
         "winreg",
         "ctypes",
@@ -59,7 +65,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["pystray"],
+    excludes=[],
     noarchive=False,
     optimize=1,
 )

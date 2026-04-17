@@ -1,7 +1,8 @@
 # Runtime dependencies
 aiohttp>=3.9.0
 yarl>=1.9.0
-Pillow>=10.0.0          # cover art display in test_client
+Pillow>=10.0.0          # cover art + tray icon
+pystray>=0.19.0         # system-tray icon
 
 # Build tool (only needed for building the .exe)
 pyinstaller>=6.0
