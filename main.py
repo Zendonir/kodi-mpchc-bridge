@@ -30,9 +30,35 @@ else:
     _APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-def _setup_logging(level: str) -> None:
+def _setup_logging(level: str, log_dir: str | None = None) -> None:
+    """
+    Konsole: gewählter Level (Standard INFO).
+    Log-Datei: kodi-bridge.log im Installationsverzeichnis, rotiert bei 2 MB,
+               3 Backups — immer ab DEBUG, damit Fehler vollständig erfasst werden.
+    """
     fmt = "%(asctime)s  %(levelname)-8s  %(name)s — %(message)s"
-    logging.basicConfig(level=getattr(logging, level.upper(), logging.INFO), format=fmt)
+    int_level = getattr(logging, level.upper(), logging.INFO)
+
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+
+    if log_dir:
+        try:
+            from logging.handlers import RotatingFileHandler
+            log_path = os.path.join(log_dir, "kodi-bridge.log")
+            fh = RotatingFileHandler(
+                log_path,
+                maxBytes=2 * 1024 * 1024,  # 2 MB
+                backupCount=3,
+                encoding="utf-8",
+            )
+            fh.setLevel(logging.DEBUG)          # Datei immer vollständig
+            fh.setFormatter(logging.Formatter(fmt))
+            handlers.append(fh)
+        except Exception as exc:
+            # Nicht fatal — weiter ohne Datei-Logging
+            print(f"[WARN] Log-Datei konnte nicht geöffnet werden: {exc}")
+
+    logging.basicConfig(level=int_level, format=fmt, handlers=handlers)
     logging.getLogger("aiohttp").setLevel(logging.WARNING)
     logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
 
@@ -95,16 +121,18 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    _setup_logging(args.log_level)
-
-    # ── Test-Client ───────────────────────────────────────────────────────────
+    # Test-Client bekommt kein Datei-Logging (nur kurzlebiges Debug-Fenster)
     if args.test_client:
+        _setup_logging(args.log_level)
         try:
             import test_client
             test_client.main()
         except Exception as exc:
             _LOG.error("Test-Client konnte nicht geöffnet werden: %s", exc)
         return
+
+    # Alle anderen Modi schreiben Logs in den Installationspfad
+    _setup_logging(args.log_level, log_dir=args.config_dir)
 
     # ── Headless — Bridge ohne Tray ───────────────────────────────────────────
     if args.headless:

@@ -79,7 +79,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name="bridge",
+    name="kodi-bridge",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

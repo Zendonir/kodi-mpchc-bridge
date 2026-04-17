@@ -18,7 +18,7 @@
 #define AppName      "Kodi-MPC-HC Bridge"
 #define AppPublisher "kodi-mpchc-bridge"
 #define AppURL       "https://github.com/Zendonir/kodi-mpchc-bridge"
-#define AppExe       "bridge.exe"
+#define AppExe       "kodi-bridge.exe"
 #define AppGUID      "{{B7A3C2D1-E4F5-4890-BCDE-F01234567890}"
 
 [Setup]
@@ -66,16 +66,14 @@ Name: "desktopicon"; \
   Description: "Desktop-Verknüpfung erstellen"; \
   GroupDescription: "Zusätzliche Symbole:"; \
   Flags: unchecked
-; Autostart via Task-Planer (opt-in, Standard: aktiv)
+; Autostart via Task-Planer (Standard: aktiv — kein Flag nötig, checked ist Default)
 Name: "autostart"; \
   Description: "Bridge beim Windows-Anmelden automatisch starten (empfohlen)"; \
-  GroupDescription: "Autostart:"; \
-  Flags: checked
-; Firewall-Regel (opt-in, UAC-Fenster erscheint nach Installation)
+  GroupDescription: "Autostart:"
+; Firewall-Regel (Standard: aktiv)
 Name: "firewall"; \
   Description: "Windows-Firewall-Regel für Bridge-Port 13590 einrichten (Admin erforderlich)"; \
-  GroupDescription: "Firewall:"; \
-  Flags: checked
+  GroupDescription: "Firewall:"
 
 [Files]
 Source: "dist\{#AppExe}"; \

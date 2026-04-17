@@ -32,12 +32,12 @@ jobs:
           pip install aiohttp yarl Pillow pystray pyinstaller
 
       # ── Build one-file exe ───────────────────────────────────────────────────
-      - name: Build bridge.exe
+      - name: Build kodi-bridge.exe
         run: pyinstaller bridge.spec
 
       # ── Smoke-test: exe starts and prints help ────────────────────────────
       - name: Smoke-test exe
-        run: dist\bridge.exe --help
+        run: dist\kodi-bridge.exe --help
         shell: cmd
 
       # ── Determine version ───────────────────────────────────────────────────
@@ -78,16 +78,15 @@ jobs:
             | Datei | Beschreibung |
             |-------|-------------|
             | `kodi-mpchc-bridge-setup-*.exe` | **Empfohlen** — Installer mit Start-Menü & Deinstaller |
-            | `bridge.exe` | Portable Einzeldatei — einfach irgendwo ablegen und starten |
 
-            ### Installer — Erste Schritte
+            ### Erste Schritte
             1. Setup-`*.exe` herunterladen und ausführen (kein Admin nötig)
             2. Installiert nach `%LocalAppData%\Programs\kodi-mpchc-bridge\`
-            3. Start-Menü-Eintrag + optionale Desktop-Verknüpfung werden erstellt
-            4. Bridge starten → **Tray-Icon** erscheint in der Taskleiste
-            5. Doppelklick auf Tray-Icon → GUI öffnet sich
-            6. **Einstellungen** eingeben (Kodi Host/Port, Passwort)
-            7. **Firewall-Regel hinzufügen** und **Autostart aktivieren**
+            3. Kodi-Verbindungsdaten im Installer-Wizard eingeben
+            4. Autostart + Firewall-Optionen bestätigen
+            5. `kodi-bridge.exe` startet automatisch — **Tray-Icon** erscheint
+            6. Rechtsklick auf Tray → Einstellungen oder Test-Oberfläche
+            7. Log-Datei: `%LocalAppData%\Programs\kodi-mpchc-bridge\kodi-bridge.log`
 
             ### Bridge-Port
             Standard: **13590** (TCP, eingehend — Firewall-Regel in der GUI einrichten)
@@ -99,7 +98,7 @@ jobs:
           draft: false
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
           files: |
-            dist/bridge.exe
+            dist/kodi-bridge.exe
             dist/kodi-mpchc-bridge-setup-${{ steps.version.outputs.ver }}.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
