@@ -2,7 +2,7 @@
 ; Kodi-MPC-HC Bridge — Inno Setup Installer Script
 ;
 ; UAC-freier Installer → %LocalAppData%\Programs\kodi-mpchc-bridge\
-; Konfigurationsdaten → %LocalAppData%\kodi-mpchc-bridge\config.json
+; Konfigurationsdaten → <Installationsverzeichnis>\config.json
 ;
 ; Bauen:
 ;   iscc installer.iss
@@ -53,6 +53,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 
 ; --- Misc ---
 AllowNoIcons=yes
+; Update-Modus: bestehende Installation wird überschrieben ohne Deinstallation
 CloseApplications=force
 
 [Languages]
@@ -60,10 +61,16 @@ Name: "german";  MessagesFile: "compiler:Languages\German.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
+; Desktop-Verknüpfung (opt-in)
 Name: "desktopicon"; \
   Description: "Desktop-Verknüpfung erstellen"; \
   GroupDescription: "Zusätzliche Symbole:"; \
   Flags: unchecked
+; Autostart via Task-Planer (opt-in, Standard: aktiv)
+Name: "autostart"; \
+  Description: "Bridge beim Windows-Anmelden automatisch starten (empfohlen)"; \
+  GroupDescription: "Autostart:"; \
+  Flags: checked
 
 [Files]
 Source: "dist\{#AppExe}"; \
@@ -78,24 +85,30 @@ Name: "{group}\{#AppName} deinstallieren";          Filename: "{uninstallexe}"
 Name: "{userdesktop}\{#AppName}";                  Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Run]
+; Autostart-Task im Task-Planer registrieren (kein Admin, ONLOGON, Standard-Benutzer)
+Filename: "schtasks"; \
+  Parameters: "/create /f /tn KodiMpcHcBridge /tr ""{app}\{#AppExe} --headless"" /sc ONLOGON /rl LIMITED"; \
+  Flags: runhidden waituntilterminated; \
+  Tasks: autostart
+; Bridge direkt nach der Installation starten
 Filename: "{app}\{#AppExe}"; \
   Description: "{#AppName} jetzt starten"; \
   Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
-; Kill running instance
+; Laufende Instanz beenden
 Filename: "taskkill"; \
   Parameters: "/f /im {#AppExe}"; \
   Flags: runhidden waituntilterminated; \
   RunOnceId: "KillBridge"
-; Remove Task-Scheduler autostart entry
+; Autostart-Task entfernen
 Filename: "schtasks"; \
   Parameters: "/delete /f /tn KodiMpcHcBridge"; \
   Flags: runhidden; \
   RunOnceId: "RemoveAutostart"
 
 ; ============================================================
-; Pascal Script — Konfigurationsseite + config.json schreiben
+; Pascal Script
 ; ============================================================
 [Code]
 
@@ -103,7 +116,16 @@ var
   ConfigPage: TInputQueryWizardPage;
 
 // --------------------------------------------------------------------------
-// Wizard page: Kodi-Verbindungsdaten eingeben
+// Hilfsfunktion: Liefert true wenn bereits eine config.json vorhanden ist
+// (Upgrade-Szenario).
+// --------------------------------------------------------------------------
+function ConfigExists: Boolean;
+begin
+  Result := FileExists(ExpandConstant('{app}\config.json'));
+end;
+
+// --------------------------------------------------------------------------
+// Wizard-Seite: Kodi-Verbindungsdaten — nur bei Erstinstallation anzeigen.
 // --------------------------------------------------------------------------
 procedure InitializeWizard;
 begin
@@ -128,6 +150,16 @@ begin
 end;
 
 // --------------------------------------------------------------------------
+// Konfigurationsseite bei Upgrade überspringen — config.json bereits da.
+// --------------------------------------------------------------------------
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := False;
+  if PageID = ConfigPage.ID then
+    Result := ConfigExists;
+end;
+
+// --------------------------------------------------------------------------
 // Eingabe-Validierung beim Weiterklicken
 // --------------------------------------------------------------------------
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -136,6 +168,7 @@ var
 begin
   Result := True;
   if CurPageID <> ConfigPage.ID then Exit;
+  if ShouldSkipPage(CurPageID) then Exit;
 
   if Trim(ConfigPage.Values[0]) = '' then begin
     MsgBox('Bitte einen Kodi-Host eingeben (z. B. localhost oder 192.168.1.x).',
@@ -159,8 +192,7 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Nach der Installation: config.json in %LocalAppData%\kodi-mpchc-bridge\
-// schreiben (nur wenn noch keine Konfiguration vorhanden ist).
+// JSON-Zeichen escapen
 // --------------------------------------------------------------------------
 function EscapeJson(const s: String): String;
 var
@@ -176,21 +208,21 @@ begin
   end;
 end;
 
+// --------------------------------------------------------------------------
+// Nach der Installation: config.json im Installationsverzeichnis ablegen.
+// Nur bei Erstinstallation — bei Upgrade bleibt vorhandene config.json erhalten.
+// --------------------------------------------------------------------------
 procedure CurStepChanged(CurStep: TSetupStep);
 var
-  ConfigDir, ConfigFile: String;
+  ConfigFile: String;
   Lines: TStringList;
   Json: String;
 begin
   if CurStep <> ssPostInstall then Exit;
 
-  ConfigDir  := ExpandConstant('{localappdata}\kodi-mpchc-bridge');
-  ConfigFile := ConfigDir + '\config.json';
+  ConfigFile := ExpandConstant('{app}\config.json');
 
-  // Create directory if it doesn't exist
-  if not ForceDirectories(ConfigDir) then Exit;
-
-  // Don't overwrite an existing config (upgrade scenario)
+  // Vorhandene Konfiguration nicht überschreiben (Upgrade-Szenario)
   if FileExists(ConfigFile) then Exit;
 
   Json :=
@@ -219,7 +251,27 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Kill running bridge before install/upgrade (avoids file-in-use errors)
+// Bei Deinstallation: Nutzer fragen ob config.json gelöscht werden soll.
+// --------------------------------------------------------------------------
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ConfigFile: String;
+begin
+  if CurUninstallStep = usUninstall then begin
+    ConfigFile := ExpandConstant('{app}\config.json');
+    if FileExists(ConfigFile) then begin
+      if MsgBox(
+        'Möchten Sie die Konfigurationsdatei (config.json) ebenfalls löschen?' + #13#10 + #13#10 +
+        'Wenn Sie "Nein" wählen, bleibt Ihre Konfiguration für eine spätere' + #13#10 +
+        'Neuinstallation erhalten.',
+        mbConfirmation, MB_YESNO) = IDYES then
+        DeleteFile(ConfigFile);
+    end;
+  end;
+end;
+
+// --------------------------------------------------------------------------
+// Laufende Bridge vor Installation/Upgrade beenden (verhindert Dateisperren)
 // --------------------------------------------------------------------------
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var

@@ -85,13 +85,12 @@ exe = EXE(
     strip=False,
     upx=True,
     upx_exclude=[],
-    # Use a fixed extraction directory instead of a random _MEI{pid} temp folder.
-    # This eliminates the "Failed to remove temporary directory" warning that
-    # appears when a previous run was killed without a clean shutdown:
-    #   None  → %TEMP%\_MEI{random}  new dir every run, cleanup can fail
-    #   path  → fixed dir, no random naming, no cleanup needed, no warning
-    # Environment variables are expanded by the bootloader at runtime.
-    runtime_tmpdir=r'%LOCALAPPDATA%\kodi-mpchc-bridge',
+    # Festes Extraktionsverzeichnis — verhindert "Failed to remove temp dir"-
+    # Warnung wenn eine frühere Instanz unsauber beendet wurde.
+    # HINWEIS: Dies ist nur das Extraktions-Temp-Verzeichnis für den Python-
+    # Laufzeit-Overhead; config.json liegt im Installationsverzeichnis
+    # (neben bridge.exe), ermittelt über sys.executable.
+    runtime_tmpdir=r'%LOCALAPPDATA%\kodi-mpchc-bridge-rt',
     console=False,           # Kein Konsolenfenster
     disable_windowed_traceback=False,
     argv_emulation=False,

@@ -1,7 +1,7 @@
 """
-Kodi ↔ MPC-HC Bridge — Installer / Manager GUI
+Kodi ↔ MPC-HC Bridge — Manager GUI
 
-Tabs: Einstellungen | Installation | Log
+Tabs: Einstellungen | System | Log
 System-tray icon: schließen minimiert ins Tray, Rechtsklick öffnet Menü.
 """
 
@@ -29,8 +29,6 @@ except ImportError:
 _LOG = logging.getLogger(__name__)
 
 _PID_FILE = os.path.join(tempfile.gettempdir(), "kodi-mpchc-bridge.pid")
-_SERVICE_NAME = "KodiMpcHcBridge"
-_SERVICE_DISPLAY = "Kodi MPC-HC Bridge"
 _FIREWALL_RULE = "Kodi-MPC-HC Bridge"
 
 # ── colours ──────────────────────────────────────────────────────────────────
@@ -120,46 +118,6 @@ def _exe_path() -> str:
     if getattr(sys, "frozen", False):
         return sys.executable
     return f"{sys.executable} \"{os.path.abspath('main.py')}\""
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Service helpers (sc.exe)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def service_status() -> str:
-    """Return 'running' | 'stopped' | 'not_installed'."""
-    rc, out = _run_hidden(["sc", "query", _SERVICE_NAME])
-    if rc != 0:
-        return "not_installed"
-    if "RUNNING" in out:
-        return "running"
-    return "stopped"
-
-
-def service_install(exe: str) -> tuple[bool, str]:
-    """Install Windows Service (admin required)."""
-    # cmd.exe /c is needed to chain multiple sc commands with &&
-    args = (
-        f'/c sc create {_SERVICE_NAME} '
-        f'binpath= "{exe} --headless" '
-        f'start= auto '
-        f'DisplayName= "{_SERVICE_DISPLAY}" '
-        f'&& sc description {_SERVICE_NAME} "Bridges Kodi and MPC-HC for remote control" '
-        f'&& sc start {_SERVICE_NAME}'
-    )
-    ok = _elevate("cmd.exe", args)
-    if ok:
-        return True, "Service-Installation gestartet (UAC-Fenster beachten)."
-    return False, "Service-Installation abgebrochen."
-
-
-def service_uninstall() -> tuple[bool, str]:
-    """Remove Windows Service (admin required)."""
-    args = f"/c sc stop {_SERVICE_NAME} & sc delete {_SERVICE_NAME}"
-    ok = _elevate("cmd.exe", args)
-    if ok:
-        return True, "Service-Deinstallation gestartet."
-    return False, "Abgebrochen."
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -333,7 +291,14 @@ class InstallerApp:
     def _load_config(self) -> None:
         try:
             from bridge.config import ConfigManager
-            self._cfg_mgr = ConfigManager(os.path.dirname(os.path.abspath(__file__)))
+            # Config liegt im Installationsverzeichnis (neben bridge.exe).
+            # Im frozen-Modus zeigt __file__ auf den temp-Extraktionspfad —
+            # sys.executable zeigt immer auf die echte .exe.
+            if getattr(sys, "frozen", False):
+                data_dir = os.path.dirname(sys.executable)
+            else:
+                data_dir = os.path.dirname(os.path.abspath(__file__))
+            self._cfg_mgr = ConfigManager(data_dir)
             self._port = self._cfg_mgr.cfg.server_port
         except Exception:
             self._cfg_mgr = None
@@ -387,7 +352,7 @@ class InstallerApp:
         self._tab_log      = tk.Frame(nb, bg=_C_BG)
 
         nb.add(self._tab_settings, text="  ⚙  Einstellungen  ")
-        nb.add(self._tab_install,  text="  🔧  Installation  ")
+        nb.add(self._tab_install,  text="  🔧  System  ")
         nb.add(self._tab_log,      text="  📋  Log  ")
 
         self._build_settings_tab()
@@ -480,13 +445,13 @@ class InstallerApp:
             anchor="e", padx=16, pady=12
         )
 
-    # ── Install tab ──────────────────────────────────────────────────────────
+    # ── System tab ───────────────────────────────────────────────────────────
 
     def _build_install_tab(self) -> None:
         p = self._tab_install
 
-        # Autostart (Task Scheduler, no admin)
-        auto = self._section(p, "Autostart  (Task-Planer, kein Admin — funktioniert ohne Explorer)")
+        # Autostart (Task Scheduler, kein Admin)
+        auto = self._section(p, "Autostart  (Task-Planer — funktioniert ohne Explorer/Shell)")
         self._lbl_autostart = tk.Label(
             auto, text="", bg=_C_PANEL, fg=_C_FG, font=("Segoe UI", 9), anchor="w"
         )
@@ -496,24 +461,6 @@ class InstallerApp:
         self._btn(auto, "✖  Entfernen", self._on_autostart_remove, _C_ERROR)\
             .grid(row=1, column=1, sticky="w")
         auto.columnconfigure(2, weight=1)
-
-        # Service (sc.exe, admin)
-        svc = self._section(p, "Windows-Dienst  (Admin erforderlich, läuft ohne Login)")
-        tk.Label(
-            svc,
-            text="⚠  Der Dienst läuft in Session 0 — Win32-Fensterbefehle (Track-Auswahl)\n"
-                 "   funktionieren im Service-Modus nicht. Für Desktop-Nutzung Autostart bevorzugen.",
-            bg=_C_PANEL, fg=_C_WARN, font=("Segoe UI", 8), justify="left", anchor="w"
-        ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
-        self._lbl_service = tk.Label(
-            svc, text="", bg=_C_PANEL, fg=_C_FG, font=("Segoe UI", 9), anchor="w"
-        )
-        self._lbl_service.grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 8))
-        self._btn(svc, "✔  Service installieren", self._on_svc_install, _C_SUCCESS)\
-            .grid(row=2, column=0, padx=(0, 8), sticky="w")
-        self._btn(svc, "✖  Service entfernen",   self._on_svc_remove,  _C_ERROR)\
-            .grid(row=2, column=1, sticky="w")
-        svc.columnconfigure(2, weight=1)
 
         # Firewall
         fw = self._section(p, "Windows-Firewall  (Admin erforderlich)")
@@ -559,16 +506,11 @@ class InstallerApp:
         """Run all blocking checks in a worker thread."""
         running = _bridge_running(self._port)
         installed = False
-        ss = "not_installed"
         fw_ok = self._fw_cache
 
         if sys.platform == "win32":
             try:
                 installed = service.is_installed()
-            except Exception:
-                pass
-            try:
-                ss = service_status()
             except Exception:
                 pass
             # Firewall check via PowerShell — only run once per explicit action
@@ -583,11 +525,11 @@ class InstallerApp:
 
         # Marshal UI update back to main thread
         try:
-            self._root.after(0, lambda: self._apply_status(running, installed, ss, fw_ok))
+            self._root.after(0, lambda: self._apply_status(running, installed, fw_ok))
         except Exception:
             pass  # window already destroyed
 
-    def _apply_status(self, running: bool, installed: bool, ss: str, fw_ok: bool) -> None:
+    def _apply_status(self, running: bool, installed: bool, fw_ok: bool) -> None:
         """Apply gathered status to UI widgets — must run on the main thread."""
         try:
             if running:
@@ -602,16 +544,6 @@ class InstallerApp:
                 self._lbl_autostart.config(
                     text=("✅  Autostart aktiv" if installed else "❌  Autostart nicht eingerichtet"),
                     fg=(_C_SUCCESS if installed else _C_FG_DIM),
-                )
-                svc_text = {
-                    "running":       "✅  Service läuft",
-                    "stopped":       "⚠  Service installiert (gestoppt)",
-                    "not_installed": "❌  Service nicht installiert",
-                }.get(ss, ss)
-                self._lbl_service.config(
-                    text=svc_text,
-                    fg=(_C_SUCCESS if ss == "running" else
-                        _C_WARN    if ss == "stopped"  else _C_FG_DIM),
                 )
                 self._lbl_firewall.config(
                     text=(f"✅  Firewall-Regel vorhanden (Port {self._port})"
@@ -785,41 +717,6 @@ class InstallerApp:
         for m in msgs:
             self._log(("[INFO] " if ok else "[ERROR] ") + m)
         self._refresh_status()
-
-    def _on_svc_install(self) -> None:
-        exe = sys.executable if getattr(sys, "frozen", False) else \
-              f"{sys.executable} {os.path.abspath('main.py')}"
-        ok, msg = service_install(exe)
-        self._log(("[INFO] " if ok else "[ERROR] ") + msg)
-        if ok:
-            self._lbl_service.config(text="⏳  Warte auf UAC-Bestätigung…", fg=_C_WARN)
-            self._poll_service(expect_installed=True, attempts=8)
-
-    def _on_svc_remove(self) -> None:
-        ok, msg = service_uninstall()
-        self._log(("[INFO] " if ok else "[ERROR] ") + msg)
-        if ok:
-            self._lbl_service.config(text="⏳  Warte auf UAC-Bestätigung…", fg=_C_WARN)
-            self._poll_service(expect_installed=False, attempts=8)
-
-    def _poll_service(self, expect_installed: bool, attempts: int) -> None:
-        """Poll every 2 s until service state matches expectation."""
-        def _check(remaining: int) -> None:
-            ss = service_status()
-            installed = ss != "not_installed"
-            if installed == expect_installed:
-                if expect_installed:
-                    self._log(f"[INFO] ✅ Service '{_SERVICE_NAME}' installiert (Status: {ss}).")
-                else:
-                    self._log(f"[INFO] ✅ Service '{_SERVICE_NAME}' entfernt.")
-                self._refresh_status()
-            elif remaining > 0:
-                self._root.after(2000, lambda: _check(remaining - 1))
-            else:
-                self._log("[WARN] ⚠  Service-Status hat sich nicht geändert — UAC abgelehnt?")
-                self._refresh_status()
-
-        self._root.after(2000, lambda: _check(attempts - 1))
 
     def _on_fw_add(self) -> None:
         ok, msg = firewall_add(self._port)

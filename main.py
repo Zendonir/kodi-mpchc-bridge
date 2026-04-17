@@ -2,8 +2,8 @@
 kodi-mpchc-bridge — entry point.
 
 Usage:
-    bridge.exe                    → Installer/Manager GUI
-    bridge.exe --headless         → Bridge ohne GUI starten (Autostart/Service)
+    bridge.exe                    → Manager-GUI (Einstellungen + Status)
+    bridge.exe --headless         → Bridge ohne GUI starten (Autostart)
     bridge.exe --test-client      → Test-Client GUI öffnen
     bridge.exe --config-dir PATH  → Anderes Verzeichnis für config.json
     bridge.exe --log-level LEVEL  → DEBUG / INFO / WARNING / ERROR
@@ -19,6 +19,14 @@ import signal
 import sys
 
 _LOG = logging.getLogger(__name__)
+
+# Config directory = Installationsverzeichnis (neben bridge.exe), auch im frozen-Modus.
+# Bei PyInstaller onefile zeigt __file__ auf den temp-Extraktionspfad,
+# sys.executable hingegen immer auf die echte .exe im Installationsverzeichnis.
+if getattr(sys, "frozen", False):
+    _APP_DIR = os.path.dirname(sys.executable)
+else:
+    _APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def _setup_logging(level: str) -> None:
@@ -68,8 +76,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="kodi-mpchc-bridge")
     parser.add_argument(
         "--config-dir",
-        default=os.path.dirname(os.path.abspath(__file__)),
-        help="Verzeichnis für config.json",
+        default=_APP_DIR,
+        help="Verzeichnis für config.json (Standard: Installationsverzeichnis)",
     )
     parser.add_argument(
         "--log-level",
