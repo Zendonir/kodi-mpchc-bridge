@@ -523,44 +523,93 @@ class InstallerApp:
         self._log_text.pack(fill="both", expand=True, padx=8, pady=8)
         self._btn(p, "🗑  Log leeren", self._on_clear_log, _C_BTN).pack(anchor="e", padx=8, pady=(0, 8))
 
-    # ── Status refresh ───────────────────────────────────────────────────────
+    # ── Status refresh (non-blocking) ────────────────────────────────────────
+    #
+    # ALL subprocess / network calls are moved to a background thread.
+    # Results are marshalled back to the main thread via root.after(0, …).
+    # This prevents the tkinter event loop from freezing.
+
+    # Cache firewall state — PowerShell is slow (1-3 s) so we only check
+    # it once on startup, then only when the user explicitly acts on it.
+    _fw_cache: bool = False
+    _fw_checked: bool = False
 
     def _refresh_status(self) -> None:
-        # Bridge running?
-        running = _bridge_running(self._port)
-        if running:
-            self._status_var.set(f"● Bridge läuft  ·  Port {self._port}")
-            self._status_lbl.config(fg=_C_SUCCESS)
-        else:
-            self._status_var.set(f"○ Bridge gestoppt  ·  Port {self._port}")
-            self._status_lbl.config(fg=_C_FG_DIM)
+        """Schedule a background status check and return immediately."""
+        threading.Thread(target=self._refresh_status_bg, daemon=True).start()
 
-        # Autostart
+    def _refresh_status_bg(self) -> None:
+        """Run all blocking checks in a worker thread."""
+        running = _bridge_running(self._port)
+        installed = False
+        ss = "not_installed"
+        fw_ok = self._fw_cache
+
         if sys.platform == "win32":
-            installed = service.is_installed()
-            self._lbl_autostart.config(
-                text=("✅  Autostart aktiv" if installed else "❌  Autostart nicht eingerichtet"),
-                fg=(_C_SUCCESS if installed else _C_FG_DIM),
-            )
-            # Service
-            ss = service_status()
-            svc_text = {"running": "✅  Service läuft", "stopped": "⚠  Service installiert (gestoppt)",
-                        "not_installed": "❌  Service nicht installiert"}.get(ss, ss)
-            self._lbl_service.config(
-                text=svc_text,
-                fg=(_C_SUCCESS if ss == "running" else _C_WARN if ss == "stopped" else _C_FG_DIM),
-            )
-            # Firewall
-            fw_ok = firewall_rule_exists(self._port)
-            self._lbl_firewall.config(
-                text=(f"✅  Firewall-Regel vorhanden (Port {self._port})"
-                      if fw_ok else f"❌  Keine Firewall-Regel für Port {self._port}"),
-                fg=(_C_SUCCESS if fw_ok else _C_FG_DIM),
-            )
+            try:
+                installed = service.is_installed()
+            except Exception:
+                pass
+            try:
+                ss = service_status()
+            except Exception:
+                pass
+            # Firewall check via PowerShell — only run once per explicit action
+            # or on first startup (not on every periodic refresh)
+            if not self._fw_checked:
+                try:
+                    fw_ok = firewall_rule_exists(self._port)
+                    self._fw_cache = fw_ok
+                    self._fw_checked = True
+                except Exception:
+                    pass
+
+        # Marshal UI update back to main thread
+        try:
+            self._root.after(0, lambda: self._apply_status(running, installed, ss, fw_ok))
+        except Exception:
+            pass  # window already destroyed
+
+    def _apply_status(self, running: bool, installed: bool, ss: str, fw_ok: bool) -> None:
+        """Apply gathered status to UI widgets — must run on the main thread."""
+        try:
+            if running:
+                self._status_var.set(f"● Bridge läuft  ·  Port {self._port}")
+                self._status_lbl.config(fg=_C_SUCCESS)
+            else:
+                self._status_var.set(f"○ Bridge gestoppt  ·  Port {self._port}")
+                self._status_lbl.config(fg=_C_FG_DIM)
+
+            if sys.platform == "win32":
+                self._lbl_autostart.config(
+                    text=("✅  Autostart aktiv" if installed else "❌  Autostart nicht eingerichtet"),
+                    fg=(_C_SUCCESS if installed else _C_FG_DIM),
+                )
+                svc_text = {
+                    "running":       "✅  Service läuft",
+                    "stopped":       "⚠  Service installiert (gestoppt)",
+                    "not_installed": "❌  Service nicht installiert",
+                }.get(ss, ss)
+                self._lbl_service.config(
+                    text=svc_text,
+                    fg=(_C_SUCCESS if ss == "running" else
+                        _C_WARN    if ss == "stopped"  else _C_FG_DIM),
+                )
+                self._lbl_firewall.config(
+                    text=(f"✅  Firewall-Regel vorhanden (Port {self._port})"
+                          if fw_ok else f"❌  Keine Firewall-Regel für Port {self._port}"),
+                    fg=(_C_SUCCESS if fw_ok else _C_FG_DIM),
+                )
+        except tk.TclError:
+            pass  # window was destroyed while the after() callback was pending
+
+    def _invalidate_fw_cache(self) -> None:
+        """Force a fresh firewall check on the next refresh cycle."""
+        self._fw_checked = False
 
     def _schedule_refresh(self) -> None:
-        self._refresh_status()
         self._root.after(5000, self._schedule_refresh)
+        self._refresh_status()
 
     # ── Button handlers ──────────────────────────────────────────────────────
 
@@ -681,7 +730,9 @@ class InstallerApp:
         def _check(remaining: int) -> None:
             exists = firewall_rule_exists(self._port)
             if exists == expect_present:
-                # Reached expected state
+                # Reached expected state — update cache so periodic refresh shows correct value
+                self._fw_cache = expect_present
+                self._fw_checked = True
                 if expect_present:
                     self._log(f"[INFO] ✅ Firewall-Regel erfolgreich hinzugefügt (Port {self._port}).")
                     self._lbl_firewall.config(
