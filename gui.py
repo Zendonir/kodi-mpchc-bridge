@@ -468,8 +468,8 @@ class InstallerApp:
     def _build_install_tab(self) -> None:
         p = self._tab_install
 
-        # Autostart (HKCU, no admin)
-        auto = self._section(p, "Autostart  (Benutzer-Registry, kein Admin)")
+        # Autostart (Task Scheduler, no admin)
+        auto = self._section(p, "Autostart  (Task-Planer, kein Admin — funktioniert ohne Explorer)")
         self._lbl_autostart = tk.Label(
             auto, text="", bg=_C_PANEL, fg=_C_FG, font=("Segoe UI", 9), anchor="w"
         )
