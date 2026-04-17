@@ -176,6 +176,17 @@ class Hub:
             self._mpchc_active = True
             _filepath = updates.get("filepath", "")
             updates["media_type"] = _detect_media_type(_filepath)
+            # Clear stale video / metadata from any previous player so the
+            # remote doesn't show leftover Kodi HDR / year / show data while
+            # MKV parsing + library lookup run in the background.
+            for _k in ("hdr", "video_codec"):
+                updates.setdefault(_k, "")
+            for _k in ("video_width", "video_height", "video_bitrate_kbps"):
+                updates.setdefault(_k, 0)
+            updates.setdefault("video_fps", 0.0)
+            for _k in ("year", "season", "episode"):
+                updates.setdefault(_k, 0)
+            updates.setdefault("tv_show", "")
             _LOG.info("ACTIVE PLAYER → mpchc  (file: %s, type: %s)",
                       _filepath, updates["media_type"])
         elif new_active == "none" and self._mpchc_active:
@@ -183,6 +194,10 @@ class Hub:
             self._server.clear_artwork()
             updates["artwork_url"] = ""   # clear artwork on remote immediately
             updates["media_type"] = ""    # clear type so Kodi can set its own
+            # Clear video info so Kodi's own stream details take over cleanly
+            updates.setdefault("hdr", "")
+            updates.setdefault("video_codec", "")
+            updates.setdefault("video_fps", 0.0)
             _LOG.info("ACTIVE PLAYER → none   (mpchc idle, kodi may take over)")
 
         # Capture raw track names before they are consumed
@@ -243,20 +258,33 @@ class Hub:
 
     async def _fetch_artwork(self, filepath: str) -> None:
         """
-        Background task: find artwork and push it to state.
+        Background task: fetch artwork AND library metadata, then push to state.
 
-        Order of preference:
-        1. Kodi library (Player.GetItem / VideoLibrary search)
+        Order of preference for artwork:
+        1. Kodi library (get_file_info — also returns title/year/show/season/episode)
         2. Local poster file next to the video (poster.jpg, folder.jpg, …)
         """
         try:
             data: bytes | None = None
             ct = "image/jpeg"
 
-            kodi_url = await self._kodi.get_file_artwork(filepath)
-            if kodi_url:
-                data, ct = await self._kodi.fetch_image_bytes(kodi_url)
-            else:
+            # Kodi library lookup — returns artwork URL + metadata
+            info = await self._kodi.get_file_info(filepath)
+            if info:
+                # Push metadata immediately (year, tv_show, season, episode, title)
+                meta_patch = {
+                    k: v for k, v in info.items()
+                    if k != "artwork_url" and v not in ("", 0)
+                }
+                if meta_patch:
+                    _LOG.info("FileInfo metadata: %s", meta_patch)
+                    await self._push(meta_patch)
+
+                kodi_url = info.get("artwork_url", "")
+                if kodi_url:
+                    data, ct = await self._kodi.fetch_image_bytes(kodi_url)
+
+            if not data:
                 # Filesystem fallback: look for poster/folder images in same dir
                 result = await asyncio.get_running_loop().run_in_executor(
                     None, self._load_local_poster, filepath
@@ -274,7 +302,7 @@ class Hub:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            _LOG.warning("Artwork fetch failed for %r: %s", filepath, exc)
+            _LOG.warning("Artwork/metadata fetch failed for %r: %s", filepath, exc)
 
     @staticmethod
     def _load_local_poster(filepath: str) -> tuple[bytes, str] | None:

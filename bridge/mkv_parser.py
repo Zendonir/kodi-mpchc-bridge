@@ -13,7 +13,7 @@ import struct
 from dataclasses import dataclass, field
 from typing import Optional
 
-READ_LIMIT = 4 * 1024 * 1024  # 4 MB
+READ_LIMIT = 8 * 1024 * 1024  # 8 MB — some remuxes put Tracks far into the file
 
 # ---------------------------------------------------------------------------
 # EBML element IDs
@@ -218,6 +218,8 @@ def _iter_children(data: bytes, start: int, end: int):
         if esize == 0x00FFFFFFFFFFFFFF:
             # unknown size — skip rest
             break
+        if pos + esize > len(data):
+            break  # element extends beyond read buffer — stop safely
         yield eid, pos, pos + esize
         pos += esize
 

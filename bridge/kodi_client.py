@@ -169,18 +169,25 @@ class KodiClient:
             data = await resp.read()
             return data, resp.content_type or "image/jpeg"
 
-    async def get_file_artwork(self, filepath: str) -> str:
+    async def get_file_info(self, filepath: str) -> dict[str, Any]:
         """
-        Return an HTTP URL for the thumbnail of *filepath* from Kodi's library.
-        Empty string if not found.
+        Look up *filepath* in the Kodi library.
 
-        Strategy (in order):
-        1. Player.GetActivePlayers + Player.GetItem — fast when Kodi has an active item.
-        2. VideoLibrary.GetMovies by filename — path-format-independent library search.
-        3. Files.GetFileDetails — exact path match (last resort, may be slow).
-        Prefers art.poster > art.fanart > thumbnail.
+        Returns a dict with artwork_url, title, year, tv_show, season, episode.
+        All keys are always present; empty / zero when not found.
+
+        Strategy:
+        1. Player.GetActivePlayers + Player.GetItem  (active item — fastest)
+        2. VideoLibrary.GetMovies by filename
+        3. VideoLibrary.GetEpisodes by filename
+        4. Files.GetFileDetails (last resort)
         """
         import os
+
+        _EMPTY: dict[str, Any] = {
+            "artwork_url": "", "title": "",
+            "year": 0, "tv_show": "", "season": 0, "episode": 0,
+        }
 
         def _pick_art(item: dict) -> str:
             art = item.get("art") or {}
@@ -191,7 +198,20 @@ class KodiClient:
                 or ""
             )
 
-        # 1) Active Kodi player → Player.GetItem (fastest, most reliable)
+        def _meta(item: dict, *, is_episode: bool = False) -> dict[str, Any]:
+            thumb = _pick_art(item)
+            return {
+                "artwork_url": self._image_url(thumb) if thumb else "",
+                "title":    item.get("title", "")     or item.get("label", "") or "",
+                "year":     item.get("year", 0)        or 0,
+                "tv_show":  item.get("showtitle", "")  or "" if is_episode else "",
+                "season":   item.get("season", 0)      or 0  if is_episode else 0,
+                "episode":  item.get("episode", 0)     or 0  if is_episode else 0,
+            }
+
+        filename = os.path.basename(filepath)
+
+        # 1) Active Kodi player → fastest, most complete metadata
         players = await self._call("Player.GetActivePlayers") or []
         for player in players:
             pid = player.get("playerid")
@@ -199,78 +219,72 @@ class KodiClient:
                 continue
             result = await self._call("Player.GetItem", {
                 "playerid": pid,
-                "properties": ["art", "thumbnail", "file"],
+                "properties": [
+                    "art", "thumbnail", "file",
+                    "title", "year", "showtitle", "season", "episode",
+                ],
             })
-            _LOG.info("Artwork [1/3] Player.GetItem(player=%d) → %s", pid, result)
+            _LOG.info("FileInfo [1/4] Player.GetItem(player=%d) → %s", pid, result)
             if result and isinstance(result, dict):
                 item = result.get("item", {})
+                # Only use if the active file matches ours
+                active_file = item.get("file", "")
+                if os.path.basename(active_file) == filename:
+                    is_ep = item.get("type", "") == "episode" or bool(item.get("showtitle"))
+                    m = _meta(item, is_episode=is_ep)
+                    _LOG.info("FileInfo [1/4] matched: title=%r year=%r", m["title"], m["year"])
+                    return m
+                # File names differ — still usable if caller is same file
                 thumb = _pick_art(item)
-                _LOG.info("Artwork [1/3] art=%r  thumb=%r", item.get("art"), thumb)
-                if thumb:
-                    url = self._image_url(thumb)
-                    _LOG.info("Artwork [1/3] HTTP URL: %s", url)
-                    return url
+                if thumb and not active_file:
+                    m = _meta(item, is_episode=bool(item.get("showtitle")))
+                    return m
 
-        # 2) VideoLibrary search by filename (path-format independent)
-        filename = os.path.basename(filepath)
+        # 2) Movie library by filename
         result = await self._call("VideoLibrary.GetMovies", {
             "filter": {"field": "filename", "operator": "is", "value": filename},
-            "properties": ["thumbnail", "art"],
+            "properties": ["thumbnail", "art", "title", "year"],
             "limits": {"end": 1},
         })
-        _LOG.info("Artwork [2/3] VideoLibrary.GetMovies(%r) → %s", filename, result)
+        _LOG.info("FileInfo [2/4] GetMovies(%r) → %s", filename, result)
         if result and isinstance(result, dict):
             movies = result.get("movies", [])
             if movies:
-                m = movies[0]
-                thumb = _pick_art(m)
-                _LOG.info("Artwork [2/3] movie=%r  art=%r  thumbnail=%r  → using=%r",
-                          m.get("label"), m.get("art"), m.get("thumbnail"), thumb)
-                if thumb:
-                    url = self._image_url(thumb)
-                    _LOG.info("Artwork [2/3] HTTP URL: %s", url)
-                    return url
-            else:
-                _LOG.info("Artwork [2/3] no movie found for filename=%r", filename)
+                m = _meta(movies[0])
+                _LOG.info("FileInfo [2/4] movie: title=%r year=%r art=%r", m["title"], m["year"], m["artwork_url"])
+                return m
 
-        # 2b) VideoLibrary.GetEpisodes by filename (TV shows)
+        # 3) Episode library by filename
         result = await self._call("VideoLibrary.GetEpisodes", {
             "filter": {"field": "filename", "operator": "is", "value": filename},
-            "properties": ["thumbnail", "art"],
+            "properties": ["thumbnail", "art", "title", "year", "showtitle", "season", "episode"],
             "limits": {"end": 1},
         })
-        _LOG.info("Artwork [2b] VideoLibrary.GetEpisodes(%r) → %s", filename, result)
+        _LOG.info("FileInfo [3/4] GetEpisodes(%r) → %s", filename, result)
         if result and isinstance(result, dict):
             episodes = result.get("episodes", [])
             if episodes:
-                e = episodes[0]
-                thumb = _pick_art(e)
-                _LOG.info("Artwork [2b] ep=%r  art=%r  thumbnail=%r  → using=%r",
-                          e.get("label"), e.get("art"), e.get("thumbnail"), thumb)
-                if thumb:
-                    url = self._image_url(thumb)
-                    _LOG.info("Artwork [2b] HTTP URL: %s", url)
-                    return url
+                m = _meta(episodes[0], is_episode=True)
+                _LOG.info("FileInfo [3/4] ep: title=%r show=%r s%se%s",
+                          m["title"], m["tv_show"], m["season"], m["episode"])
+                return m
 
-        # 3) Exact path lookup (last resort — may time out for remote paths)
+        # 4) Files.GetFileDetails (exact path, last resort)
         result = await self._call("Files.GetFileDetails", {
             "file": filepath,
             "media": "video",
-            "properties": ["thumbnail", "art"],
+            "properties": ["thumbnail", "art", "title"],
         })
-        _LOG.info("Artwork [3/3] Files.GetFileDetails → %s", result)
+        _LOG.info("FileInfo [4/4] GetFileDetails → %s", result)
         if result and isinstance(result, dict):
             item = result.get("filedetails", {})
             thumb = _pick_art(item)
-            _LOG.info("Artwork [3/3] poster=%r  thumbnail=%r  → using=%r",
-                      (item.get("art") or {}).get("poster"), item.get("thumbnail"), thumb)
             if thumb:
-                url = self._image_url(thumb)
-                _LOG.info("Artwork [3/3] HTTP URL: %s", url)
-                return url
+                return {**_EMPTY, "artwork_url": self._image_url(thumb),
+                        "title": item.get("label", "") or ""}
 
-        _LOG.warning("Artwork: nothing found for %r", filepath)
-        return ""
+        _LOG.info("FileInfo: nothing found in Kodi library for %r", filepath)
+        return dict(_EMPTY)
 
     def _image_url(self, kodi_url: str) -> str:
         """
