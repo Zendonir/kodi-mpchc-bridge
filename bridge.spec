@@ -79,7 +79,13 @@ exe = EXE(
     strip=False,
     upx=True,
     upx_exclude=[],
-    runtime_tmpdir=None,
+    # Use a fixed extraction directory instead of a random _MEI{pid} temp folder.
+    # This eliminates the "Failed to remove temporary directory" warning that
+    # appears when a previous run was killed without a clean shutdown:
+    #   None  → %TEMP%\_MEI{random}  new dir every run, cleanup can fail
+    #   path  → fixed dir, no random naming, no cleanup needed, no warning
+    # Environment variables are expanded by the bootloader at runtime.
+    runtime_tmpdir=r'%LOCALAPPDATA%\kodi-mpchc-bridge',
     console=False,           # Kein Konsolenfenster
     disable_windowed_traceback=False,
     argv_emulation=False,
