@@ -43,23 +43,7 @@ _C_BTN_HOV  = "#4444aa"
 # Helpers — Windows admin / subprocess
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _elevate(exe: str, args: str) -> bool:
-    """
-    Launch *exe* with *args* via UAC elevation (ShellExecuteW runas).
-    SW_SHOWNORMAL=1 is required so the UAC dialog is actually visible.
-    Returns True if the shell accepted the request (does NOT wait for completion).
-    """
-    if sys.platform != "win32":
-        return False
-    import ctypes
-    SW_SHOWNORMAL = 1
-    rc = ctypes.windll.shell32.ShellExecuteW(
-        None, "runas", exe, args, None, SW_SHOWNORMAL
-    )
-    return int(rc) > 32
-
-
-def _run_hidden(cmd: list[str], timeout: int = 10) -> tuple[int, str]:
+def _run_hidden(cmd: list[str], timeout: int = 15) -> tuple[int, str]:
     """Run *cmd* silently, return (returncode, stdout+stderr)."""
     try:
         r = subprocess.run(
@@ -69,6 +53,58 @@ def _run_hidden(cmd: list[str], timeout: int = 10) -> tuple[int, str]:
         return r.returncode, (r.stdout + r.stderr).strip()
     except Exception as exc:
         return -1, str(exc)
+
+
+def _is_admin() -> bool:
+    """Return True if the current process has admin/elevated privileges."""
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False
+
+
+def _elevate_ps_file(script_content: str) -> bool:
+    """
+    Write *script_content* to a temp .ps1 file and launch it elevated via UAC.
+    Async — does NOT wait for completion.  Returns True if UAC accepted the launch.
+    """
+    if sys.platform != "win32":
+        return False
+    import ctypes, tempfile
+    tf = tempfile.NamedTemporaryFile(
+        suffix=".ps1", delete=False, mode="w", encoding="utf-8"
+    )
+    tf.write(script_content)
+    tf.close()
+
+    # Schedule cleanup after 60 s
+    def _cleanup():
+        import time
+        time.sleep(60)
+        try:
+            os.unlink(tf.name)
+        except OSError:
+            pass
+    threading.Thread(target=_cleanup, daemon=True).start()
+
+    rc = ctypes.windll.shell32.ShellExecuteW(
+        None, "runas", "powershell.exe",
+        f'-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{tf.name}"',
+        None, 1,   # SW_SHOWNORMAL — UAC dialog is visible
+    )
+    return int(rc) > 32
+
+
+def _elevate(exe: str, args: str) -> bool:
+    """Launch *exe* with *args* via UAC elevation (for non-PS commands like sc.exe)."""
+    if sys.platform != "win32":
+        return False
+    import ctypes
+    rc = ctypes.windll.shell32.ShellExecuteW(None, "runas", exe, args, None, 1)
+    return int(rc) > 32
 
 
 def _exe_path() -> str:
@@ -119,40 +155,68 @@ def service_uninstall() -> tuple[bool, str]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Firewall helpers (netsh)
+# Firewall helpers — PowerShell (handles rule names with spaces reliably)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def firewall_rule_exists(port: int) -> bool:
-    # subprocess list-form passes the name as a single token — no shell quoting needed
-    rc, out = _run_hidden(
-        ["netsh", "advfirewall", "firewall", "show", "rule",
-         f"name={_FIREWALL_RULE}", "verbose"]
+    """Check via PowerShell Get-NetFirewallRule — no elevation needed for reading."""
+    rc, out = _run_hidden([
+        "powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+        f"if (Get-NetFirewallRule -DisplayName '{_FIREWALL_RULE}'"
+        f" -ErrorAction SilentlyContinue) {{ 'EXISTS' }} else {{ 'NOT_FOUND' }}",
+    ])
+    return "EXISTS" in out
+
+
+def _ps_fw_add(port: int) -> str:
+    return (
+        f'New-NetFirewallRule '
+        f'-DisplayName "{_FIREWALL_RULE}" '
+        f'-Direction Inbound -Action Allow -Protocol TCP '
+        f'-LocalPort {port} -Profile Any -ErrorAction Stop'
     )
-    # rc=0 + "Rule Name" in output means rule exists
-    # rc!=0 or "No rules match" means absent
-    return "Rule Name" in out
+
+
+def _ps_fw_remove() -> str:
+    return (
+        f'Remove-NetFirewallRule '
+        f'-DisplayName "{_FIREWALL_RULE}" '
+        f'-ErrorAction SilentlyContinue'
+    )
 
 
 def firewall_add(port: int) -> tuple[bool, str]:
-    # Run netsh DIRECTLY (not via cmd.exe) so no shell-quoting issues with the name
-    args = (
-        f'advfirewall firewall add rule '
-        f'name="{_FIREWALL_RULE}" '
-        f'dir=in action=allow protocol=TCP localport={port} '
-        f'description="Kodi-MPC-HC Bridge inbound port"'
-    )
-    ok = _elevate("netsh", args)
-    if ok:
-        return True, f"Firewall-Regel für Port {port} wird hinzugefügt (UAC-Fenster bestätigen)."
-    return False, "Abgebrochen — UAC verweigert oder kein Admin."
+    if _is_admin():
+        # Already elevated — run directly and get the real return code
+        rc, out = _run_hidden(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", _ps_fw_add(port)],
+            timeout=20,
+        )
+        if rc == 0:
+            return True, f"✅ Firewall-Regel für Port {port} erfolgreich hinzugefügt."
+        return False, f"Fehler (rc={rc}): {out[:300]}"
+    else:
+        # Need UAC elevation — temp PS1 file + ShellExecuteW runas
+        ok = _elevate_ps_file(_ps_fw_add(port))
+        if ok:
+            return True, f"Firewall-Regel für Port {port} wird hinzugefügt — UAC-Fenster bestätigen."
+        return False, "Abgebrochen (UAC verweigert oder kein Admin)."
 
 
 def firewall_remove() -> tuple[bool, str]:
-    args = f'advfirewall firewall delete rule name="{_FIREWALL_RULE}"'
-    ok = _elevate("netsh", args)
-    if ok:
-        return True, "Firewall-Regel wird entfernt (UAC-Fenster bestätigen)."
-    return False, "Abgebrochen."
+    if _is_admin():
+        rc, out = _run_hidden(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", _ps_fw_remove()],
+            timeout=20,
+        )
+        if rc == 0:
+            return True, "✅ Firewall-Regel erfolgreich entfernt."
+        return False, f"Fehler (rc={rc}): {out[:300]}"
+    else:
+        ok = _elevate_ps_file(_ps_fw_remove())
+        if ok:
+            return True, "Firewall-Regel wird entfernt — UAC-Fenster bestätigen."
+        return False, "Abgebrochen."
 
 
 # ─────────────────────────────────────────────────────────────────────────────
