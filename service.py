@@ -41,12 +41,12 @@ def _exe_parts() -> tuple[str, str]:
     """
     Return (program, arguments) for the scheduled task action.
 
-    Frozen exe  → ("C:\\...\\bridge.exe",       "--headless")
-    Dev run     → ("C:\\Python\\python.exe",    '"C:\\...\\main.py" --headless')
+    Frozen exe  → ("C:\\...\\bridge.exe",  "")         — Bridge + Tray (Standardmodus)
+    Dev run     → ("C:\\Python\\python.exe", '"C:\\...\\main.py"')
     """
     if getattr(sys, "frozen", False):
-        return sys.executable, "--headless"
-    return sys.executable, f'"{os.path.abspath("main.py")}" --headless'
+        return sys.executable, ""
+    return sys.executable, f'"{os.path.abspath("main.py")}"'
 
 
 def _ps_quote(s: str) -> str:
@@ -109,10 +109,11 @@ def install() -> tuple[bool, list[str]]:
     # -RunLevel Limited  → no UAC elevation at runtime
     # -LogonType Interactive → runs in the user's desktop session
     # ExecutionTimeLimit 0  → no automatic timeout
+    _arg_part = f" -Argument {_ps_quote(arguments)}" if arguments else ""
     ps = (
         f"$act = New-ScheduledTaskAction"
         f" -Execute {_ps_quote(program)}"
-        f" -Argument {_ps_quote(arguments)}; "
+        f"{_arg_part}; "
         f"$tri = New-ScheduledTaskTrigger -AtLogOn"
         f' -User "$env:USERDOMAIN\\$env:USERNAME"; '
         f"$pri = New-ScheduledTaskPrincipal"

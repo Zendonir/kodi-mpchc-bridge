@@ -71,6 +71,11 @@ Name: "autostart"; \
   Description: "Bridge beim Windows-Anmelden automatisch starten (empfohlen)"; \
   GroupDescription: "Autostart:"; \
   Flags: checked
+; Firewall-Regel (opt-in, UAC-Fenster erscheint nach Installation)
+Name: "firewall"; \
+  Description: "Windows-Firewall-Regel für Bridge-Port 13590 einrichten (Admin erforderlich)"; \
+  GroupDescription: "Firewall:"; \
+  Flags: checked
 
 [Files]
 Source: "dist\{#AppExe}"; \
@@ -86,8 +91,9 @@ Name: "{userdesktop}\{#AppName}";                  Filename: "{app}\{#AppExe}"; 
 
 [Run]
 ; Autostart-Task im Task-Planer registrieren (kein Admin, ONLOGON, Standard-Benutzer)
+; Startet bridge.exe ohne --headless → Bridge + Tray-Icon werden gemeinsam gestartet.
 Filename: "schtasks"; \
-  Parameters: "/create /f /tn KodiMpcHcBridge /tr ""{app}\{#AppExe} --headless"" /sc ONLOGON /rl LIMITED"; \
+  Parameters: "/create /f /tn KodiMpcHcBridge /tr ""{app}\{#AppExe}"" /sc ONLOGON /rl LIMITED"; \
   Flags: runhidden waituntilterminated; \
   Tasks: autostart
 ; Bridge direkt nach der Installation starten
@@ -106,6 +112,11 @@ Filename: "schtasks"; \
   Parameters: "/delete /f /tn KodiMpcHcBridge"; \
   Flags: runhidden; \
   RunOnceId: "RemoveAutostart"
+; Firewall-Regel entfernen (kein UAC nötig — Remove läuft im Kontext des Uninstallers)
+Filename: "powershell.exe"; \
+  Parameters: "-NoProfile -NonInteractive -WindowStyle Hidden -Command ""Remove-NetFirewallRule -DisplayName 'Kodi-MPC-HC Bridge' -ErrorAction SilentlyContinue"""; \
+  Flags: runhidden; \
+  RunOnceId: "RemoveFirewall"
 
 ; ============================================================
 ; Pascal Script
@@ -209,6 +220,36 @@ begin
 end;
 
 // --------------------------------------------------------------------------
+// Firewall-Regel via eleviertem PowerShell hinzufügen.
+// Zeigt UAC-Fenster, wenn der aktuelle Nutzer kein Admin ist.
+// --------------------------------------------------------------------------
+procedure AddFirewallRule;
+var
+  Port: Integer;
+  ErrCode: Integer;
+begin
+  // Port aus der Konfigurationsseite lesen (Fallback: 13590)
+  Port := 13590;
+  ShellExec(
+    'runas',
+    'powershell.exe',
+    '-NoProfile -NonInteractive -WindowStyle Hidden -Command "' +
+      'New-NetFirewallRule' +
+      ' -DisplayName ''Kodi-MPC-HC Bridge''' +
+      ' -Direction Inbound' +
+      ' -Action Allow' +
+      ' -Protocol TCP' +
+      ' -LocalPort ' + IntToStr(Port) +
+      ' -Profile Any' +
+      ' -ErrorAction SilentlyContinue"',
+    '',
+    SW_HIDE,
+    ewNoWait,
+    ErrCode
+  );
+end;
+
+// --------------------------------------------------------------------------
 // Nach der Installation: config.json im Installationsverzeichnis ablegen.
 // Nur bei Erstinstallation — bei Upgrade bleibt vorhandene config.json erhalten.
 // --------------------------------------------------------------------------
@@ -248,6 +289,10 @@ begin
   finally
     Lines.Free;
   end;
+
+  // Firewall-Regel einrichten (UAC-Fenster erscheint, falls nötig)
+  if WizardIsTaskSelected('firewall') then
+    AddFirewallRule;
 end;
 
 // --------------------------------------------------------------------------
