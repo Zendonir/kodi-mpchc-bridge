@@ -208,51 +208,7 @@ class MpcHcClient:
         return True
 
     async def send_key(self, vk_code: int, ctrl: bool = False) -> bool:
-        """
-        Send a keystroke to the MPC-HC/MPC-BE window.
-
-        Brings the player window to the foreground and uses keybd_event so the
-        key is delivered as real input (PostMessage is not reliable for shortcuts).
-        """
-        import sys
-        if sys.platform != "win32":
-            _LOG.warning("send_key only supported on Windows")
-            return False
-        import ctypes
-
-        KEYEVENTF_KEYUP = 0x0002
-        VK_CONTROL = 0x11
-
-        user32 = ctypes.windll.user32
-
-        # Try known window class names for MPC-HC and MPC-BE
-        hwnd = 0
-        for cls in ("MediaPlayerClassicW", "MPC-BE", "MPC-BE64"):
-            hwnd = user32.FindWindowW(cls, None)
-            if hwnd:
-                _LOG.debug("MPC window found: class=%s hwnd=%d", cls, hwnd)
-                break
-
-        if not hwnd:
-            _LOG.warning("MPC window not found (tried MediaPlayerClassicW, MPC-BE, MPC-BE64)")
-            return False
-
-        # Bring the player window to foreground so keybd_event reaches it
-        user32.SetForegroundWindow(hwnd)
-        user32.BringWindowToTop(hwnd)
-
-        if ctrl:
-            user32.keybd_event(VK_CONTROL, 0, 0, 0)
-        user32.keybd_event(vk_code, 0, 0, 0)
-        user32.keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0)
-        if ctrl:
-            user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
-
-        _LOG.info("MPC key sent: vk=0x%02X ctrl=%s", vk_code, ctrl)
-        return True
-
-    async def send_key(self, vk_code: int, ctrl: bool = False) -> bool:
-        """Send a keyboard message directly to the MPC-HC window via Windows API."""
+        """Send a keyboard message directly to the MPC-HC/MPC-BE window via Windows API."""
         import sys
         if sys.platform != "win32":
             _LOG.warning("send_key only supported on Windows")
@@ -265,10 +221,15 @@ class MpcHcClient:
 
         user32 = ctypes.windll.user32
 
-        # MPC-HC window class name
-        hwnd = user32.FindWindowW("MediaPlayerClassicW", None)
+        hwnd = 0
+        for cls in _MPCHC_CLASSES:
+            hwnd = user32.FindWindowW(cls, None)
+            if hwnd:
+                _LOG.debug("MPC window found: class=%s hwnd=%d", cls, hwnd)
+                break
+
         if not hwnd:
-            _LOG.warning("MPC-HC window not found (class=MediaPlayerClassicW)")
+            _LOG.warning("MPC window not found (tried %s)", ", ".join(_MPCHC_CLASSES))
             return False
 
         if ctrl:
@@ -280,7 +241,7 @@ class MpcHcClient:
             user32.PostMessageW(hwnd, WM_KEYDOWN, vk_code, 0)
             user32.PostMessageW(hwnd, WM_KEYUP, vk_code, 0)
 
-        _LOG.info("MPC-HC key sent: vk=0x%02X ctrl=%s", vk_code, ctrl)
+        _LOG.info("MPC key sent: vk=0x%02X ctrl=%s", vk_code, ctrl)
         return True
 
     async def close(self) -> None:

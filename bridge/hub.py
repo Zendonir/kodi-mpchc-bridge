@@ -191,7 +191,11 @@ class Hub:
                     _LOG.info("MPC-HC initial subtitle track: %r → %d", self._last_subtitletrack_name, idx)
 
             # Fetch cover art from Kodi library in background (avoids blocking state push)
-            asyncio.get_running_loop().create_task(self._fetch_artwork(new_filepath))
+            task = asyncio.get_running_loop().create_task(self._fetch_artwork(new_filepath))
+            task.add_done_callback(
+                lambda t: _LOG.warning("Artwork task raised: %s", t.exception())
+                if not t.cancelled() and t.exception() else None
+            )
 
         # Resolve track name changes on subsequent polls (ongoing resync)
         if audiotrack_name is not None and "current_audio" not in updates:
@@ -218,19 +222,19 @@ class Hub:
         Background task: find artwork in Kodi, download the bytes,
         store them in the bridge server, and push the bridge-owned URL to state.
         """
-        kodi_url = await self._kodi.get_file_artwork(filepath)
-        if not kodi_url:
-            return
         try:
+            kodi_url = await self._kodi.get_file_artwork(filepath)
+            if not kodi_url:
+                return
             data, ct = await self._kodi.fetch_image_bytes(kodi_url)
+            self._server.set_artwork(data, ct)
+            bridge_url = f"{self._bridge_base_url()}/api/artwork"
+            _LOG.info("MPC-HC artwork stored, serving at %s (%d bytes)", bridge_url, len(data))
+            await self._push({"artwork_url": bridge_url})
+        except asyncio.CancelledError:
+            raise
         except Exception as exc:
-            _LOG.warning("Artwork download failed (%s): %s", kodi_url, exc)
-            return
-
-        self._server.set_artwork(data, ct)
-        bridge_url = f"{self._bridge_base_url()}/api/artwork"
-        _LOG.info("MPC-HC artwork stored, serving at %s (%d bytes)", bridge_url, len(data))
-        await self._push({"artwork_url": bridge_url})
+            _LOG.warning("Artwork fetch failed for %r: %s", filepath, exc)
 
     def _bridge_base_url(self) -> str:
         import socket
