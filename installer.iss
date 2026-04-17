@@ -67,13 +67,13 @@ Name: "desktopicon"; \
   Description: "Desktop-Verknüpfung erstellen"; \
   GroupDescription: "Zusätzliche Symbole:"; \
   Flags: unchecked
-; Autostart (Standard: aktiv — "unchecked" wäre opt-out, kein Flag = Standard-aktiv)
+; Autostart (Standard: aktiv)
 Name: "autostart"; \
   Description: "Bridge beim Windows-Anmelden automatisch starten (empfohlen)"; \
   GroupDescription: "Autostart:"
 ; Firewall (Standard: aktiv)
 Name: "firewall"; \
-  Description: "Windows-Firewall-Regel für Bridge-Port 13590 einrichten (Admin-Fenster erscheint)"; \
+  Description: "Windows-Firewall-Regel für Bridge-Port 13590 einrichten (Admin-Fenster erscheint kurz)"; \
   GroupDescription: "Firewall:"
 
 [Files]
@@ -89,13 +89,13 @@ Name: "{group}\{#AppName} deinstallieren"; Filename: "{uninstallexe}"
 Name: "{userdesktop}\{#AppName}";          Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Run]
-; Bridge nach der Installation starten (optional, erscheint auf der Abschlussseite)
+; Bridge nach der Installation starten (Abschlussseite)
 Filename: "{app}\{#AppExe}"; \
   Description: "{#AppName} jetzt starten"; \
   Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
-; Laufende Instanz beenden — das war's; Rest läuft über Pascal-Code (CurUninstallStepChanged)
+; Laufende Instanz beenden — Autostart + Firewall werden im Pascal-Code entfernt
 Filename: "taskkill"; \
   Parameters: "/f /im {#AppExe}"; \
   Flags: runhidden waituntilterminated; \
@@ -163,8 +163,7 @@ begin
   if ShouldSkipPage(CurPageID) then Exit;
 
   if Trim(ConfigPage.Values[0]) = '' then begin
-    MsgBox('Bitte einen Kodi-Host eingeben (z. B. localhost oder 192.168.1.x).',
-           mbError, MB_OK);
+    MsgBox('Bitte einen Kodi-Host eingeben.', mbError, MB_OK);
     Result := False; Exit;
   end;
   p := StrToIntDef(ConfigPage.Values[1], -1);
@@ -195,40 +194,56 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Task-Scheduler-Eintrag erstellen (kein Admin nötig, ONLOGON, User-Session).
-// Nutzt Exec() mit vollständigem Pfad + zusammengesetztem Parameter-String,
-// damit Leerzeichen im Installationspfad korrekt gequotet werden.
+// Task-Scheduler-Eintrag erstellen.
+//
+// Warum PowerShell-Script-Datei statt schtasks.exe?
+//   • schtasks hat subtile Quoting-Probleme bei Pfaden mit Leerzeichen
+//     wenn der Parameter-String über CreateProcess übergeben wird.
+//   • Register-ScheduledTask (PowerShell-Cmdlet) ist robuster, kennt
+//     keine Quoting-Fallen und läuft zuverlässig ohne Admin.
+//   • Die .ps1-Datei umgeht alle Kommandozeilen-Escaping-Probleme:
+//     Der AppPath wird direkt in den Skript-Inhalt geschrieben.
 // --------------------------------------------------------------------------
 procedure CreateAutostartTask;
 var
-  AppPath, Params: String;
+  AppPath, ScriptPath, Script: String;
   rc: Integer;
 begin
-  AppPath := ExpandConstant('{app}\{#AppExe}');
-  Params  := '/create /f'
-    + ' /tn "' + '{#AppTaskName}' + '"'
-    + ' /tr "' + AppPath + '"'
-    + ' /sc ONLOGON'
-    + ' /rl LIMITED';
-  Exec(ExpandConstant('{sys}\schtasks.exe'), Params, '',
-       SW_HIDE, ewWaitUntilTerminated, rc);
+  AppPath    := ExpandConstant('{app}\{#AppExe}');
+  ScriptPath := ExpandConstant('{tmp}\kodi_create_task.ps1');
+
+  // Einfache Anführungszeichen (Char 39) für PowerShell-Literale —
+  // kein Risiko von Variable-Expansion im Pfad.
+  Script :=
+    '$act = New-ScheduledTaskAction -Execute ' + #39 + AppPath + #39 + #13#10 +
+    '$tri = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME' + #13#10 +
+    '$pri = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited' + #13#10 +
+    '$set = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries' + #13#10 +
+    'Register-ScheduledTask -TaskName ' + #39 + '{#AppTaskName}' + #39 +
+    ' -Action $act -Trigger $tri -Principal $pri -Settings $set -Force -ErrorAction Stop';
+
+  if SaveStringToFile(ScriptPath, Script, False) then
+    Exec('powershell.exe',
+         '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '"',
+         '', SW_HIDE, ewWaitUntilTerminated, rc);
 end;
 
 // --------------------------------------------------------------------------
 // Task-Scheduler-Eintrag entfernen.
+// Hier ist schtasks /delete sicher — kein Pfad, nur der Task-Name.
 // --------------------------------------------------------------------------
 procedure DeleteAutostartTask;
 var
   rc: Integer;
 begin
   Exec(ExpandConstant('{sys}\schtasks.exe'),
-       '/delete /f /tn "' + '{#AppTaskName}' + '"',
+       '/delete /f /tn ' + '{#AppTaskName}',
        '', SW_HIDE, ewWaitUntilTerminated, rc);
 end;
 
 // --------------------------------------------------------------------------
-// Firewall-Regel hinzufügen — via ShellExec 'runas' (UAC-Fenster wenn nötig).
-// ewNoWait: Installer wartet nicht auf Abschluss (UAC-Fenster erscheint danach).
+// Firewall-Regel hinzufügen — benötigt Admin → UAC-Fenster erscheint kurz.
+// ewNoWait: Installer blockiert nicht, UAC-Fenster erscheint im Hintergrund.
 // --------------------------------------------------------------------------
 procedure AddFirewallRule;
 var
@@ -236,17 +251,16 @@ var
 begin
   ShellExec(
     'runas', 'powershell.exe',
-    '-NoProfile -NonInteractive -WindowStyle Hidden -Command '
-    + '"New-NetFirewallRule'
-    + ' -DisplayName ''' + '{#FwRuleName}' + ''''
+    '-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command '
+    + '"New-NetFirewallRule -DisplayName ' + #39 + '{#FwRuleName}' + #39
     + ' -Direction Inbound -Action Allow -Protocol TCP'
     + ' -LocalPort 13590 -Profile Any -ErrorAction SilentlyContinue"',
     '', SW_HIDE, ewNoWait, ErrCode);
 end;
 
 // --------------------------------------------------------------------------
-// Firewall-Regel entfernen — via ShellExec 'runas', WARTET auf Abschluss
-// damit die Deinstallation die Regel tatsächlich entfernt hat.
+// Firewall-Regel entfernen — benötigt Admin → UAC-Fenster.
+// ewWaitUntilTerminated: Deinstallation wartet bis Regel wirklich weg ist.
 // --------------------------------------------------------------------------
 procedure RemoveFirewallRule;
 var
@@ -254,15 +268,14 @@ var
 begin
   ShellExec(
     'runas', 'powershell.exe',
-    '-NoProfile -NonInteractive -WindowStyle Hidden -Command '
-    + '"Remove-NetFirewallRule'
-    + ' -DisplayName ''' + '{#FwRuleName}' + ''''
+    '-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command '
+    + '"Remove-NetFirewallRule -DisplayName ' + #39 + '{#FwRuleName}' + #39
     + ' -ErrorAction SilentlyContinue"',
     '', SW_HIDE, ewWaitUntilTerminated, ErrCode);
 end;
 
 // --------------------------------------------------------------------------
-// Nach Installation: config.json schreiben + Autostart + Firewall einrichten.
+// Nach Installation: config.json + Autostart + Firewall einrichten.
 // --------------------------------------------------------------------------
 procedure CurStepChanged(CurStep: TSetupStep);
 var
@@ -299,17 +312,17 @@ begin
     end;
   end;
 
-  // --- Autostart-Task (Task-Planer, kein Admin) ---
+  // --- Autostart-Task (kein Admin nötig) ---
   if WizardIsTaskSelected('autostart') then
     CreateAutostartTask;
 
-  // --- Firewall-Regel (benötigt Admin → UAC-Fenster) ---
+  // --- Firewall-Regel (Admin nötig → UAC-Fenster) ---
   if WizardIsTaskSelected('firewall') then
     AddFirewallRule;
 end;
 
 // --------------------------------------------------------------------------
-// Bei Deinstallation: Firewall entfernen (UAC) + Autostart + config.json fragen.
+// Bei Deinstallation: Firewall + Autostart entfernen, config.json fragen.
 // --------------------------------------------------------------------------
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
@@ -317,10 +330,10 @@ var
 begin
   if CurUninstallStep = usUninstall then begin
 
-    // Firewall-Regel entfernen (Admin nötig → UAC-Fenster, wartet auf Abschluss)
+    // Firewall entfernen (Admin → UAC, wartet auf Abschluss)
     RemoveFirewallRule;
 
-    // Autostart-Task entfernen (kein Admin nötig)
+    // Autostart-Task entfernen (kein Admin)
     DeleteAutostartTask;
 
     // config.json: Nutzer fragen

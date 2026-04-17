@@ -75,9 +75,10 @@ jobs:
             ## Kodi ↔ MPC-HC Bridge ${{ steps.version.outputs.tag }}
 
             ### Download
+            ### Download
             | Datei | Beschreibung |
             |-------|-------------|
-            | `kodi-mpchc-bridge-setup-*.exe` | **Empfohlen** — Installer mit Start-Menü & Deinstaller |
+            | `kodi-mpchc-bridge-setup-*.exe` | Installer — Start-Menü, Autostart, Firewall, Deinstaller |
 
             ### Erste Schritte
             1. Setup-`*.exe` herunterladen und ausführen (kein Admin nötig)
@@ -98,7 +99,6 @@ jobs:
           draft: false
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
           files: |
-            dist/kodi-bridge.exe
             dist/kodi-mpchc-bridge-setup-${{ steps.version.outputs.ver }}.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
