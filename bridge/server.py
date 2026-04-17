@@ -314,7 +314,15 @@ function fmt(k, v) {
   if (k === 'video_fps') return v ? v.toFixed(3) + ' fps' : '—';
   if (k === 'video_bitrate_kbps') return v ? (v / 1000).toFixed(1) + ' Mbps' : '—';
   if (k === 'video_width' || k === 'video_height') return v ? v + ' px' : '—';
-  if (k === 'year' || k === 'season' || k === 'episode') return v ? String(v) : '—';
+  if (k === 'year') return v ? String(v) : '—';
+  if (k === 'season') {
+    if (!v) return '—';
+    return state.season_count > 0 ? `${v} von ${state.season_count}` : String(v);
+  }
+  if (k === 'episode') {
+    if (!v) return '—';
+    return state.episode_count > 0 ? `${v} von ${state.episode_count}` : String(v);
+  }
   if (typeof v === 'boolean') return v ? 'Ja' : 'Nein';
   if (Array.isArray(v)) return v.length ? v.map(t => t.label || t.name || '?').join(', ') : '—';
   return v ? String(v) : '—';

@@ -41,10 +41,15 @@ _ID_VIDEO = 0xE0
 _ID_PIXEL_WIDTH = 0xB0
 _ID_PIXEL_HEIGHT = 0xBA
 _ID_COLOUR = 0x55B0
+_ID_MATRIX_COEFFICIENTS = 0x55B1
 _ID_TRANSFER_CHARACTERISTICS = 0x55BA
 _ID_COLOUR_PRIMARIES = 0x55BB
 _ID_MAX_CLL = 0x55BC            # presence → HDR10 content light metadata
+_ID_MAX_FALL = 0x55BD
 _ID_MASTERING_METADATA = 0x55D0
+
+# BT.2020 colour primaries value — almost always indicates HDR content
+_PRIMARIES_BT2020 = 9
 # Chapters
 _ID_CHAPTERS = 0x1043A770
 _ID_EDITION_ENTRY = 0x45B9
@@ -306,7 +311,9 @@ def _parse_video_element(data: bytes, start: int, end: int) -> tuple[int, int, f
     width = 0
     height = 0
     transfer = 0
+    primaries = 0
     has_max_cll = False
+    has_max_fall = False
     has_mastering = False
 
     for eid, ds, de in _iter_children(data, start, end):
@@ -320,16 +327,26 @@ def _parse_video_element(data: bytes, start: int, end: int) -> tuple[int, int, f
                 csize = cde - cds
                 if ceid == _ID_TRANSFER_CHARACTERISTICS:
                     transfer = _read_uint(data, cds, csize)
+                elif ceid == _ID_COLOUR_PRIMARIES:
+                    primaries = _read_uint(data, cds, csize)
                 elif ceid == _ID_MAX_CLL:
                     has_max_cll = True
+                elif ceid == _ID_MAX_FALL:
+                    has_max_fall = True
                 elif ceid == _ID_MASTERING_METADATA:
                     has_mastering = True
 
     hdr = ""
-    if transfer == _TC_HDR10 or has_max_cll or has_mastering:
+    if transfer == _TC_HDR10 or has_max_cll or has_max_fall or has_mastering:
         hdr = "HDR10"
     elif transfer == _TC_HLG:
         hdr = "HLG"
+    elif primaries == _PRIMARIES_BT2020 and transfer == 0:
+        # BT.2020 primaries without explicit TC — HDR metadata is likely
+        # stored inside the H.265 bitstream (SPS VUI) rather than the
+        # MKV container.  Mark as HDR10 since virtually all BT.2020
+        # content on consumer media is HDR.
+        hdr = "HDR10"
 
     return width, height, hdr
 

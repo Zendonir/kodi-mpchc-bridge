@@ -187,6 +187,7 @@ class KodiClient:
         _EMPTY: dict[str, Any] = {
             "artwork_url": "", "title": "",
             "year": 0, "tv_show": "", "season": 0, "episode": 0,
+            "season_count": 0, "episode_count": 0,
         }
 
         def _pick_art(item: dict) -> str:
@@ -257,16 +258,27 @@ class KodiClient:
         # 3) Episode library by filename
         result = await self._call("VideoLibrary.GetEpisodes", {
             "filter": {"field": "filename", "operator": "is", "value": filename},
-            "properties": ["thumbnail", "art", "title", "year", "showtitle", "season", "episode"],
+            "properties": ["thumbnail", "art", "title", "year", "showtitle",
+                           "season", "episode", "tvshowid"],
             "limits": {"end": 1},
         })
         _LOG.info("FileInfo [3/4] GetEpisodes(%r) → %s", filename, result)
         if result and isinstance(result, dict):
             episodes = result.get("episodes", [])
             if episodes:
-                m = _meta(episodes[0], is_episode=True)
-                _LOG.info("FileInfo [3/4] ep: title=%r show=%r s%se%s",
-                          m["title"], m["tv_show"], m["season"], m["episode"])
+                ep = episodes[0]
+                m = _meta(ep, is_episode=True)
+                # Fetch season count + episode count for current season
+                tvshowid = ep.get("tvshowid", -1)
+                cur_season = ep.get("season", 0)
+                if tvshowid >= 0 and cur_season > 0:
+                    sc, ec = await self._fetch_season_counts(tvshowid, cur_season)
+                    m["season_count"] = sc
+                    m["episode_count"] = ec
+                _LOG.info("FileInfo [3/4] ep: title=%r show=%r s%s/%s e%s/%s",
+                          m["title"], m["tv_show"],
+                          m.get("season"), m.get("season_count"),
+                          m.get("episode"), m.get("episode_count"))
                 return m
 
         # 4) Files.GetFileDetails (exact path, last resort)
@@ -285,6 +297,25 @@ class KodiClient:
 
         _LOG.info("FileInfo: nothing found in Kodi library for %r", filepath)
         return dict(_EMPTY)
+
+    async def _fetch_season_counts(self, tvshowid: int, current_season: int) -> tuple[int, int]:
+        """
+        Return (total_seasons, episodes_in_current_season) for a TV show.
+        Uses VideoLibrary.GetSeasons — one call, no extra overhead.
+        """
+        result = await self._call("VideoLibrary.GetSeasons", {
+            "tvshowid": tvshowid,
+            "properties": ["season", "episode"],
+        })
+        if not result or not isinstance(result, dict):
+            return 0, 0
+        seasons = result.get("seasons", [])
+        total_seasons = len(seasons)
+        ep_count = next(
+            (s.get("episode", 0) for s in seasons if s.get("season") == current_season),
+            0,
+        )
+        return total_seasons, ep_count
 
     def _image_url(self, kodi_url: str) -> str:
         """
@@ -549,6 +580,9 @@ class KodiClient:
         updates["tv_show"] = media.get("showtitle", "") or ""
         updates["season"] = media.get("season", 0) or 0
         updates["episode"] = media.get("episode", 0) or 0
+        # season_count / episode_count are populated asynchronously via get_file_info
+        # during MPC-HC playback; for direct Kodi playback we leave them at 0
+        # (they would require extra API calls on every sync — not worth it live).
         updates["rating"] = round(media.get("rating", 0.0) or 0.0, 1)
 
         # Artwork

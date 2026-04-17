@@ -71,6 +71,8 @@ class UnifiedState:
     tv_show: str = ""
     season: int = 0
     episode: int = 0
+    season_count: int = 0   # total seasons in this TV show
+    episode_count: int = 0  # total episodes in current season
     rating: float = 0.0
 
     # --- tracks ---
@@ -164,6 +166,8 @@ class StateManager:
                 "tv_show": "",
                 "season": 0,
                 "episode": 0,
+                "season_count": 0,
+                "episode_count": 0,
                 "rating": 0.0,
                 "audio_tracks": [],
                 "subtitle_tracks": [],
