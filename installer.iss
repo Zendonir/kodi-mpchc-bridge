@@ -19,6 +19,8 @@
 #define AppPublisher "kodi-mpchc-bridge"
 #define AppURL       "https://github.com/Zendonir/kodi-mpchc-bridge"
 #define AppExe       "kodi-bridge.exe"
+#define AppTaskName  "KodiMpcHcBridge"
+#define FwRuleName   "Kodi-MPC-HC Bridge"
 #define AppGUID      "{{B7A3C2D1-E4F5-4890-BCDE-F01234567890}"
 
 [Setup]
@@ -53,7 +55,6 @@ ArchitecturesInstallIn64BitMode=x64compatible
 
 ; --- Misc ---
 AllowNoIcons=yes
-; Update-Modus: bestehende Installation wird überschrieben ohne Deinstallation
 CloseApplications=force
 
 [Languages]
@@ -66,13 +67,13 @@ Name: "desktopicon"; \
   Description: "Desktop-Verknüpfung erstellen"; \
   GroupDescription: "Zusätzliche Symbole:"; \
   Flags: unchecked
-; Autostart via Task-Planer (Standard: aktiv — kein Flag nötig, checked ist Default)
+; Autostart (Standard: aktiv — "unchecked" wäre opt-out, kein Flag = Standard-aktiv)
 Name: "autostart"; \
   Description: "Bridge beim Windows-Anmelden automatisch starten (empfohlen)"; \
   GroupDescription: "Autostart:"
-; Firewall-Regel (Standard: aktiv)
+; Firewall (Standard: aktiv)
 Name: "firewall"; \
-  Description: "Windows-Firewall-Regel für Bridge-Port 13590 einrichten (Admin erforderlich)"; \
+  Description: "Windows-Firewall-Regel für Bridge-Port 13590 einrichten (Admin-Fenster erscheint)"; \
   GroupDescription: "Firewall:"
 
 [Files]
@@ -82,39 +83,23 @@ Source: "dist\{#AppExe}"; \
 
 [Icons]
 ; Start Menu
-Name: "{group}\{#AppName}";                        Filename: "{app}\{#AppExe}"
-Name: "{group}\{#AppName} deinstallieren";          Filename: "{uninstallexe}"
-; Desktop shortcut — userdesktop (no admin needed)
-Name: "{userdesktop}\{#AppName}";                  Filename: "{app}\{#AppExe}"; Tasks: desktopicon
+Name: "{group}\{#AppName}";               Filename: "{app}\{#AppExe}"
+Name: "{group}\{#AppName} deinstallieren"; Filename: "{uninstallexe}"
+; Desktop shortcut — userdesktop (kein Admin nötig)
+Name: "{userdesktop}\{#AppName}";          Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Run]
-; Autostart-Task im Task-Planer registrieren (kein Admin, ONLOGON, Standard-Benutzer)
-; Startet bridge.exe ohne --headless → Bridge + Tray-Icon werden gemeinsam gestartet.
-Filename: "schtasks"; \
-  Parameters: "/create /f /tn KodiMpcHcBridge /tr ""{app}\{#AppExe}"" /sc ONLOGON /rl LIMITED"; \
-  Flags: runhidden waituntilterminated; \
-  Tasks: autostart
-; Bridge direkt nach der Installation starten
+; Bridge nach der Installation starten (optional, erscheint auf der Abschlussseite)
 Filename: "{app}\{#AppExe}"; \
   Description: "{#AppName} jetzt starten"; \
   Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
-; Laufende Instanz beenden
+; Laufende Instanz beenden — das war's; Rest läuft über Pascal-Code (CurUninstallStepChanged)
 Filename: "taskkill"; \
   Parameters: "/f /im {#AppExe}"; \
   Flags: runhidden waituntilterminated; \
   RunOnceId: "KillBridge"
-; Autostart-Task entfernen
-Filename: "schtasks"; \
-  Parameters: "/delete /f /tn KodiMpcHcBridge"; \
-  Flags: runhidden; \
-  RunOnceId: "RemoveAutostart"
-; Firewall-Regel entfernen (kein UAC nötig — Remove läuft im Kontext des Uninstallers)
-Filename: "powershell.exe"; \
-  Parameters: "-NoProfile -NonInteractive -WindowStyle Hidden -Command ""Remove-NetFirewallRule -DisplayName 'Kodi-MPC-HC Bridge' -ErrorAction SilentlyContinue"""; \
-  Flags: runhidden; \
-  RunOnceId: "RemoveFirewall"
 
 ; ============================================================
 ; Pascal Script
@@ -125,8 +110,7 @@ var
   ConfigPage: TInputQueryWizardPage;
 
 // --------------------------------------------------------------------------
-// Hilfsfunktion: Liefert true wenn bereits eine config.json vorhanden ist
-// (Upgrade-Szenario).
+// Hilfsfunktion: config.json vorhanden? (Upgrade-Erkennung)
 // --------------------------------------------------------------------------
 function ConfigExists: Boolean;
 begin
@@ -134,7 +118,7 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Wizard-Seite: Kodi-Verbindungsdaten — nur bei Erstinstallation anzeigen.
+// Wizard-Seite: Kodi-Verbindungsdaten
 // --------------------------------------------------------------------------
 procedure InitializeWizard;
 begin
@@ -142,15 +126,14 @@ begin
     wpSelectDir,
     'Kodi-Verbindung konfigurieren',
     'Geben Sie die Verbindungsdaten Ihrer Kodi-Installation ein.',
-    'Diese Einstellungen können später jederzeit in der Bridge-GUI geändert werden.'
+    'Diese Einstellungen können später über das Tray-Icon → Einstellungen geändert werden.'
   );
   ConfigPage.Add('Kodi Host (IP oder Hostname):', False);
   ConfigPage.Add('Kodi HTTP-Port:', False);
   ConfigPage.Add('Kodi WebSocket-Port:', False);
-  ConfigPage.Add('Benutzername  (leer = Kodi ohne Authentifizierung):', False);
-  ConfigPage.Add('Passwort:', True);   // True = Passwort verbergen
+  ConfigPage.Add('Benutzername  (leer = keine Authentifizierung):', False);
+  ConfigPage.Add('Passwort:', True);
 
-  // Standard-Werte
   ConfigPage.Values[0] := 'localhost';
   ConfigPage.Values[1] := '8080';
   ConfigPage.Values[2] := '9090';
@@ -159,7 +142,7 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Konfigurationsseite bei Upgrade überspringen — config.json bereits da.
+// Konfigurationsseite beim Upgrade überspringen
 // --------------------------------------------------------------------------
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
@@ -169,7 +152,7 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Eingabe-Validierung beim Weiterklicken
+// Eingabe-Validierung
 // --------------------------------------------------------------------------
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
@@ -184,18 +167,14 @@ begin
            mbError, MB_OK);
     Result := False; Exit;
   end;
-
   p := StrToIntDef(ConfigPage.Values[1], -1);
   if (p < 1) or (p > 65535) then begin
-    MsgBox('Ungültiger Kodi HTTP-Port — bitte eine Zahl zwischen 1 und 65535 eingeben.',
-           mbError, MB_OK);
+    MsgBox('Ungültiger HTTP-Port (1–65535).', mbError, MB_OK);
     Result := False; Exit;
   end;
-
   p := StrToIntDef(ConfigPage.Values[2], -1);
   if (p < 1) or (p > 65535) then begin
-    MsgBox('Ungültiger Kodi WebSocket-Port — bitte eine Zahl zwischen 1 und 65535 eingeben.',
-           mbError, MB_OK);
+    MsgBox('Ungültiger WebSocket-Port (1–65535).', mbError, MB_OK);
     Result := False; Exit;
   end;
 end;
@@ -204,52 +183,86 @@ end;
 // JSON-Zeichen escapen
 // --------------------------------------------------------------------------
 function EscapeJson(const s: String): String;
-var
-  i: Integer;
-  c: Char;
+var i: Integer; c: Char;
 begin
   Result := '';
   for i := 1 to Length(s) do begin
     c := s[i];
-    if c = '"'  then Result := Result + '\"'
+    if      c = '"'  then Result := Result + '\"'
     else if c = '\' then Result := Result + '\\'
     else Result := Result + c;
   end;
 end;
 
 // --------------------------------------------------------------------------
-// Firewall-Regel via eleviertem PowerShell hinzufügen.
-// Zeigt UAC-Fenster, wenn der aktuelle Nutzer kein Admin ist.
+// Task-Scheduler-Eintrag erstellen (kein Admin nötig, ONLOGON, User-Session).
+// Nutzt Exec() mit vollständigem Pfad + zusammengesetztem Parameter-String,
+// damit Leerzeichen im Installationspfad korrekt gequotet werden.
 // --------------------------------------------------------------------------
-procedure AddFirewallRule;
+procedure CreateAutostartTask;
 var
-  Port: Integer;
-  ErrCode: Integer;
+  AppPath, Params: String;
+  rc: Integer;
 begin
-  // Port aus der Konfigurationsseite lesen (Fallback: 13590)
-  Port := 13590;
-  ShellExec(
-    'runas',
-    'powershell.exe',
-    '-NoProfile -NonInteractive -WindowStyle Hidden -Command "' +
-      'New-NetFirewallRule' +
-      ' -DisplayName ''Kodi-MPC-HC Bridge''' +
-      ' -Direction Inbound' +
-      ' -Action Allow' +
-      ' -Protocol TCP' +
-      ' -LocalPort ' + IntToStr(Port) +
-      ' -Profile Any' +
-      ' -ErrorAction SilentlyContinue"',
-    '',
-    SW_HIDE,
-    ewNoWait,
-    ErrCode
-  );
+  AppPath := ExpandConstant('{app}\{#AppExe}');
+  Params  := '/create /f'
+    + ' /tn "' + '{#AppTaskName}' + '"'
+    + ' /tr "' + AppPath + '"'
+    + ' /sc ONLOGON'
+    + ' /rl LIMITED';
+  Exec(ExpandConstant('{sys}\schtasks.exe'), Params, '',
+       SW_HIDE, ewWaitUntilTerminated, rc);
 end;
 
 // --------------------------------------------------------------------------
-// Nach der Installation: config.json im Installationsverzeichnis ablegen.
-// Nur bei Erstinstallation — bei Upgrade bleibt vorhandene config.json erhalten.
+// Task-Scheduler-Eintrag entfernen.
+// --------------------------------------------------------------------------
+procedure DeleteAutostartTask;
+var
+  rc: Integer;
+begin
+  Exec(ExpandConstant('{sys}\schtasks.exe'),
+       '/delete /f /tn "' + '{#AppTaskName}' + '"',
+       '', SW_HIDE, ewWaitUntilTerminated, rc);
+end;
+
+// --------------------------------------------------------------------------
+// Firewall-Regel hinzufügen — via ShellExec 'runas' (UAC-Fenster wenn nötig).
+// ewNoWait: Installer wartet nicht auf Abschluss (UAC-Fenster erscheint danach).
+// --------------------------------------------------------------------------
+procedure AddFirewallRule;
+var
+  ErrCode: Integer;
+begin
+  ShellExec(
+    'runas', 'powershell.exe',
+    '-NoProfile -NonInteractive -WindowStyle Hidden -Command '
+    + '"New-NetFirewallRule'
+    + ' -DisplayName ''' + '{#FwRuleName}' + ''''
+    + ' -Direction Inbound -Action Allow -Protocol TCP'
+    + ' -LocalPort 13590 -Profile Any -ErrorAction SilentlyContinue"',
+    '', SW_HIDE, ewNoWait, ErrCode);
+end;
+
+// --------------------------------------------------------------------------
+// Firewall-Regel entfernen — via ShellExec 'runas', WARTET auf Abschluss
+// damit die Deinstallation die Regel tatsächlich entfernt hat.
+// --------------------------------------------------------------------------
+procedure RemoveFirewallRule;
+var
+  ErrCode: Integer;
+begin
+  ShellExec(
+    'runas', 'powershell.exe',
+    '-NoProfile -NonInteractive -WindowStyle Hidden -Command '
+    + '"Remove-NetFirewallRule'
+    + ' -DisplayName ''' + '{#FwRuleName}' + ''''
+    + ' -ErrorAction SilentlyContinue"',
+    '', SW_HIDE, ewWaitUntilTerminated, ErrCode);
+end;
+
+// --------------------------------------------------------------------------
+// Nach Installation: config.json schreiben + Autostart + Firewall einrichten.
 // --------------------------------------------------------------------------
 procedure CurStepChanged(CurStep: TSetupStep);
 var
@@ -259,54 +272,63 @@ var
 begin
   if CurStep <> ssPostInstall then Exit;
 
+  // --- config.json (nur bei Erstinstallation) ---
   ConfigFile := ExpandConstant('{app}\config.json');
-
-  // Vorhandene Konfiguration nicht überschreiben (Upgrade-Szenario)
-  if FileExists(ConfigFile) then Exit;
-
-  Json :=
-    '{' + #13#10 +
-    '  "kodi_host": "'     + EscapeJson(Trim(ConfigPage.Values[0])) + '",' + #13#10 +
-    '  "kodi_port": '      + IntToStr(StrToIntDef(ConfigPage.Values[1], 8080)) + ',' + #13#10 +
-    '  "kodi_ws_port": '   + IntToStr(StrToIntDef(ConfigPage.Values[2], 9090)) + ',' + #13#10 +
-    '  "kodi_username": "' + EscapeJson(ConfigPage.Values[3]) + '",' + #13#10 +
-    '  "kodi_password": "' + EscapeJson(ConfigPage.Values[4]) + '",' + #13#10 +
-    '  "kodi_ssl": false,' + #13#10 +
-    '  "kodi_enabled": true,' + #13#10 +
-    '  "mpchc_host": "localhost",' + #13#10 +
-    '  "mpchc_port": 13579,' + #13#10 +
-    '  "mpchc_enabled": true,' + #13#10 +
-    '  "server_host": "0.0.0.0",' + #13#10 +
-    '  "server_port": 13590' + #13#10 +
-    '}';
-
-  Lines := TStringList.Create;
-  try
-    Lines.Text := Json;
-    Lines.SaveToFile(ConfigFile);
-  finally
-    Lines.Free;
+  if not FileExists(ConfigFile) then begin
+    Json :=
+      '{' + #13#10 +
+      '  "kodi_host": "'     + EscapeJson(Trim(ConfigPage.Values[0])) + '",' + #13#10 +
+      '  "kodi_port": '      + IntToStr(StrToIntDef(ConfigPage.Values[1], 8080)) + ',' + #13#10 +
+      '  "kodi_ws_port": '   + IntToStr(StrToIntDef(ConfigPage.Values[2], 9090)) + ',' + #13#10 +
+      '  "kodi_username": "' + EscapeJson(ConfigPage.Values[3]) + '",' + #13#10 +
+      '  "kodi_password": "' + EscapeJson(ConfigPage.Values[4]) + '",' + #13#10 +
+      '  "kodi_ssl": false,' + #13#10 +
+      '  "kodi_enabled": true,' + #13#10 +
+      '  "mpchc_host": "localhost",' + #13#10 +
+      '  "mpchc_port": 13579,' + #13#10 +
+      '  "mpchc_enabled": true,' + #13#10 +
+      '  "server_host": "0.0.0.0",' + #13#10 +
+      '  "server_port": 13590' + #13#10 +
+      '}';
+    Lines := TStringList.Create;
+    try
+      Lines.Text := Json;
+      Lines.SaveToFile(ConfigFile);
+    finally
+      Lines.Free;
+    end;
   end;
 
-  // Firewall-Regel einrichten (UAC-Fenster erscheint, falls nötig)
+  // --- Autostart-Task (Task-Planer, kein Admin) ---
+  if WizardIsTaskSelected('autostart') then
+    CreateAutostartTask;
+
+  // --- Firewall-Regel (benötigt Admin → UAC-Fenster) ---
   if WizardIsTaskSelected('firewall') then
     AddFirewallRule;
 end;
 
 // --------------------------------------------------------------------------
-// Bei Deinstallation: Nutzer fragen ob config.json gelöscht werden soll.
+// Bei Deinstallation: Firewall entfernen (UAC) + Autostart + config.json fragen.
 // --------------------------------------------------------------------------
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   ConfigFile: String;
 begin
   if CurUninstallStep = usUninstall then begin
+
+    // Firewall-Regel entfernen (Admin nötig → UAC-Fenster, wartet auf Abschluss)
+    RemoveFirewallRule;
+
+    // Autostart-Task entfernen (kein Admin nötig)
+    DeleteAutostartTask;
+
+    // config.json: Nutzer fragen
     ConfigFile := ExpandConstant('{app}\config.json');
     if FileExists(ConfigFile) then begin
       if MsgBox(
         'Möchten Sie die Konfigurationsdatei (config.json) ebenfalls löschen?' + #13#10 + #13#10 +
-        'Wenn Sie "Nein" wählen, bleibt Ihre Konfiguration für eine spätere' + #13#10 +
-        'Neuinstallation erhalten.',
+        '"Nein" behält die Einstellungen für eine spätere Neuinstallation.',
         mbConfirmation, MB_YESNO) = IDYES then
         DeleteFile(ConfigFile);
     end;
@@ -314,13 +336,12 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Laufende Bridge vor Installation/Upgrade beenden (verhindert Dateisperren)
+// Laufende Bridge vor Installation/Upgrade beenden
 // --------------------------------------------------------------------------
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   rc: Integer;
 begin
-  Exec('taskkill', '/f /im {#AppExe}', '', SW_HIDE,
-       ewWaitUntilTerminated, rc);
+  Exec('taskkill', '/f /im {#AppExe}', '', SW_HIDE, ewWaitUntilTerminated, rc);
   Result := '';
 end;
