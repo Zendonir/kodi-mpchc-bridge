@@ -1,14 +1,14 @@
 ; ============================================================
 ; Kodi-MPC-HC Bridge — Inno Setup Installer Script
 ;
-; UAC-freier Installer → %LocalAppData%\Programs\kodi-mpchc-bridge\
-; Konfigurationsdaten → <Installationsverzeichnis>\config.json
+; UAC-free installer → %LocalAppData%\Programs\kodi-mpchc-bridge\
+; Configuration      → <install dir>\config.json
 ;
-; Bauen:
+; Build:
 ;   iscc installer.iss
 ;   iscc /DAppVersion=1.2.3 installer.iss
 ;
-; Ausgabe: dist\kodi-mpchc-bridge-setup-{version}.exe
+; Output: dist\kodi-mpchc-bridge-setup-{version}.exe
 ; ============================================================
 
 #ifndef AppVersion
@@ -39,6 +39,10 @@ DefaultGroupName={#AppName}
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=commandline dialog
 
+; --- Language detection ---
+ShowLanguageDialog=auto
+LanguageDetectionMethod=uilanguage
+
 ; --- Output ---
 OutputDir=dist
 OutputBaseFilename=kodi-mpchc-bridge-setup-{#AppVersion}
@@ -57,24 +61,141 @@ ArchitecturesInstallIn64BitMode=x64compatible
 AllowNoIcons=yes
 CloseApplications=force
 
+; ============================================================
+; Languages
+; ============================================================
 [Languages]
-Name: "german";  MessagesFile: "compiler:Languages\German.isl"
-Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "english";  MessagesFile: "compiler:Default.isl"
+Name: "german";   MessagesFile: "compiler:Languages\German.isl"
+Name: "french";   MessagesFile: "compiler:Languages\French.isl"
+Name: "spanish";  MessagesFile: "compiler:Languages\Spanish.isl"
+Name: "italian";  MessagesFile: "compiler:Languages\Italian.isl"
 
+; ============================================================
+; Custom messages  (one block per language)
+; ============================================================
+[CustomMessages]
+
+; ── English ───────────────────────────────────────────────────────────────────
+english.ConfigPageTitle=Configure Kodi connection
+english.ConfigPageSubtitle=Enter the connection details of your Kodi installation.
+english.ConfigPageDesc=These settings can be changed later via the tray icon → Settings.
+english.ConfigHost=Kodi Host (IP or hostname):
+english.ConfigHttpPort=Kodi HTTP port:
+english.ConfigWsPort=Kodi WebSocket port:
+english.ConfigUser=Username  (blank = no authentication):
+english.ConfigPass=Password:
+english.ErrNoHost=Please enter a Kodi host.
+english.ErrBadHttp=Invalid HTTP port (1–65535).
+english.ErrBadWs=Invalid WebSocket port (1–65535).
+english.AskDelConfig=Delete the configuration file (config.json) as well?%n%n"No" keeps the settings for a future reinstallation.
+english.RunNow=Start %1 now
+english.DesktopIconDesc=Create a desktop shortcut
+english.DesktopIconGroup=Additional icons:
+english.AutostartDesc=Start Bridge automatically when Windows starts (recommended)
+english.AutostartGroup=Autostart:
+english.FirewallDesc=Configure Windows Firewall rule for Bridge port 13590 (admin prompt appears briefly)
+english.FirewallGroup=Firewall:
+
+; ── German ────────────────────────────────────────────────────────────────────
+german.ConfigPageTitle=Kodi-Verbindung konfigurieren
+german.ConfigPageSubtitle=Geben Sie die Verbindungsdaten Ihrer Kodi-Installation ein.
+german.ConfigPageDesc=Diese Einstellungen können später über das Tray-Icon → Einstellungen geändert werden.
+german.ConfigHost=Kodi Host (IP oder Hostname):
+german.ConfigHttpPort=Kodi HTTP-Port:
+german.ConfigWsPort=Kodi WebSocket-Port:
+german.ConfigUser=Benutzername  (leer = keine Authentifizierung):
+german.ConfigPass=Passwort:
+german.ErrNoHost=Bitte einen Kodi-Host eingeben.
+german.ErrBadHttp=Ungültiger HTTP-Port (1–65535).
+german.ErrBadWs=Ungültiger WebSocket-Port (1–65535).
+german.AskDelConfig=Möchten Sie die Konfigurationsdatei (config.json) ebenfalls löschen?%n%n"Nein" behält die Einstellungen für eine spätere Neuinstallation.
+german.RunNow=%1 jetzt starten
+german.DesktopIconDesc=Desktop-Verknüpfung erstellen
+german.DesktopIconGroup=Zusätzliche Symbole:
+german.AutostartDesc=Bridge beim Windows-Anmelden automatisch starten (empfohlen)
+german.AutostartGroup=Autostart:
+german.FirewallDesc=Windows-Firewall-Regel für Bridge-Port 13590 einrichten (Admin-Fenster erscheint kurz)
+german.FirewallGroup=Firewall:
+
+; ── French ────────────────────────────────────────────────────────────────────
+french.ConfigPageTitle=Configurer la connexion Kodi
+french.ConfigPageSubtitle=Entrez les informations de connexion de votre installation Kodi.
+french.ConfigPageDesc=Ces paramètres peuvent être modifiés ultérieurement via l'icône de la barre des tâches → Paramètres.
+french.ConfigHost=Hôte Kodi (IP ou nom d'hôte) :
+french.ConfigHttpPort=Port HTTP Kodi :
+french.ConfigWsPort=Port WebSocket Kodi :
+french.ConfigUser=Nom d'utilisateur  (vide = pas d'authentification) :
+french.ConfigPass=Mot de passe :
+french.ErrNoHost=Veuillez entrer un hôte Kodi.
+french.ErrBadHttp=Port HTTP invalide (1–65535).
+french.ErrBadWs=Port WebSocket invalide (1–65535).
+french.AskDelConfig=Supprimer également le fichier de configuration (config.json) ?%n%n"Non" conserve les paramètres pour une future réinstallation.
+french.RunNow=Démarrer %1 maintenant
+french.DesktopIconDesc=Créer un raccourci sur le bureau
+french.DesktopIconGroup=Icônes supplémentaires :
+french.AutostartDesc=Démarrer le Bridge automatiquement au démarrage de Windows (recommandé)
+french.AutostartGroup=Démarrage automatique :
+french.FirewallDesc=Configurer la règle de pare-feu Windows pour le port 13590 (une invite admin apparaît brièvement)
+french.FirewallGroup=Pare-feu :
+
+; ── Spanish ───────────────────────────────────────────────────────────────────
+spanish.ConfigPageTitle=Configurar conexión de Kodi
+spanish.ConfigPageSubtitle=Introduzca los datos de conexión de su instalación de Kodi.
+spanish.ConfigPageDesc=Estos ajustes se pueden modificar más tarde mediante el icono de la bandeja → Configuración.
+spanish.ConfigHost=Host de Kodi (IP o nombre de host):
+spanish.ConfigHttpPort=Puerto HTTP de Kodi:
+spanish.ConfigWsPort=Puerto WebSocket de Kodi:
+spanish.ConfigUser=Usuario  (vacío = sin autenticación):
+spanish.ConfigPass=Contraseña:
+spanish.ErrNoHost=Por favor, introduzca un host de Kodi.
+spanish.ErrBadHttp=Puerto HTTP no válido (1–65535).
+spanish.ErrBadWs=Puerto WebSocket no válido (1–65535).
+spanish.AskDelConfig=¿Eliminar también el archivo de configuración (config.json)?%n%n"No" conserva los ajustes para una futura reinstalación.
+spanish.RunNow=Iniciar %1 ahora
+spanish.DesktopIconDesc=Crear un acceso directo en el escritorio
+spanish.DesktopIconGroup=Iconos adicionales:
+spanish.AutostartDesc=Iniciar el Bridge automáticamente al iniciar Windows (recomendado)
+spanish.AutostartGroup=Inicio automático:
+spanish.FirewallDesc=Configurar regla de Firewall de Windows para el puerto 13590 (aparece una ventana de administrador brevemente)
+spanish.FirewallGroup=Firewall:
+
+; ── Italian ───────────────────────────────────────────────────────────────────
+italian.ConfigPageTitle=Configura connessione Kodi
+italian.ConfigPageSubtitle=Inserisci i dati di connessione della tua installazione Kodi.
+italian.ConfigPageDesc=Queste impostazioni possono essere modificate in seguito tramite l'icona nella barra delle applicazioni → Impostazioni.
+italian.ConfigHost=Host Kodi (IP o nome host):
+italian.ConfigHttpPort=Porta HTTP Kodi:
+italian.ConfigWsPort=Porta WebSocket Kodi:
+italian.ConfigUser=Utente  (vuoto = nessuna autenticazione):
+italian.ConfigPass=Password:
+italian.ErrNoHost=Inserisci un host Kodi.
+italian.ErrBadHttp=Porta HTTP non valida (1–65535).
+italian.ErrBadWs=Porta WebSocket non valida (1–65535).
+italian.AskDelConfig=Eliminare anche il file di configurazione (config.json)?%n%n"No" mantiene le impostazioni per una futura reinstallazione.
+italian.RunNow=Avvia %1 ora
+italian.DesktopIconDesc=Crea un collegamento sul desktop
+italian.DesktopIconGroup=Icone aggiuntive:
+italian.AutostartDesc=Avvia il Bridge automaticamente all'avvio di Windows (consigliato)
+italian.AutostartGroup=Avvio automatico:
+italian.FirewallDesc=Configura regola Windows Firewall per la porta 13590 (appare brevemente una finestra di amministratore)
+italian.FirewallGroup=Firewall:
+
+; ============================================================
 [Tasks]
-; Desktop-Verknüpfung (opt-in)
+; Desktop shortcut (opt-in)
 Name: "desktopicon"; \
-  Description: "Desktop-Verknüpfung erstellen"; \
-  GroupDescription: "Zusätzliche Symbole:"; \
+  Description: "{cm:DesktopIconDesc}"; \
+  GroupDescription: "{cm:DesktopIconGroup}"; \
   Flags: unchecked
-; Autostart (Standard: aktiv)
+; Autostart (default: on)
 Name: "autostart"; \
-  Description: "Bridge beim Windows-Anmelden automatisch starten (empfohlen)"; \
-  GroupDescription: "Autostart:"
-; Firewall (Standard: aktiv)
+  Description: "{cm:AutostartDesc}"; \
+  GroupDescription: "{cm:AutostartGroup}"
+; Firewall (default: on)
 Name: "firewall"; \
-  Description: "Windows-Firewall-Regel für Bridge-Port 13590 einrichten (Admin-Fenster erscheint kurz)"; \
-  GroupDescription: "Firewall:"
+  Description: "{cm:FirewallDesc}"; \
+  GroupDescription: "{cm:FirewallGroup}"
 
 [Files]
 Source: "dist\{#AppExe}"; \
@@ -84,18 +205,18 @@ Source: "dist\{#AppExe}"; \
 [Icons]
 ; Start Menu
 Name: "{group}\{#AppName}";               Filename: "{app}\{#AppExe}"
-Name: "{group}\{#AppName} deinstallieren"; Filename: "{uninstallexe}"
-; Desktop shortcut — userdesktop (kein Admin nötig)
+Name: "{group}\{#AppName} Uninstall";     Filename: "{uninstallexe}"
+; Desktop shortcut — userdesktop (no admin needed)
 Name: "{userdesktop}\{#AppName}";          Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Run]
-; Bridge nach der Installation starten (Abschlussseite)
+; Launch bridge after installation (finish page)
 Filename: "{app}\{#AppExe}"; \
-  Description: "{#AppName} jetzt starten"; \
+  Description: "{cm:RunNow,{#AppName}}"; \
   Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
-; Laufende Instanz beenden — Autostart + Firewall werden im Pascal-Code entfernt
+; Kill running instance — autostart + firewall are removed in Pascal code
 Filename: "taskkill"; \
   Parameters: "/f /im {#AppExe}"; \
   Flags: runhidden waituntilterminated; \
@@ -110,7 +231,7 @@ var
   ConfigPage: TInputQueryWizardPage;
 
 // --------------------------------------------------------------------------
-// Hilfsfunktion: config.json vorhanden? (Upgrade-Erkennung)
+// Helper: config.json exists? (upgrade detection)
 // --------------------------------------------------------------------------
 function ConfigExists: Boolean;
 begin
@@ -118,21 +239,21 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Wizard-Seite: Kodi-Verbindungsdaten
+// Wizard page: Kodi connection details
 // --------------------------------------------------------------------------
 procedure InitializeWizard;
 begin
   ConfigPage := CreateInputQueryPage(
     wpSelectDir,
-    'Kodi-Verbindung konfigurieren',
-    'Geben Sie die Verbindungsdaten Ihrer Kodi-Installation ein.',
-    'Diese Einstellungen können später über das Tray-Icon → Einstellungen geändert werden.'
+    CustomMessage('ConfigPageTitle'),
+    CustomMessage('ConfigPageSubtitle'),
+    CustomMessage('ConfigPageDesc')
   );
-  ConfigPage.Add('Kodi Host (IP oder Hostname):', False);
-  ConfigPage.Add('Kodi HTTP-Port:', False);
-  ConfigPage.Add('Kodi WebSocket-Port:', False);
-  ConfigPage.Add('Benutzername  (leer = keine Authentifizierung):', False);
-  ConfigPage.Add('Passwort:', True);
+  ConfigPage.Add(CustomMessage('ConfigHost'),    False);
+  ConfigPage.Add(CustomMessage('ConfigHttpPort'),False);
+  ConfigPage.Add(CustomMessage('ConfigWsPort'),  False);
+  ConfigPage.Add(CustomMessage('ConfigUser'),    False);
+  ConfigPage.Add(CustomMessage('ConfigPass'),    True);
 
   ConfigPage.Values[0] := 'localhost';
   ConfigPage.Values[1] := '8080';
@@ -142,7 +263,7 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Konfigurationsseite beim Upgrade überspringen
+// Skip config page on upgrade
 // --------------------------------------------------------------------------
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
@@ -152,7 +273,7 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Eingabe-Validierung
+// Input validation
 // --------------------------------------------------------------------------
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
@@ -163,23 +284,23 @@ begin
   if ShouldSkipPage(CurPageID) then Exit;
 
   if Trim(ConfigPage.Values[0]) = '' then begin
-    MsgBox('Bitte einen Kodi-Host eingeben.', mbError, MB_OK);
+    MsgBox(CustomMessage('ErrNoHost'), mbError, MB_OK);
     Result := False; Exit;
   end;
   p := StrToIntDef(ConfigPage.Values[1], -1);
   if (p < 1) or (p > 65535) then begin
-    MsgBox('Ungültiger HTTP-Port (1–65535).', mbError, MB_OK);
+    MsgBox(CustomMessage('ErrBadHttp'), mbError, MB_OK);
     Result := False; Exit;
   end;
   p := StrToIntDef(ConfigPage.Values[2], -1);
   if (p < 1) or (p > 65535) then begin
-    MsgBox('Ungültiger WebSocket-Port (1–65535).', mbError, MB_OK);
+    MsgBox(CustomMessage('ErrBadWs'), mbError, MB_OK);
     Result := False; Exit;
   end;
 end;
 
 // --------------------------------------------------------------------------
-// JSON-Zeichen escapen
+// JSON character escaping
 // --------------------------------------------------------------------------
 function EscapeJson(const s: String): String;
 var i: Integer; c: Char;
@@ -194,15 +315,15 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Task-Scheduler-Eintrag erstellen.
+// Create autostart Task Scheduler entry.
 //
-// Warum PowerShell-Script-Datei statt schtasks.exe?
-//   • schtasks hat subtile Quoting-Probleme bei Pfaden mit Leerzeichen
-//     wenn der Parameter-String über CreateProcess übergeben wird.
-//   • Register-ScheduledTask (PowerShell-Cmdlet) ist robuster, kennt
-//     keine Quoting-Fallen und läuft zuverlässig ohne Admin.
-//   • Die .ps1-Datei umgeht alle Kommandozeilen-Escaping-Probleme:
-//     Der AppPath wird direkt in den Skript-Inhalt geschrieben.
+// Why a PowerShell script file instead of schtasks.exe?
+//   • schtasks has subtle quoting issues with paths containing spaces
+//     when the parameter string is passed via CreateProcess.
+//   • Register-ScheduledTask (PowerShell cmdlet) is more robust, has no
+//     quoting traps, and runs reliably without admin rights.
+//   • The .ps1 file bypasses all command-line escaping problems:
+//     AppPath is written directly into the script content.
 // --------------------------------------------------------------------------
 procedure CreateAutostartTask;
 var
@@ -212,8 +333,8 @@ begin
   AppPath    := ExpandConstant('{app}\{#AppExe}');
   ScriptPath := ExpandConstant('{tmp}\kodi_create_task.ps1');
 
-  // Einfache Anführungszeichen (Char 39) für PowerShell-Literale —
-  // kein Risiko von Variable-Expansion im Pfad.
+  // Single-quotes (char 39) for PowerShell literals —
+  // no risk of variable expansion in the path.
   Script :=
     '$act = New-ScheduledTaskAction -Execute ' + #39 + AppPath + #39 + #13#10 +
     '$tri = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME' + #13#10 +
@@ -229,8 +350,8 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Task-Scheduler-Eintrag entfernen.
-// Hier ist schtasks /delete sicher — kein Pfad, nur der Task-Name.
+// Remove Task Scheduler entry.
+// schtasks /delete is safe here — no path, just the task name.
 // --------------------------------------------------------------------------
 procedure DeleteAutostartTask;
 var
@@ -242,8 +363,8 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Firewall-Regel hinzufügen — benötigt Admin → UAC-Fenster erscheint kurz.
-// ewNoWait: Installer blockiert nicht, UAC-Fenster erscheint im Hintergrund.
+// Add firewall rule — requires admin → UAC prompt appears briefly.
+// ewNoWait: installer does not block; UAC window appears in background.
 // --------------------------------------------------------------------------
 procedure AddFirewallRule;
 var
@@ -259,8 +380,8 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Firewall-Regel entfernen — benötigt Admin → UAC-Fenster.
-// ewWaitUntilTerminated: Deinstallation wartet bis Regel wirklich weg ist.
+// Remove firewall rule — requires admin → UAC prompt.
+// ewWaitUntilTerminated: uninstall waits until rule is actually gone.
 // --------------------------------------------------------------------------
 procedure RemoveFirewallRule;
 var
@@ -275,7 +396,7 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Nach Installation: config.json + Autostart + Firewall einrichten.
+// After installation: write config.json + set up autostart + firewall.
 // --------------------------------------------------------------------------
 procedure CurStepChanged(CurStep: TSetupStep);
 var
@@ -285,7 +406,7 @@ var
 begin
   if CurStep <> ssPostInstall then Exit;
 
-  // --- config.json (nur bei Erstinstallation) ---
+  // --- config.json (first installation only) ---
   ConfigFile := ExpandConstant('{app}\config.json');
   if not FileExists(ConfigFile) then begin
     Json :=
@@ -312,17 +433,17 @@ begin
     end;
   end;
 
-  // --- Autostart-Task (kein Admin nötig) ---
+  // --- Autostart task (no admin needed) ---
   if WizardIsTaskSelected('autostart') then
     CreateAutostartTask;
 
-  // --- Firewall-Regel (Admin nötig → UAC-Fenster) ---
+  // --- Firewall rule (admin needed → UAC prompt) ---
   if WizardIsTaskSelected('firewall') then
     AddFirewallRule;
 end;
 
 // --------------------------------------------------------------------------
-// Bei Deinstallation: Firewall + Autostart entfernen, config.json fragen.
+// On uninstall: remove firewall + autostart, ask about config.json.
 // --------------------------------------------------------------------------
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
@@ -330,18 +451,17 @@ var
 begin
   if CurUninstallStep = usUninstall then begin
 
-    // Firewall entfernen (Admin → UAC, wartet auf Abschluss)
+    // Remove firewall rule (admin → UAC, wait for completion)
     RemoveFirewallRule;
 
-    // Autostart-Task entfernen (kein Admin)
+    // Remove autostart task (no admin)
     DeleteAutostartTask;
 
-    // config.json: Nutzer fragen
+    // config.json: ask user
     ConfigFile := ExpandConstant('{app}\config.json');
     if FileExists(ConfigFile) then begin
       if MsgBox(
-        'Möchten Sie die Konfigurationsdatei (config.json) ebenfalls löschen?' + #13#10 + #13#10 +
-        '"Nein" behält die Einstellungen für eine spätere Neuinstallation.',
+        CustomMessage('AskDelConfig'),
         mbConfirmation, MB_YESNO) = IDYES then
         DeleteFile(ConfigFile);
     end;
@@ -349,7 +469,7 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Laufende Bridge vor Installation/Upgrade beenden
+// Kill running bridge before installation / upgrade
 // --------------------------------------------------------------------------
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var

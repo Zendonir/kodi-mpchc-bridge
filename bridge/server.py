@@ -164,7 +164,7 @@ class BridgeServer:
 # Embedded web UI — served at /
 # ---------------------------------------------------------------------------
 _WEB_UI = """<!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -186,16 +186,13 @@ _WEB_UI = """<!DOCTYPE html>
   td{padding:3px 6px;border-bottom:1px solid #252525;vertical-align:top}
   td:first-child{color:#888;white-space:nowrap;width:42%}
   td:last-child{color:#fff;word-break:break-word}
-  /* Artwork — fixed max-height so it never dominates the layout */
   .artwork{max-width:100%;max-height:220px;width:auto;border-radius:6px;
            display:block;margin:0 auto 10px}
-  /* Playback control buttons */
   .btns{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
   button{background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:6px;
          padding:5px 11px;cursor:pointer;font-size:.84rem;transition:background .15s}
   button:hover{background:#3a3a3a}
   button:active{background:#1e5a8a}
-  /* D-pad navigation grid */
   .dpad{display:inline-grid;grid-template-columns:44px 44px 44px;
         grid-template-rows:44px 44px 44px;gap:4px;vertical-align:middle}
   .dpad button{width:44px;height:44px;padding:0;font-size:1.1rem;font-weight:bold}
@@ -203,97 +200,255 @@ _WEB_UI = """<!DOCTYPE html>
   .dpad .ok:hover{background:#244d24}
   .nav-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px}
   .sep{border-top:1px solid #2a2a2a;margin:8px 0}
-  /* Player badge */
   .player-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.75rem}
   .player-badge.kodi{background:#1a3d5c;color:#6af}
   .player-badge.mpchc{background:#3d1a1a;color:#f96}
   .player-badge.none{background:#2a2a2a;color:#666}
-  /* Keyboard hint */
   .kbd-hint{font-size:.72rem;color:#555;margin-top:6px}
   kbd{background:#222;border:1px solid #444;border-radius:3px;padding:1px 5px;font-size:.75rem}
 </style>
 </head>
 <body>
 <h1>kodi-mpchc-bridge</h1>
-<div id="status">Verbinde…</div>
+<div id="status"></div>
 
 <div class="grid">
 
   <!-- Card: Controls + Navigation -->
   <div class="card">
-    <h2>Steuerung</h2>
+    <h2 data-i18n="card_controls"></h2>
     <img id="artwork" class="artwork" src="" alt="" style="display:none">
 
-    <!-- Playback -->
     <div class="btns">
-      <button onclick="cmd('play_pause')">⏯</button>
-      <button onclick="cmd('stop')">⏹</button>
-      <button onclick="cmd('prev_chapter')">⏮</button>
-      <button onclick="cmd('next_chapter')">⏭</button>
-      <button onclick="cmd('skip_backward')">⏪ −1min</button>
-      <button onclick="cmd('skip_forward')">+1min ⏩</button>
-      <button onclick="cmd('seek_backward_small')">−10s</button>
-      <button onclick="cmd('seek_forward_small')">+10s</button>
+      <button onclick="cmd('play_pause')">&#x23EF;</button>
+      <button onclick="cmd('stop')">&#x23F9;</button>
+      <button onclick="cmd('prev_chapter')">&#x23EE;</button>
+      <button onclick="cmd('next_chapter')">&#x23ED;</button>
+      <button onclick="cmd('skip_backward')" data-i18n="btn_skip_back"></button>
+      <button onclick="cmd('skip_forward')"  data-i18n="btn_skip_fwd"></button>
+      <button onclick="cmd('seek_backward_small')" data-i18n="btn_seek_back"></button>
+      <button onclick="cmd('seek_forward_small')"  data-i18n="btn_seek_fwd"></button>
     </div>
     <div class="btns">
-      <button onclick="cmd('volume_down')">🔉</button>
-      <button onclick="cmd('volume_up')">🔊</button>
-      <button onclick="cmd('mute')">🔇</button>
+      <button onclick="cmd('volume_down')">&#x1F509;</button>
+      <button onclick="cmd('volume_up')">&#x1F50A;</button>
+      <button onclick="cmd('mute')">&#x1F507;</button>
     </div>
 
     <div class="sep"></div>
 
-    <!-- D-Pad navigation -->
     <div class="nav-row">
       <div class="dpad">
         <div></div>
-        <button onclick="cmd('navigate_up')" title="Hoch (↑)">▲</button>
+        <button onclick="cmd('navigate_up')" data-i18n-title="nav_up">&#x25B2;</button>
         <div></div>
-        <button onclick="cmd('navigate_left')" title="Links (←)">◀</button>
-        <button class="ok" onclick="cmd('navigate_select')" title="OK (Enter)">OK</button>
-        <button onclick="cmd('navigate_right')" title="Rechts (→)">▶</button>
+        <button onclick="cmd('navigate_left')" data-i18n-title="nav_left">&#x25C4;</button>
+        <button class="ok" onclick="cmd('navigate_select')" data-i18n-title="nav_ok">OK</button>
+        <button onclick="cmd('navigate_right')" data-i18n-title="nav_right">&#x25BA;</button>
         <div></div>
-        <button onclick="cmd('navigate_down')" title="Runter (↓)">▼</button>
+        <button onclick="cmd('navigate_down')" data-i18n-title="nav_down">&#x25BC;</button>
         <div></div>
       </div>
       <div>
         <div class="btns" style="flex-direction:column;gap:5px">
-          <button onclick="cmd('navigate_back')">← Zurück</button>
-          <button onclick="cmd('navigate_home')">⌂ Home</button>
-          <button onclick="cmd('context_menu')">☰ Menü</button>
-          <button onclick="cmd('show_info')">ℹ Info</button>
+          <button onclick="cmd('navigate_back')" data-i18n="btn_back"></button>
+          <button onclick="cmd('navigate_home')" data-i18n="btn_home"></button>
+          <button onclick="cmd('context_menu')"  data-i18n="btn_menu"></button>
+          <button onclick="cmd('show_info')"      data-i18n="btn_info"></button>
         </div>
       </div>
     </div>
-    <div class="kbd-hint">
-      Tastatur: <kbd>↑↓←→</kbd> navigieren &nbsp;
-      <kbd>Enter</kbd> OK &nbsp;
-      <kbd>Esc</kbd> Zurück &nbsp;
-      <kbd>Leertaste</kbd> Play/Pause
-    </div>
+    <div class="kbd-hint" data-i18n-html="kbd_hint"></div>
   </div>
 
   <!-- Card: Playback info -->
   <div class="card">
-    <h2>Wiedergabe</h2>
+    <h2 data-i18n="card_playback"></h2>
     <table id="tbl-play"></table>
   </div>
 
   <!-- Card: Video info -->
   <div class="card">
-    <h2>Video-Info</h2>
+    <h2 data-i18n="card_video"></h2>
     <table id="tbl-video"></table>
   </div>
 
   <!-- Card: Tracks -->
   <div class="card">
-    <h2>Spuren</h2>
+    <h2 data-i18n="card_tracks"></h2>
     <table id="tbl-tracks"></table>
   </div>
 
 </div>
 
 <script>
+// ── i18n ──────────────────────────────────────────────────────────────────────
+const _LANG = (navigator.language || 'en').slice(0,2).toLowerCase();
+const _TR = {
+  en:{
+    status_connecting:'Connecting\u2026',
+    status_connected:'\u25CF Connected',
+    status_reconnecting:'\u25CB Disconnected \u2013 reconnecting\u2026',
+    card_controls:'Controls',
+    card_playback:'Playback',
+    card_video:'Video Info',
+    card_tracks:'Tracks',
+    btn_skip_back:'\u23EA \u22121\u202Fmin',
+    btn_skip_fwd:'+1\u202Fmin \u23E9',
+    btn_seek_back:'\u221210s',
+    btn_seek_fwd:'+10s',
+    btn_back:'\u2190 Back',
+    btn_home:'\u2302 Home',
+    btn_menu:'\u2630 Menu',
+    btn_info:'\u2139 Info',
+    nav_up:'Up (\u2191)', nav_down:'Down (\u2193)',
+    nav_left:'Left (\u2190)', nav_right:'Right (\u2192)', nav_ok:'OK (Enter)',
+    kbd_hint:'Keyboard: <kbd>\u2191\u2193\u2190\u2192</kbd> navigate &nbsp;<kbd>Enter</kbd> OK &nbsp;<kbd>Esc</kbd> Back &nbsp;<kbd>Space</kbd> Play/Pause',
+    lbl_active_player:'Player', lbl_state:'State', lbl_title:'Title',
+    lbl_artist:'Artist', lbl_album:'Album', lbl_media_type:'Type',
+    lbl_position:'Position', lbl_duration:'Duration', lbl_volume:'Volume',
+    lbl_muted:'Muted', lbl_shuffle:'Shuffle', lbl_repeat:'Repeat',
+    lbl_year:'Year', lbl_tv_show:'Show', lbl_season:'Season', lbl_episode:'Episode',
+    lbl_video_width:'Width', lbl_video_height:'Height', lbl_video_fps:'Frame rate',
+    lbl_hdr:'HDR', lbl_video_codec:'Codec', lbl_video_bitrate_kbps:'Bitrate',
+    lbl_current_audio:'Audio', lbl_current_subtitle:'Subtitle', lbl_current_chapter:'Chapter',
+    val_yes:'Yes', val_no:'No', val_of:'of',
+  },
+  de:{
+    status_connecting:'Verbinde\u2026',
+    status_connected:'\u25CF Verbunden',
+    status_reconnecting:'\u25CB Getrennt \u2013 verbinde erneut\u2026',
+    card_controls:'Steuerung',
+    card_playback:'Wiedergabe',
+    card_video:'Video-Info',
+    card_tracks:'Spuren',
+    btn_skip_back:'\u23EA \u22121\u202Fmin',
+    btn_skip_fwd:'+1\u202Fmin \u23E9',
+    btn_seek_back:'\u221210s',
+    btn_seek_fwd:'+10s',
+    btn_back:'\u2190 Zur\u00FCck',
+    btn_home:'\u2302 Home',
+    btn_menu:'\u2630 Men\u00FC',
+    btn_info:'\u2139 Info',
+    nav_up:'Hoch (\u2191)', nav_down:'Runter (\u2193)',
+    nav_left:'Links (\u2190)', nav_right:'Rechts (\u2192)', nav_ok:'OK (Enter)',
+    kbd_hint:'Tastatur: <kbd>\u2191\u2193\u2190\u2192</kbd> navigieren &nbsp;<kbd>Enter</kbd> OK &nbsp;<kbd>Esc</kbd> Zur\u00FCck &nbsp;<kbd>Leertaste</kbd> Play/Pause',
+    lbl_active_player:'Player', lbl_state:'Status', lbl_title:'Titel',
+    lbl_artist:'Interpret', lbl_album:'Album', lbl_media_type:'Typ',
+    lbl_position:'Position', lbl_duration:'Dauer', lbl_volume:'Lautst\u00E4rke',
+    lbl_muted:'Stumm', lbl_shuffle:'Shuffle', lbl_repeat:'Wiederholen',
+    lbl_year:'Jahr', lbl_tv_show:'Serie', lbl_season:'Staffel', lbl_episode:'Folge',
+    lbl_video_width:'Breite', lbl_video_height:'H\u00F6he', lbl_video_fps:'Framerate',
+    lbl_hdr:'HDR', lbl_video_codec:'Codec', lbl_video_bitrate_kbps:'Bitrate',
+    lbl_current_audio:'Audio-Spur', lbl_current_subtitle:'Untertitel', lbl_current_chapter:'Kapitel',
+    val_yes:'Ja', val_no:'Nein', val_of:'von',
+  },
+  fr:{
+    status_connecting:'Connexion\u2026',
+    status_connected:'\u25CF Connect\u00E9',
+    status_reconnecting:'\u25CB D\u00E9connect\u00E9 \u2013 reconnexion\u2026',
+    card_controls:'Contr\u00F4les',
+    card_playback:'Lecture',
+    card_video:'Infos vid\u00E9o',
+    card_tracks:'Pistes',
+    btn_skip_back:'\u23EA \u22121\u202Fmin',
+    btn_skip_fwd:'+1\u202Fmin \u23E9',
+    btn_seek_back:'\u221210s',
+    btn_seek_fwd:'+10s',
+    btn_back:'\u2190 Retour',
+    btn_home:'\u2302 Accueil',
+    btn_menu:'\u2630 Menu',
+    btn_info:'\u2139 Infos',
+    nav_up:'Haut (\u2191)', nav_down:'Bas (\u2193)',
+    nav_left:'Gauche (\u2190)', nav_right:'Droite (\u2192)', nav_ok:'OK (Entr\u00E9e)',
+    kbd_hint:'Clavier\u00A0: <kbd>\u2191\u2193\u2190\u2192</kbd> naviguer &nbsp;<kbd>Entr\u00E9e</kbd> OK &nbsp;<kbd>\u00C9chap</kbd> Retour &nbsp;<kbd>Espace</kbd> Lecture/Pause',
+    lbl_active_player:'Lecteur', lbl_state:'\u00C9tat', lbl_title:'Titre',
+    lbl_artist:'Artiste', lbl_album:'Album', lbl_media_type:'Type',
+    lbl_position:'Position', lbl_duration:'Dur\u00E9e', lbl_volume:'Volume',
+    lbl_muted:'Muet', lbl_shuffle:'Al\u00E9atoire', lbl_repeat:'R\u00E9p\u00E9ter',
+    lbl_year:'Ann\u00E9e', lbl_tv_show:'S\u00E9rie', lbl_season:'Saison', lbl_episode:'\u00C9pisode',
+    lbl_video_width:'Largeur', lbl_video_height:'Hauteur', lbl_video_fps:'Fr\u00E9quence',
+    lbl_hdr:'HDR', lbl_video_codec:'Codec', lbl_video_bitrate_kbps:'D\u00E9bit',
+    lbl_current_audio:'Audio', lbl_current_subtitle:'Sous-titres', lbl_current_chapter:'Chapitre',
+    val_yes:'Oui', val_no:'Non', val_of:'sur',
+  },
+  es:{
+    status_connecting:'Conectando\u2026',
+    status_connected:'\u25CF Conectado',
+    status_reconnecting:'\u25CB Desconectado \u2013 reconectando\u2026',
+    card_controls:'Controles',
+    card_playback:'Reproducci\u00F3n',
+    card_video:'Info de v\u00EDdeo',
+    card_tracks:'Pistas',
+    btn_skip_back:'\u23EA \u22121\u202Fmin',
+    btn_skip_fwd:'+1\u202Fmin \u23E9',
+    btn_seek_back:'\u221210s',
+    btn_seek_fwd:'+10s',
+    btn_back:'\u2190 Volver',
+    btn_home:'\u2302 Inicio',
+    btn_menu:'\u2630 Men\u00FA',
+    btn_info:'\u2139 Info',
+    nav_up:'Arriba (\u2191)', nav_down:'Abajo (\u2193)',
+    nav_left:'Izquierda (\u2190)', nav_right:'Derecha (\u2192)', nav_ok:'OK (Intro)',
+    kbd_hint:'Teclado: <kbd>\u2191\u2193\u2190\u2192</kbd> navegar &nbsp;<kbd>Intro</kbd> OK &nbsp;<kbd>Esc</kbd> Volver &nbsp;<kbd>Espacio</kbd> Play/Pausa',
+    lbl_active_player:'Reproductor', lbl_state:'Estado', lbl_title:'T\u00EDtulo',
+    lbl_artist:'Artista', lbl_album:'\u00C1lbum', lbl_media_type:'Tipo',
+    lbl_position:'Posici\u00F3n', lbl_duration:'Duraci\u00F3n', lbl_volume:'Volumen',
+    lbl_muted:'Silencio', lbl_shuffle:'Aleatorio', lbl_repeat:'Repetir',
+    lbl_year:'A\u00F1o', lbl_tv_show:'Serie', lbl_season:'Temporada', lbl_episode:'Episodio',
+    lbl_video_width:'Ancho', lbl_video_height:'Alto', lbl_video_fps:'Fotogramas',
+    lbl_hdr:'HDR', lbl_video_codec:'C\u00F3dec', lbl_video_bitrate_kbps:'Tasa de bits',
+    lbl_current_audio:'Audio', lbl_current_subtitle:'Subt\u00EDtulos', lbl_current_chapter:'Cap\u00EDtulo',
+    val_yes:'S\u00ED', val_no:'No', val_of:'de',
+  },
+  it:{
+    status_connecting:'Connessione\u2026',
+    status_connected:'\u25CF Connesso',
+    status_reconnecting:'\u25CB Disconnesso \u2013 riconnessione\u2026',
+    card_controls:'Controlli',
+    card_playback:'Riproduzione',
+    card_video:'Info video',
+    card_tracks:'Tracce',
+    btn_skip_back:'\u23EA \u22121\u202Fmin',
+    btn_skip_fwd:'+1\u202Fmin \u23E9',
+    btn_seek_back:'\u221210s',
+    btn_seek_fwd:'+10s',
+    btn_back:'\u2190 Indietro',
+    btn_home:'\u2302 Home',
+    btn_menu:'\u2630 Menu',
+    btn_info:'\u2139 Info',
+    nav_up:'Su (\u2191)', nav_down:'Gi\u00F9 (\u2193)',
+    nav_left:'Sinistra (\u2190)', nav_right:'Destra (\u2192)', nav_ok:'OK (Invio)',
+    kbd_hint:'Tastiera: <kbd>\u2191\u2193\u2190\u2192</kbd> navigare &nbsp;<kbd>Invio</kbd> OK &nbsp;<kbd>Esc</kbd> Indietro &nbsp;<kbd>Spazio</kbd> Play/Pausa',
+    lbl_active_player:'Lettore', lbl_state:'Stato', lbl_title:'Titolo',
+    lbl_artist:'Artista', lbl_album:'Album', lbl_media_type:'Tipo',
+    lbl_position:'Posizione', lbl_duration:'Durata', lbl_volume:'Volume',
+    lbl_muted:'Muto', lbl_shuffle:'Casuale', lbl_repeat:'Ripeti',
+    lbl_year:'Anno', lbl_tv_show:'Serie', lbl_season:'Stagione', lbl_episode:'Episodio',
+    lbl_video_width:'Larghezza', lbl_video_height:'Altezza', lbl_video_fps:'Fotogrammi',
+    lbl_hdr:'HDR', lbl_video_codec:'Codec', lbl_video_bitrate_kbps:'Bitrate',
+    lbl_current_audio:'Audio', lbl_current_subtitle:'Sottotitoli', lbl_current_chapter:'Capitolo',
+    val_yes:'S\u00EC', val_no:'No', val_of:'di',
+  },
+};
+const _T = _TR[_LANG] || _TR.en;
+function t(k){ return _T[k] || (_TR.en[k]) || k; }
+
+// Apply static translations to the DOM
+(function applyI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-html]').forEach(el => {
+    el.innerHTML = t(el.dataset.i18nHtml);
+  });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    el.title = t(el.dataset.i18nTitle);
+  });
+  document.getElementById('status').textContent = t('status_connecting');
+})();
+
+// ── State & rendering ─────────────────────────────────────────────────────────
 const PLAY_KEYS  = ['active_player','state','title','year','media_type',
                     'tv_show','season','episode',
                     'artist','album','position','duration','volume','muted',
@@ -305,41 +460,31 @@ const TRACK_KEYS = ['current_audio','current_subtitle','current_chapter'];
 let state = {};
 
 function fmt(k, v) {
-  if (v === null || v === undefined) return '—';
+  if (v === null || v === undefined) return '\u2014';
   if (k === 'position' || k === 'duration') {
     const s = Math.round(v);
     return new Date(s * 1000).toISOString().substr(11, 8);
   }
-  if (k === 'volume') return v + ' %';
-  if (k === 'video_fps') return v ? v.toFixed(3) + ' fps' : '—';
-  if (k === 'video_bitrate_kbps') return v ? (v / 1000).toFixed(1) + ' Mbps' : '—';
-  if (k === 'video_width' || k === 'video_height') return v ? v + ' px' : '—';
-  if (k === 'year') return v ? String(v) : '—';
+  if (k === 'volume') return v + '\u202F%';
+  if (k === 'video_fps') return v ? v.toFixed(3) + '\u202Ffps' : '\u2014';
+  if (k === 'video_bitrate_kbps') return v ? (v / 1000).toFixed(1) + '\u202FMbps' : '\u2014';
+  if (k === 'video_width' || k === 'video_height') return v ? v + '\u202Fpx' : '\u2014';
+  if (k === 'year') return v ? String(v) : '\u2014';
   if (k === 'season') {
-    if (!v) return '—';
-    return state.season_count > 0 ? `${v} von ${state.season_count}` : String(v);
+    if (!v) return '\u2014';
+    return state.season_count > 0 ? `${v}\u202F${t('val_of')}\u202F${state.season_count}` : String(v);
   }
   if (k === 'episode') {
-    if (!v) return '—';
-    return state.episode_count > 0 ? `${v} von ${state.episode_count}` : String(v);
+    if (!v) return '\u2014';
+    return state.episode_count > 0 ? `${v}\u202F${t('val_of')}\u202F${state.episode_count}` : String(v);
   }
-  if (typeof v === 'boolean') return v ? 'Ja' : 'Nein';
-  if (Array.isArray(v)) return v.length ? v.map(t => t.label || t.name || '?').join(', ') : '—';
-  return v ? String(v) : '—';
+  if (typeof v === 'boolean') return v ? t('val_yes') : t('val_no');
+  if (Array.isArray(v)) return v.length ? v.map(x => x.label || x.name || '?').join(', ') : '\u2014';
+  return v ? String(v) : '\u2014';
 }
 
 function label(k) {
-  const L = {
-    active_player:'Player', state:'Status', title:'Titel',
-    artist:'Interpret', album:'Album', media_type:'Typ',
-    position:'Position', duration:'Dauer', volume:'Lautstärke',
-    muted:'Stumm', shuffle:'Shuffle', repeat:'Wiederholen',
-    year:'Jahr', tv_show:'Serie', season:'Staffel', episode:'Episode',
-    video_width:'Breite', video_height:'Höhe', video_fps:'Framerate',
-    hdr:'HDR', video_codec:'Codec', video_bitrate_kbps:'Bitrate',
-    current_audio:'Audio-Spur', current_subtitle:'Untertitel', current_chapter:'Kapitel',
-  };
-  return L[k] || k;
+  return t('lbl_' + k) || k;
 }
 
 function renderTable(id, keys) {
@@ -349,7 +494,6 @@ function renderTable(id, keys) {
       const cls = state[k] || 'none';
       v = `<span class="player-badge ${cls}">${state[k] || 'none'}</span>`;
     }
-    // Skip rows that are not relevant for current media type
     if ((k === 'tv_show' || k === 'season' || k === 'episode') &&
         state.media_type !== 'episode' && !state.tv_show) return '';
     if ((k === 'artist' || k === 'album') && state.media_type !== 'music' &&
@@ -397,23 +541,15 @@ function cmd(c, val) {
   }).catch(() => {});
 }
 
-// Keyboard shortcuts — arrow keys map to d-pad, space = play/pause
 document.addEventListener('keydown', function(e) {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   const map = {
-    ArrowUp:    'navigate_up',
-    ArrowDown:  'navigate_down',
-    ArrowLeft:  'navigate_left',
-    ArrowRight: 'navigate_right',
-    Enter:      'navigate_select',
-    Escape:     'navigate_back',
-    Backspace:  'navigate_back',
-    ' ':        'play_pause',
+    ArrowUp:'navigate_up', ArrowDown:'navigate_down',
+    ArrowLeft:'navigate_left', ArrowRight:'navigate_right',
+    Enter:'navigate_select', Escape:'navigate_back',
+    Backspace:'navigate_back', ' ':'play_pause',
   };
-  if (map[e.key]) {
-    e.preventDefault();
-    cmd(map[e.key]);
-  }
+  if (map[e.key]) { e.preventDefault(); cmd(map[e.key]); }
 });
 
 function connect() {
@@ -421,9 +557,9 @@ function connect() {
   const ws = new WebSocket(`${proto}://${location.host}/api/ws`);
   const el = document.getElementById('status');
 
-  ws.onopen  = () => { el.textContent = '● Verbunden';                el.className = 'ok';  };
+  ws.onopen  = () => { el.textContent = t('status_connected');     el.className = 'ok';  };
   ws.onclose = () => {
-    el.textContent = '○ Getrennt – verbinde erneut…'; el.className = 'err';
+    el.textContent = t('status_reconnecting'); el.className = 'err';
     setTimeout(connect, 3000);
   };
   ws.onerror = () => { el.className = 'err'; };

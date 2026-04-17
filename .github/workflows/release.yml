@@ -75,27 +75,28 @@ jobs:
             ## Kodi ↔ MPC-HC Bridge ${{ steps.version.outputs.tag }}
 
             ### Download
-            ### Download
-            | Datei | Beschreibung |
-            |-------|-------------|
-            | `kodi-mpchc-bridge-setup-*.exe` | Installer — Start-Menü, Autostart, Firewall, Deinstaller |
+            | File | Description |
+            |------|-------------|
+            | `kodi-mpchc-bridge-setup-*.exe` | Installer — Start menu, autostart, firewall rule, uninstaller |
 
-            ### Erste Schritte
-            1. Setup-`*.exe` herunterladen und ausführen (kein Admin nötig)
-            2. Installiert nach `%LocalAppData%\Programs\kodi-mpchc-bridge\`
-            3. Kodi-Verbindungsdaten im Installer-Wizard eingeben
-            4. Autostart + Firewall-Optionen bestätigen
-            5. `kodi-bridge.exe` startet automatisch — **Tray-Icon** erscheint
-            6. Rechtsklick auf Tray → Einstellungen oder Test-Oberfläche
-            7. Log-Datei: `%LocalAppData%\Programs\kodi-mpchc-bridge\kodi-bridge.log`
+            ### Quick start
+            1. Download and run the setup `*.exe` (no admin required)
+            2. Installs to `%LocalAppData%\Programs\kodi-mpchc-bridge\`
+            3. Enter your Kodi connection details in the installer wizard
+            4. Confirm autostart + firewall options
+            5. `kodi-bridge.exe` starts automatically — **tray icon** appears
+            6. Right-click tray → Settings or Test Interface
+            7. Log file: `%LocalAppData%\Programs\kodi-mpchc-bridge\kodi-bridge.log`
 
-            ### Bridge-Port
-            Standard: **13590** (TCP, eingehend — Firewall-Regel in der GUI einrichten)
+            > **UI language** is detected automatically from your Windows UI locale (EN · DE · FR · ES · IT).
 
-            ### Anforderungen
+            ### Bridge port
+            Default: **13590** (TCP inbound — firewall rule is set up by the installer)
+
+            ### Requirements
             - Windows 10 / 11 (64-bit)
-            - Kodi mit aktiviertem Web-Server (Port 8080) + WebSocket (Port 9090)
-            - MPC-HC (clsid2-Fork) mit aktiviertem Web-Interface (Port 13579)
+            - Kodi with web server enabled (port 8080) + WebSocket (port 9090)
+            - MPC-HC (clsid2 fork) with web interface enabled (port 13579)
           draft: false
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
           files: |

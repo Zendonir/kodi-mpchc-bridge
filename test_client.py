@@ -1,7 +1,7 @@
 """
 Bridge test client GUI.
 
-Communicates with kodi-mpchc-bridge via the SAME protocol the UC Remote
+Communicates with kodi-mpchc-bridge via the same protocol the UC Remote
 integration uses:
   - WebSocket  ws://host:port/api/ws   → receives state_full / state_patch
   - HTTP POST  http://host:port/api/command  → sends commands
@@ -9,6 +9,8 @@ integration uses:
 Run:  python test_client.py [--host HOST] [--port PORT]
 
 Requirements: aiohttp (already in requirements.txt)
+
+Language is detected from the OS UI locale automatically (EN/DE/FR/ES/IT).
 """
 
 from __future__ import annotations
@@ -26,6 +28,8 @@ import time
 from typing import Any
 
 import aiohttp
+
+from bridge.i18n import T
 
 # ---------------------------------------------------------------------------
 # Async bridge client (runs on its own thread / event loop)
@@ -63,9 +67,9 @@ class AsyncBridgeClient:
         self._session = aiohttp.ClientSession()
         while self._running:
             try:
-                self._on_log("Connecting…")
+                self._on_log("Connecting\u2026")
                 async with self._session.ws_connect(self._ws_url, heartbeat=30) as ws:
-                    self._on_log("Connected ✓")
+                    self._on_log("Connected \u2713")
                     self._on_connect(True)
                     async for msg in ws:
                         if msg.type == aiohttp.WSMsgType.TEXT:
@@ -77,7 +81,7 @@ class AsyncBridgeClient:
                 self._on_log(f"Disconnected: {exc}")
             self._on_connect(False)
             if self._running:
-                self._on_log("Reconnecting in 3s…")
+                self._on_log("Reconnecting in 3s\u2026")
                 await asyncio.sleep(3)
         if self._session:
             await self._session.close()
@@ -93,23 +97,23 @@ class AsyncBridgeClient:
                 timeout=aiohttp.ClientTimeout(total=3),
             ) as resp:
                 ok = resp.status == 200
-                self._on_log(f"→ {cmd}" + (f"={value}" if value is not None else "") + (" ✓" if ok else " ✗"))
+                self._on_log(f"\u2192 {cmd}" + (f"={value}" if value is not None else "") + (" \u2713" if ok else " \u2717"))
         except Exception as exc:
-            self._on_log(f"→ {cmd} ERROR: {exc}")
+            self._on_log(f"\u2192 {cmd} ERROR: {exc}")
 
 
 # ---------------------------------------------------------------------------
-# GUI
+# GUI colours
 # ---------------------------------------------------------------------------
-DARK_BG = "#1e1e1e"
+DARK_BG  = "#1e1e1e"
 PANEL_BG = "#252526"
-BTN_BG = "#3c3c3c"
-BTN_FG = "#cccccc"
-ACCENT = "#007acc"
-TEXT_FG = "#cccccc"
-DIM_FG = "#888888"
-OK_FG = "#4ec94e"
-ERR_FG = "#f44747"
+BTN_BG   = "#3c3c3c"
+BTN_FG   = "#cccccc"
+ACCENT   = "#007acc"
+TEXT_FG  = "#cccccc"
+DIM_FG   = "#888888"
+OK_FG    = "#4ec94e"
+ERR_FG   = "#f44747"
 
 
 def _style_btn(btn: tk.Button, accent=False):
@@ -134,15 +138,15 @@ class App(tk.Tk):
         self._state: dict[str, Any] = {}
         self._connected = False
 
-        self.title("kodi-mpchc-bridge  —  Test Client")
+        self.title(T("tc_window_title"))
         self.configure(bg=DARK_BG)
         self.resizable(True, True)
         self.minsize(760, 520)
 
-        self._mono = tkfont.Font(family="Consolas", size=9)
-        self._bold = tkfont.Font(family="Segoe UI", size=10, weight="bold")
-        self._small = tkfont.Font(family="Segoe UI", size=9)
-        self._large = tkfont.Font(family="Segoe UI", size=13, weight="bold")
+        self._mono  = tkfont.Font(family="Consolas",  size=9)
+        self._bold  = tkfont.Font(family="Segoe UI",  size=10, weight="bold")
+        self._small = tkfont.Font(family="Segoe UI",  size=9)
+        self._large = tkfont.Font(family="Segoe UI",  size=13, weight="bold")
 
         self._build_ui()
 
@@ -160,15 +164,15 @@ class App(tk.Tk):
     # UI construction
     # ------------------------------------------------------------------
     def _build_ui(self):
-        # Top bar: connection
+        # Top bar: connection info
         top = tk.Frame(self, bg=PANEL_BG, pady=6)
         top.pack(fill="x", padx=0, pady=0)
 
-        tk.Label(top, text="Bridge:", bg=PANEL_BG, fg=DIM_FG, font=self._small).pack(side="left", padx=(12, 4))
+        tk.Label(top, text=T("tc_bridge_lbl"), bg=PANEL_BG, fg=DIM_FG, font=self._small).pack(side="left", padx=(12, 4))
         self._addr_var = tk.StringVar(value=f"{self._host}:{self._port}")
         tk.Label(top, textvariable=self._addr_var, bg=PANEL_BG, fg=TEXT_FG, font=self._mono).pack(side="left")
 
-        self._status_lbl = tk.Label(top, text="● Disconnected", bg=PANEL_BG, fg=ERR_FG, font=self._small)
+        self._status_lbl = tk.Label(top, text=T("tc_disconnected"), bg=PANEL_BG, fg=ERR_FG, font=self._small)
         self._status_lbl.pack(side="left", padx=12)
 
         self._active_lbl = tk.Label(top, text="", bg=PANEL_BG, fg=ACCENT, font=self._bold)
@@ -199,60 +203,61 @@ class App(tk.Tk):
         return lbl
 
     def _build_info_panel(self, parent):
-        frame = tk.LabelFrame(parent, text=" Now Playing ", bg=PANEL_BG, fg=DIM_FG,
+        frame = tk.LabelFrame(parent, text=T("tc_now_playing"), bg=PANEL_BG, fg=DIM_FG,
                               font=self._small, bd=1, relief="groove")
         frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
         frame.columnconfigure(1, weight=1)
 
-        self._v_state = tk.StringVar(value="—")
-        self._v_title = tk.StringVar(value="—")
+        self._v_state  = tk.StringVar(value="\u2014")
+        self._v_title  = tk.StringVar(value="\u2014")
         self._v_artist = tk.StringVar(value="")
-        self._v_album = tk.StringVar(value="")
-        self._v_type = tk.StringVar(value="")
-        self._v_pos = tk.StringVar(value="0:00:00")
-        self._v_dur = tk.StringVar(value="0:00:00")
-        self._v_vol = tk.StringVar(value="0")
-        self._v_muted = tk.StringVar(value="")
-        self._v_shuffle = tk.StringVar(value="")
+        self._v_album  = tk.StringVar(value="")
+        self._v_type   = tk.StringVar(value="")
+        self._v_pos    = tk.StringVar(value="0:00:00")
+        self._v_dur    = tk.StringVar(value="0:00:00")
+        self._v_vol    = tk.StringVar(value="0")
+        self._v_muted  = tk.StringVar(value="")
+        self._v_shuffle= tk.StringVar(value="")
         self._v_repeat = tk.StringVar(value="off")
+
         rows = [
-            ("State", self._v_state),
-            ("Title", self._v_title),
-            ("Artist", self._v_artist),
-            ("Album", self._v_album),
-            ("Type", self._v_type),
-            ("Position", self._v_pos),
-            ("Duration", self._v_dur),
-            ("Volume", self._v_vol),
-            ("Muted", self._v_muted),
-            ("Shuffle", self._v_shuffle),
-            ("Repeat", self._v_repeat),
+            (T("tc_state_lbl"),   self._v_state),
+            (T("tc_title_lbl"),   self._v_title),
+            (T("tc_artist_lbl"),  self._v_artist),
+            (T("tc_album_lbl"),   self._v_album),
+            (T("tc_type_lbl"),    self._v_type),
+            (T("tc_pos_lbl"),     self._v_pos),
+            (T("tc_dur_lbl"),     self._v_dur),
+            (T("tc_vol_lbl"),     self._v_vol),
+            (T("tc_muted_lbl"),   self._v_muted),
+            (T("tc_shuffle_lbl"), self._v_shuffle),
+            (T("tc_repeat_lbl"),  self._v_repeat),
         ]
         for i, (lbl, var) in enumerate(rows):
             self._lbl(frame, lbl, i, 0)
             self._val(frame, var, i, 1)
 
-        # Cover art image
+        # Cover art
         cover_row = len(rows)
-        self._lbl(frame, "Cover", cover_row, 0)
+        self._lbl(frame, T("tc_cover_lbl"), cover_row, 0)
         self._artwork_label = tk.Label(
             frame, bg=PANEL_BG, fg=DIM_FG, font=self._small,
-            text="—", anchor="w", width=22, height=8,
+            text="\u2014", anchor="w", width=22, height=8,
         )
         self._artwork_label.grid(
             row=cover_row, column=1, sticky="w", padx=(0, 8), pady=4
         )
-        self._img_ref = None       # keep PhotoImage alive
-        self._current_art_url = "" # track last loaded URL
+        self._img_ref = None
+        self._current_art_url = ""
 
-        # Progress bar  (cover is at len(rows), so progress bar goes one below)
+        # Progress bar
         self._progress = ttk.Progressbar(frame, orient="horizontal", mode="determinate")
         self._progress.grid(row=len(rows) + 1, column=0, columnspan=2, sticky="ew",
                             padx=8, pady=(4, 8))
 
         # Seek entry
         seek_row = len(rows) + 2
-        self._lbl(frame, "Seek to (s)", seek_row, 0)
+        self._lbl(frame, T("tc_seek_lbl"), seek_row, 0)
         self._seek_var = tk.StringVar(value="0")
         seek_entry = tk.Entry(frame, textvariable=self._seek_var, width=8,
                               bg=BTN_BG, fg=TEXT_FG, insertbackground=TEXT_FG,
@@ -270,19 +275,19 @@ class App(tk.Tk):
         right.columnconfigure(0, weight=1)
 
         # --- Playback ---
-        pb = tk.LabelFrame(right, text=" Playback ", bg=PANEL_BG, fg=DIM_FG,
+        pb = tk.LabelFrame(right, text=T("tc_playback"), bg=PANEL_BG, fg=DIM_FG,
                            font=self._small, bd=1, relief="groove")
         pb.pack(fill="x", pady=(0, 5))
 
         row1 = tk.Frame(pb, bg=PANEL_BG)
         row1.pack(pady=6)
         for text, cmd in [
-            ("⏮ Prev", "prev_chapter"),
-            ("⏪ Skip−", "skip_backward"),
-            ("⏯ Play/Pause", "play_pause"),
-            ("⏩ Skip+", "skip_forward"),
-            ("⏭ Next", "next_chapter"),
-            ("⏹ Stop", "stop"),
+            ("\u23ee Prev",       "prev_chapter"),
+            ("\u23ea Skip\u2212", "skip_backward"),
+            ("\u23ef Play/Pause", "play_pause"),
+            ("\u23e9 Skip+",      "skip_forward"),
+            ("\u23ed Next",       "next_chapter"),
+            ("\u23f9 Stop",       "stop"),
         ]:
             b = tk.Button(row1, text=text, command=lambda c=cmd: self._cmd(c))
             _style_btn(b, accent=(cmd == "play_pause"))
@@ -290,31 +295,22 @@ class App(tk.Tk):
 
         row2 = tk.Frame(pb, bg=PANEL_BG)
         row2.pack(pady=(0, 6))
-        for text, cmd in [
-            ("◁◁ Seek−15s", ("seek_rel", -15)),
-            ("▷▷ Seek+15s", ("seek_rel", 15)),
-        ]:
-            val = cmd[1] if isinstance(cmd, tuple) else None
-            c = cmd[0] if isinstance(cmd, tuple) else cmd
-            b = tk.Button(row2, text=text, command=lambda c=c, v=val: self._seek_relative(v))
+        for text, delta in [("\u25c1\u25c1 \u221215s", -15), ("\u25b7\u25b7 +15s", 15)]:
+            b = tk.Button(row2, text=text, command=lambda d=delta: self._seek_relative(d))
             _style_btn(b)
             b.pack(side="left", padx=3)
 
         # --- Volume ---
-        vol = tk.LabelFrame(right, text=" Volume ", bg=PANEL_BG, fg=DIM_FG,
+        vol = tk.LabelFrame(right, text=T("tc_volume_panel"), bg=PANEL_BG, fg=DIM_FG,
                             font=self._small, bd=1, relief="groove")
         vol.pack(fill="x", pady=(0, 5))
         vrow = tk.Frame(vol, bg=PANEL_BG)
         vrow.pack(pady=6)
-        for text, cmd, val in [
-            ("− Vol", "set_volume", None),
-            ("Vol Down", "volume_down", None),
-            ("Vol Up", "volume_up", None),
-            ("+ Vol", "set_volume", None),
-            ("🔇 Mute", "mute", None),
+        for text, cmd in [
+            ("\U0001f50a Vol\u2212", "volume_down"),
+            ("\U0001f50a Vol+",      "volume_up"),
+            ("\U0001f507 Mute",      "mute"),
         ]:
-            if text in ("− Vol", "+ Vol"):
-                continue  # handled by slider below
             b = tk.Button(vrow, text=text, command=lambda c=cmd: self._cmd(c))
             _style_btn(b)
             b.pack(side="left", padx=3)
@@ -325,26 +321,26 @@ class App(tk.Tk):
         self._vol_slider.pack(fill="x", padx=12, pady=(0, 6))
 
         # --- Tracks ---
-        trk = tk.LabelFrame(right, text=" Tracks ", bg=PANEL_BG, fg=DIM_FG,
+        trk = tk.LabelFrame(right, text=T("tc_tracks_panel"), bg=PANEL_BG, fg=DIM_FG,
                             font=self._small, bd=1, relief="groove")
         trk.pack(fill="x", pady=(0, 5))
         trk.columnconfigure(1, weight=1)
 
-        tk.Label(trk, text="Audio", bg=PANEL_BG, fg=DIM_FG, font=self._small).grid(
+        tk.Label(trk, text=T("tc_audio_lbl"), bg=PANEL_BG, fg=DIM_FG, font=self._small).grid(
             row=0, column=0, padx=(8, 4), pady=4, sticky="w")
         self._audio_var = tk.StringVar()
         self._audio_cb = ttk.Combobox(trk, textvariable=self._audio_var, state="readonly", width=40)
         self._audio_cb.grid(row=0, column=1, padx=(0, 8), pady=4, sticky="ew")
         self._audio_cb.bind("<<ComboboxSelected>>", self._on_audio_select)
 
-        tk.Label(trk, text="Subtitle", bg=PANEL_BG, fg=DIM_FG, font=self._small).grid(
+        tk.Label(trk, text=T("tc_sub_lbl"), bg=PANEL_BG, fg=DIM_FG, font=self._small).grid(
             row=1, column=0, padx=(8, 4), pady=4, sticky="w")
         self._sub_var = tk.StringVar()
         self._sub_cb = ttk.Combobox(trk, textvariable=self._sub_var, state="readonly", width=40)
         self._sub_cb.grid(row=1, column=1, padx=(0, 8), pady=4, sticky="ew")
         self._sub_cb.bind("<<ComboboxSelected>>", self._on_sub_select)
 
-        tk.Label(trk, text="Chapter", bg=PANEL_BG, fg=DIM_FG, font=self._small).grid(
+        tk.Label(trk, text=T("tc_chapter_lbl"), bg=PANEL_BG, fg=DIM_FG, font=self._small).grid(
             row=2, column=0, padx=(8, 4), pady=4, sticky="w")
         self._ch_var = tk.StringVar()
         self._ch_cb = ttk.Combobox(trk, textvariable=self._ch_var, state="readonly", width=40)
@@ -352,26 +348,21 @@ class App(tk.Tk):
         self._ch_cb.bind("<<ComboboxSelected>>", self._on_chapter_select)
 
         # --- Navigation ---
-        nav = tk.LabelFrame(right, text=" Navigation ", bg=PANEL_BG, fg=DIM_FG,
+        nav = tk.LabelFrame(right, text=T("tc_nav_panel"), bg=PANEL_BG, fg=DIM_FG,
                             font=self._small, bd=1, relief="groove")
         nav.pack(fill="x", pady=(0, 5))
         nav_inner = tk.Frame(nav, bg=PANEL_BG)
         nav_inner.pack(pady=6)
 
-        nav_map = [
-            (None,           "↑",   "navigate_up",     None, None),
-            ("↑",            None,   None,              None, None),
-        ]
-
         # D-pad grid
         dpad = tk.Frame(nav_inner, bg=PANEL_BG)
         dpad.pack(side="left", padx=10)
         for text, r, c, cmd in [
-            ("↑", 0, 1, "navigate_up"),
-            ("←", 1, 0, "navigate_left"),
-            ("OK", 1, 1, "navigate_select"),
-            ("→", 1, 2, "navigate_right"),
-            ("↓", 2, 1, "navigate_down"),
+            ("\u2191",  0, 1, "navigate_up"),
+            ("\u2190",  1, 0, "navigate_left"),
+            ("OK",      1, 1, "navigate_select"),
+            ("\u2192",  1, 2, "navigate_right"),
+            ("\u2193",  2, 1, "navigate_down"),
         ]:
             b = tk.Button(dpad, text=text, width=4, command=lambda c=cmd: self._cmd(c))
             _style_btn(b, accent=(text == "OK"))
@@ -380,10 +371,10 @@ class App(tk.Tk):
         extra = tk.Frame(nav_inner, bg=PANEL_BG)
         extra.pack(side="left", padx=10)
         for text, cmd in [
-            ("Back", "navigate_back"),
-            ("Home", "navigate_home"),
-            ("Menu", "context_menu"),
-            ("Info", "show_info"),
+            ("Back",     "navigate_back"),
+            ("Home",     "navigate_home"),
+            ("Menu",     "context_menu"),
+            ("Info",     "show_info"),
             ("Kodi/Win", "kodi_windows"),
         ]:
             b = tk.Button(extra, text=text, command=lambda c=cmd: self._cmd(c))
@@ -394,7 +385,7 @@ class App(tk.Tk):
         log_frame = tk.Frame(parent, bg=DARK_BG)
         log_frame.pack(fill="x", padx=10, pady=(0, 8))
 
-        tk.Label(log_frame, text="Log", bg=DARK_BG, fg=DIM_FG, font=self._small).pack(anchor="w")
+        tk.Label(log_frame, text=T("tc_log_lbl"), bg=DARK_BG, fg=DIM_FG, font=self._small).pack(anchor="w")
         self._log_text = tk.Text(
             log_frame, height=5, bg="#111", fg=DIM_FG, font=self._mono,
             relief="flat", state="disabled", wrap="word",
@@ -431,8 +422,8 @@ class App(tk.Tk):
             fg=ACCENT if active == "kodi" else ("#e89b3c" if active == "mpchc" else DIM_FG),
         )
 
-        self._v_state.set(s.get("state", "—"))
-        self._v_title.set(s.get("title", "") or s.get("filepath", "").split("\\")[-1] or "—")
+        self._v_state.set(s.get("state", "\u2014"))
+        self._v_title.set(s.get("title", "") or s.get("filepath", "").split("\\")[-1] or "\u2014")
         self._v_artist.set(s.get("artist", ""))
         self._v_album.set(s.get("album", ""))
         self._v_type.set(s.get("media_type", ""))
@@ -449,9 +440,10 @@ class App(tk.Tk):
 
         vol = s.get("volume", 0)
         self._v_vol.set(str(vol))
-        self._v_muted.set("🔇" if s.get("muted") else "")
-        self._v_shuffle.set("🔀" if s.get("shuffle") else "")
+        self._v_muted.set("\U0001f507" if s.get("muted") else "")
+        self._v_shuffle.set("\U0001f500" if s.get("shuffle") else "")
         self._v_repeat.set(s.get("repeat", "off"))
+
         artwork = s.get("artwork_url", "")
         if artwork != self._current_art_url:
             self._current_art_url = artwork
@@ -472,17 +464,21 @@ class App(tk.Tk):
 
         if "subtitle_tracks" in patch or is_full:
             tracks = s.get("subtitle_tracks", [])
-            labels = ["−1: Off"] + [f"{t['pos']}: {t['label']}" for t in tracks]
+            off_label = f"-1: {T('tc_off')}"
+            labels = [off_label] + [f"{t['pos']}: {t['label']}" for t in tracks]
             self._sub_cb["values"] = labels
             cur = s.get("current_subtitle", -1)
             if cur < 0:
-                self._sub_var.set("−1: Off")
+                self._sub_var.set(off_label)
             elif cur < len(tracks):
                 self._sub_var.set(f"{cur}: {tracks[cur]['label']}")
 
         if "chapters" in patch or is_full:
             chapters = s.get("chapters", [])
-            labels = [f"{c['pos']}: {c['name'] if c['name'] else 'Chapter ' + str(c['pos'] + 1)}" for c in chapters]
+            labels = [
+                f"{c['pos']}: {c['name'] if c['name'] else 'Chapter ' + str(c['pos'] + 1)}"
+                for c in chapters
+            ]
             self._ch_cb["values"] = labels
             cur = s.get("current_chapter", 0)
             if labels and cur < len(labels):
@@ -490,9 +486,9 @@ class App(tk.Tk):
 
     def _update_status(self):
         if self._connected:
-            self._status_lbl.configure(text="● Connected", fg=OK_FG)
+            self._status_lbl.configure(text=T("tc_connected"), fg=OK_FG)
         else:
-            self._status_lbl.configure(text="● Disconnected", fg=ERR_FG)
+            self._status_lbl.configure(text=T("tc_disconnected"), fg=ERR_FG)
 
     def _append_log(self, msg: str):
         self._log_text.configure(state="normal")
@@ -534,7 +530,7 @@ class App(tk.Tk):
         sel = self._sub_var.get()
         if not sel:
             return
-        pos = int(sel.split(":")[0].replace("−", "-"))
+        pos = int(sel.split(":")[0].replace("\u2212", "-"))
         self._cmd("subtitle_track", pos)
 
     def _on_chapter_select(self, _event=None):
@@ -542,7 +538,6 @@ class App(tk.Tk):
         if not sel:
             return
         pos = int(sel.split(":")[0])
-        # Seek to chapter time
         chapters = self._state.get("chapters", [])
         for ch in chapters:
             if ch["pos"] == pos:
@@ -553,7 +548,6 @@ class App(tk.Tk):
     # Cover art
     # ------------------------------------------------------------------
     def _load_artwork_bg(self, url: str) -> None:
-        """Fetch *url* in a background thread and update the cover label."""
         if not url:
             self.after(0, self._set_artwork, None)
             return
@@ -571,7 +565,7 @@ class App(tk.Tk):
 
     def _set_artwork(self, data: bytes | None) -> None:
         if data is None:
-            self._artwork_label.configure(image="", text="—")
+            self._artwork_label.configure(image="", text="\u2014")
             self._img_ref = None
             return
         try:
@@ -583,9 +577,9 @@ class App(tk.Tk):
             self._artwork_label.configure(image=photo, text="", width=180, height=180)
             self._img_ref = photo
         except ImportError:
-            self._artwork_label.configure(image="", text="(Pillow nicht installiert)")
+            self._artwork_label.configure(image="", text=T("tc_pillow_missing"))
         except Exception:
-            self._artwork_label.configure(image="", text="—")
+            self._artwork_label.configure(image="", text="\u2014")
 
     def _on_close(self):
         self._client.stop()

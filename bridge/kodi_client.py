@@ -222,7 +222,7 @@ class KodiClient:
                 "playerid": pid,
                 "properties": [
                     "art", "thumbnail", "file",
-                    "title", "year", "showtitle", "season", "episode",
+                    "title", "year", "showtitle", "season", "episode", "tvshowid",
                 ],
             })
             _LOG.info("FileInfo [1/4] Player.GetItem(player=%d) → %s", pid, result)
@@ -233,7 +233,17 @@ class KodiClient:
                 if os.path.basename(active_file) == filename:
                     is_ep = item.get("type", "") == "episode" or bool(item.get("showtitle"))
                     m = _meta(item, is_episode=is_ep)
-                    _LOG.info("FileInfo [1/4] matched: title=%r year=%r", m["title"], m["year"])
+                    if is_ep:
+                        tvshowid = item.get("tvshowid", -1)
+                        cur_season = item.get("season", 0)
+                        if tvshowid >= 0 and cur_season > 0:
+                            sc, ec = await self._fetch_season_counts(tvshowid, cur_season)
+                            m["season_count"] = sc
+                            m["episode_count"] = ec
+                    _LOG.info("FileInfo [1/4] matched: title=%r year=%r s%s/%s e%s/%s",
+                              m["title"], m["year"],
+                              m.get("season"), m.get("season_count"),
+                              m.get("episode"), m.get("episode_count"))
                     return m
                 # File names differ — still usable if caller is same file
                 thumb = _pick_art(item)
@@ -525,7 +535,7 @@ class KodiClient:
                 "playerid": player_id,
                 "properties": [
                     "title", "artist", "album", "year", "thumbnail",
-                    "showtitle", "season", "episode", "rating",
+                    "showtitle", "season", "episode", "tvshowid", "rating",
                     "streamdetails", "art", "file",
                 ],
             },
@@ -553,6 +563,19 @@ class KodiClient:
         updates = self._build_state_update(item, props)
         updates["active_player"] = "kodi"
         self._last["active"] = True
+
+        # Fetch season counts for TV episodes (one extra call, only when episode)
+        if updates.get("media_type") == "episode" or updates.get("tv_show"):
+            actual_item = item.get("item", item)
+            tvshowid = actual_item.get("tvshowid", -1)
+            cur_season = updates.get("season", 0)
+            if tvshowid >= 0 and cur_season > 0:
+                sc, ec = await self._fetch_season_counts(tvshowid, cur_season)
+                updates["season_count"] = sc
+                updates["episode_count"] = ec
+                _LOG.info("Kodi episode counts: s%d/%d e%d/%d",
+                          cur_season, sc, updates.get("episode", 0), ec)
+
         await self._on_state(updates)
 
     def _build_state_update(self, item: dict, props: dict) -> dict[str, Any]:
@@ -580,9 +603,9 @@ class KodiClient:
         updates["tv_show"] = media.get("showtitle", "") or ""
         updates["season"] = media.get("season", 0) or 0
         updates["episode"] = media.get("episode", 0) or 0
-        # season_count / episode_count are populated asynchronously via get_file_info
-        # during MPC-HC playback; for direct Kodi playback we leave them at 0
-        # (they would require extra API calls on every sync — not worth it live).
+        # season_count / episode_count are set by the caller (_sync_player or
+        # get_file_info) after a _fetch_season_counts() call; not set here
+        # because _build_state_update is synchronous.
         updates["rating"] = round(media.get("rating", 0.0) or 0.0, 1)
 
         # Artwork

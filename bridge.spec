@@ -32,6 +32,7 @@ a = Analysis(
         "bridge",
         "bridge.config",
         "bridge.hub",
+        "bridge.i18n",
         "bridge.kodi_client",
         "bridge.mpchc_client",
         "bridge.mkv_parser",

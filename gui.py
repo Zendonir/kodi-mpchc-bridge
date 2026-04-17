@@ -1,11 +1,13 @@
 """
-Kodi ↔ MPC-HC Bridge — Tray-Icon
+Kodi ↔ MPC-HC Bridge — Tray Icon
 
-Läuft ohne Fenster im Hintergrund.
-Alle Aktionen über das Tray-Rechtsklick-Menü:
-  • Test-Oberfläche öffnen  (Doppelklick)
-  • Einstellungen…
-  • Beenden
+Runs in the background without a visible window.
+All actions via the right-click tray menu:
+  • Open test interface  (double-click)
+  • Settings…
+  • Quit
+
+Language is detected from the OS UI locale automatically.
 """
 from __future__ import annotations
 
@@ -20,9 +22,11 @@ from tkinter import messagebox
 import pystray
 from PIL import Image as _PilImage, ImageDraw as _PilDraw
 
+from bridge.i18n import T
+
 _LOG = logging.getLogger(__name__)
 
-# ── Farben (nur für den Einstellungsdialog) ───────────────────────────────────
+# ── Colour palette (settings dialog only) ────────────────────────────────────
 _C_BG       = "#1e1e2e"
 _C_PANEL    = "#2a2a3e"
 _C_ACCENT   = "#007acc"
@@ -34,17 +38,17 @@ _C_ENTRY_BG = "#16162a"
 # ─────────────────────────────────────────────────────────────────────────────
 class TrayApp:
     """
-    Tray-Icon-Anwendung ohne sichtbares Hauptfenster.
-    Die Bridge selbst läuft als Asyncio-Loop im selben Prozess
-    (gestartet von main.py in einem Daemon-Thread).
+    Tray-icon application without a visible main window.
+    The bridge itself runs as an asyncio loop in the same process
+    (started by main.py in a daemon thread).
     """
 
     def __init__(self, port: int = 13590, config_dir: str = ".") -> None:
         self._port = port
         self._config_dir = config_dir
-        self._tray_running = False   # letzter bekannter Bridge-Status
+        self._tray_running = False   # last known bridge status
 
-        # Versteckter tkinter-Root — nur für after()-Callbacks + Dialoge
+        # Hidden tkinter root — only used for after() callbacks + dialogs
         self._root = tk.Tk()
         self._root.withdraw()
         self._root.protocol("WM_DELETE_WINDOW", self._do_quit)
@@ -54,7 +58,7 @@ class TrayApp:
         self._tray: pystray.Icon = self._create_tray()
         self._schedule_status()
 
-    # ── Icon ─────────────────────────────────────────────────────────────────
+    # ── Icon ──────────────────────────────────────────────────────────────────
 
     def _make_icon(self, running: bool) -> _PilImage.Image:
         sz = 64
@@ -63,27 +67,27 @@ class TrayApp:
         bg = (70, 185, 80, 255) if running else (100, 100, 100, 255)
         draw.ellipse([2, 2, sz - 3, sz - 3], fill=bg)
         w = (255, 255, 255, 210)
-        draw.rectangle([13, 18, 22, 50], fill=w)   # linker Pfeiler
-        draw.rectangle([42, 18, 51, 50], fill=w)   # rechter Pfeiler
-        draw.rectangle([13, 26, 51, 35], fill=w)   # Querbalken
+        draw.rectangle([13, 18, 22, 50], fill=w)   # left pillar
+        draw.rectangle([42, 18, 51, 50], fill=w)   # right pillar
+        draw.rectangle([13, 26, 51, 35], fill=w)   # crossbar
         return img
 
     def _create_tray(self) -> pystray.Icon:
         menu = pystray.Menu(
             pystray.MenuItem(
-                "Test-Oberfläche öffnen",
+                T("tray_open_test"),
                 self._on_open_test,
                 default=True,
             ),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Einstellungen…", self._on_settings),
+            pystray.MenuItem(T("tray_settings"), self._on_settings),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Beenden", self._on_quit),
+            pystray.MenuItem(T("tray_quit"), self._on_quit),
         )
         icon = pystray.Icon(
             "kodi-mpchc-bridge",
             self._make_icon(False),
-            "kodi-mpchc-bridge — wird gestartet…",
+            T("tray_starting"),
             menu,
         )
         threading.Thread(target=icon.run, daemon=True, name="tray").start()
@@ -96,14 +100,14 @@ class TrayApp:
         try:
             self._tray.icon = self._make_icon(running)
             self._tray.title = (
-                f"kodi-mpchc-bridge — läuft  (Port {self._port})"
+                T("tray_running", port=self._port)
                 if running else
-                f"kodi-mpchc-bridge — gestoppt  (Port {self._port})"
+                T("tray_stopped", port=self._port)
             )
         except Exception:
             pass
 
-    # ── Status-Polling ────────────────────────────────────────────────────────
+    # ── Status polling ────────────────────────────────────────────────────────
 
     def _check_running(self) -> bool:
         import urllib.request
@@ -125,7 +129,7 @@ class TrayApp:
         threading.Thread(target=_bg, daemon=True).start()
         self._root.after(5000, self._schedule_status)
 
-    # ── Tray-Callbacks ────────────────────────────────────────────────────────
+    # ── Tray callbacks ────────────────────────────────────────────────────────
 
     def _on_open_test(self, icon=None, item=None) -> None:
         self._root.after(0, self._launch_test_client)
@@ -146,7 +150,7 @@ class TrayApp:
         except Exception:
             pass
 
-    # ── Test-Client ───────────────────────────────────────────────────────────
+    # ── Test client ───────────────────────────────────────────────────────────
 
     def _launch_test_client(self) -> None:
         try:
@@ -165,14 +169,14 @@ class TrayApp:
             )
         except Exception as exc:
             messagebox.showerror(
-                "Fehler",
-                f"Test-Oberfläche konnte nicht gestartet werden:\n{exc}",
+                T("err_title"),
+                T("err_test_client", exc=exc),
             )
 
-    # ── Einstellungen-Dialog ──────────────────────────────────────────────────
+    # ── Settings dialog ───────────────────────────────────────────────────────
 
     def _show_settings(self) -> None:
-        # Nur ein Dialog gleichzeitig
+        # Only one dialog at a time
         if (
             self._settings_win is not None
             and self._settings_win.winfo_exists()
@@ -182,7 +186,7 @@ class TrayApp:
             return
 
         win = tk.Toplevel(self._root)
-        win.title("Einstellungen — Kodi-MPC-HC Bridge")
+        win.title(T("settings_title"))
         win.configure(bg=_C_BG)
         win.resizable(False, False)
         win.attributes("-topmost", True)
@@ -228,20 +232,20 @@ class TrayApp:
                 highlightbackground="#444", width=26,
             ).grid(row=row, column=1, sticky="ew", padx=(0, 10), pady=4)
 
-        kf = _section("Kodi-Verbindung")
-        _row(kf, "Host",             "kodi_host",     cfg.kodi_host       if cfg else "localhost", row=0)
-        _row(kf, "HTTP-Port",        "kodi_port",     str(cfg.kodi_port)  if cfg else "8080",      row=1)
-        _row(kf, "WebSocket-Port",   "kodi_ws_port",  str(cfg.kodi_ws_port) if cfg else "9090",    row=2)
-        _row(kf, "Benutzername",     "kodi_username", cfg.kodi_username   if cfg else "",           row=3)
-        _row(kf, "Passwort",         "kodi_password", cfg.kodi_password   if cfg else "", "*",      row=4)
+        kf = _section(T("settings_kodi_section"))
+        _row(kf, T("settings_host"),       "kodi_host",     cfg.kodi_host         if cfg else "localhost", row=0)
+        _row(kf, T("settings_http_port"),  "kodi_port",     str(cfg.kodi_port)    if cfg else "8080",      row=1)
+        _row(kf, T("settings_ws_port"),    "kodi_ws_port",  str(cfg.kodi_ws_port) if cfg else "9090",      row=2)
+        _row(kf, T("settings_username"),   "kodi_username", cfg.kodi_username     if cfg else "",           row=3)
+        _row(kf, T("settings_password"),   "kodi_password", cfg.kodi_password     if cfg else "", "*",      row=4)
 
-        sf = _section("Bridge-Server")
-        _row(sf, "MPC-HC Port",  "mpchc_port",  str(cfg.mpchc_port)  if cfg else "13579", row=0)
-        _row(sf, "Bridge-Port",  "server_port", str(cfg.server_port) if cfg else "13590", row=1)
+        sf = _section(T("settings_bridge_section"))
+        _row(sf, T("settings_mpchc_port"), "mpchc_port",  str(cfg.mpchc_port)  if cfg else "13579", row=0)
+        _row(sf, T("settings_bridge_port"),"server_port", str(cfg.server_port) if cfg else "13590", row=1)
 
         tk.Label(
             win,
-            text="  Benutzername/Passwort leer lassen wenn Kodi keine Authentifizierung verwendet.",
+            text="  " + T("settings_auth_hint"),
             bg=_C_BG, fg=_C_FG_DIM, font=("Segoe UI", 8), anchor="w",
         ).pack(fill="x", padx=14, pady=(6, 0))
 
@@ -250,7 +254,7 @@ class TrayApp:
 
         def _save() -> None:
             if not cfg_mgr:
-                messagebox.showerror("Fehler", "Config-Manager nicht verfügbar.", parent=win)
+                messagebox.showerror(T("err_title"), T("err_no_config"), parent=win)
                 return
             data: dict = {}
             for key, var in vars_.items():
@@ -260,8 +264,8 @@ class TrayApp:
                         data[key] = int(val)
                     except ValueError:
                         messagebox.showerror(
-                            "Ungültige Eingabe",
-                            f"{key}: Ganzzahl erwartet.",
+                            T("err_invalid_input"),
+                            T("err_int_expected", key=key),
                             parent=win,
                         )
                         return
@@ -269,16 +273,14 @@ class TrayApp:
                     data[key] = val
             cfg_mgr.update(data)
             messagebox.showinfo(
-                "Gespeichert",
-                "Einstellungen gespeichert.\n"
-                "Bridge neu starten (Beenden → erneut öffnen) damit die\n"
-                "neuen Werte aktiv werden.",
+                T("saved_title"),
+                T("saved_msg"),
                 parent=win,
             )
             win.destroy()
 
         tk.Button(
-            btn_frame, text="💾  Speichern", command=_save,
+            btn_frame, text=T("btn_save"), command=_save,
             bg=_C_ACCENT, fg="white",
             activebackground="#005a9e", activeforeground="white",
             relief="flat", cursor="hand2",
@@ -286,20 +288,20 @@ class TrayApp:
         ).pack(side="right", padx=(6, 0))
 
         tk.Button(
-            btn_frame, text="Abbrechen", command=win.destroy,
+            btn_frame, text=T("btn_cancel"), command=win.destroy,
             bg="#333355", fg="white",
             activebackground="#4444aa", activeforeground="white",
             relief="flat", cursor="hand2",
             font=("Segoe UI", 9), padx=14, pady=6,
         ).pack(side="right")
 
-        # Fenster zentrieren
+        # Centre the window on screen
         win.update_idletasks()
         w, h = win.winfo_reqwidth(), win.winfo_reqheight()
         sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
         win.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
 
-    # ── Mainloop ──────────────────────────────────────────────────────────────
+    # ── Main loop ─────────────────────────────────────────────────────────────
 
     def run(self) -> None:
         self._root.mainloop()

@@ -341,11 +341,14 @@ def _parse_video_element(data: bytes, start: int, end: int) -> tuple[int, int, f
         hdr = "HDR10"
     elif transfer == _TC_HLG:
         hdr = "HLG"
-    elif primaries == _PRIMARIES_BT2020 and transfer == 0:
-        # BT.2020 primaries without explicit TC — HDR metadata is likely
-        # stored inside the H.265 bitstream (SPS VUI) rather than the
-        # MKV container.  Mark as HDR10 since virtually all BT.2020
-        # content on consumer media is HDR.
+    elif primaries == _PRIMARIES_BT2020:
+        # BT.2020 colour primaries always means HDR, regardless of the
+        # TransferCharacteristics value stored in the container.
+        # Many remuxed Blu-rays carry the full HDR metadata (PQ transfer,
+        # mastering info) only inside the H.265 SEI bitstream; the MKV
+        # Colour element is either absent or has TC left at 0/unspecified.
+        # TC=16 and TC=18 are already caught above, so reaching here means
+        # the EBML has BT.2020 primaries with no HDR-specific TC — still HDR.
         hdr = "HDR10"
 
     return width, height, hdr
