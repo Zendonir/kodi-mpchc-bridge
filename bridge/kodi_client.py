@@ -446,6 +446,42 @@ class KodiClient:
                 {"playerid": self._active_player_id, "value": "bigbackward"},
             )
 
+    async def get_resume_position(self, filepath: str) -> float:
+        """
+        Query the Kodi library for the stored resume position of *filepath*.
+
+        Tries movies first, then episodes.  Matching is done by basename
+        (fast, one API call per media type) then confirmed by full path
+        comparison (normalised slashes).
+
+        Returns the resume position in **seconds**, or ``0.0`` if no resume
+        point is stored or the file is not in the library.
+        """
+        import os
+        filename = os.path.basename(filepath)
+        norm = filepath.replace("\\", "/")
+
+        for method, list_key in (
+            ("VideoLibrary.GetMovies",   "movies"),
+            ("VideoLibrary.GetEpisodes", "episodes"),
+        ):
+            result = await self._call(method, {
+                "properties": ["file", "resume"],
+                "filter": {"field": "filename", "operator": "is", "value": filename},
+            })
+            items = (result or {}).get(list_key, [])
+            for item in items:
+                if item.get("file", "").replace("\\", "/") == norm:
+                    pos = float((item.get("resume") or {}).get("position", 0))
+                    _LOG.info(
+                        "get_resume_position: %s → %.1f s (from %s)",
+                        filename, pos, list_key,
+                    )
+                    return pos
+
+        _LOG.debug("get_resume_position: %s not found in library", filename)
+        return 0.0
+
     # ------------------------------------------------------------------
     # Connection loop
     # ------------------------------------------------------------------

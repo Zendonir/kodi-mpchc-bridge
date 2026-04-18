@@ -34,7 +34,11 @@ class BridgeConfig:
     server_host: str = "0.0.0.0"
     server_port: int = 13590
 
-    # MPC Proxy (optional — https://github.com/Zendonir/MPC-Proxy-Kodi-External-Player-Resume-Overlay)
+    # External player / resume feature (built-in, replaces standalone MPC Proxy)
+    mpchc_exe_path: str = ""       # full path to mpc-hc64.exe / mpc-be64.exe
+    resume_enabled: bool = False   # seek to Kodi resume position on external launch
+
+    # Legacy fields (kept for config compatibility, no longer used)
     mpc_proxy_enabled: bool = False
     mpc_proxy_path: str = ""
 

@@ -119,7 +119,40 @@ def main() -> None:
         "--test-client", action="store_true",
         help="Test-Client-Fenster öffnen",
     )
+    parser.add_argument(
+        "--play",
+        metavar="FILEPATH",
+        default=None,
+        help="Datei über die laufende Bridge-Instanz in MPC-HC öffnen (externer Player-Modus)",
+    )
     args = parser.parse_args()
+
+    # ── External player mode: forward filepath to the running bridge ──────────
+    # kodi-bridge.exe --play "C:\path\to\file.mkv"
+    # POSTs to the running bridge's /api/external_play and exits immediately.
+    if args.play:
+        import json as _json
+        import urllib.request
+        _setup_logging(args.log_level)
+        port = 13590
+        try:
+            from bridge.config import ConfigManager
+            port = ConfigManager(args.config_dir).cfg.server_port
+        except Exception:
+            pass
+        url = f"http://localhost:{port}/api/external_play"
+        payload = _json.dumps({"filepath": args.play}).encode()
+        try:
+            req = urllib.request.Request(
+                url, data=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                _LOG.info("--play: bridge accepted request (HTTP %d)", resp.status)
+        except Exception as exc:
+            _LOG.error("--play: could not contact bridge at %s: %s", url, exc)
+            sys.exit(1)
+        sys.exit(0)
 
     # Test-Client bekommt kein Datei-Logging (nur kurzlebiges Debug-Fenster)
     if args.test_client:

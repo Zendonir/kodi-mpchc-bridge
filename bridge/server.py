@@ -34,12 +34,14 @@ class BridgeServer:
         config_manager,
         host: str = "0.0.0.0",
         port: int = 13590,
+        on_external_play=None,
     ) -> None:
         self._state = state_manager
         self._router = router
         self._config = config_manager
         self._host = host
         self._port = port
+        self._on_external_play = on_external_play
         self._ws_clients: set[web.WebSocketResponse] = set()
         self._app = web.Application()
         self._runner: web.AppRunner | None = None
@@ -53,6 +55,7 @@ class BridgeServer:
         self._app.router.add_get("/api/proxy/status", self._handle_proxy_status)
         self._app.router.add_post("/api/proxy/setup", self._handle_proxy_setup)
         self._app.router.add_post("/api/proxy/disable", self._handle_proxy_disable)
+        self._app.router.add_post("/api/external_play", self._handle_external_play)
         self._app.router.add_get("/api/ws", self._handle_ws)
         self._app.router.add_get("/api/artwork", self._handle_artwork)
         self._app.router.add_get("/", self._handle_root)
@@ -153,6 +156,20 @@ class BridgeServer:
         if ok:
             return web.json_response({"ok": True, "detail": detail})
         return web.json_response({"ok": False, "error": detail}, status=500)
+
+    async def _handle_external_play(self, request: web.Request) -> web.Response:
+        """POST /api/external_play — launch MPC-HC for a filepath (resume if configured)."""
+        if self._on_external_play is None:
+            return web.json_response({"error": "external play not configured"}, status=501)
+        try:
+            body = await request.json()
+        except Exception:
+            return web.json_response({"error": "invalid JSON"}, status=400)
+        filepath = (body.get("filepath") or "").strip()
+        if not filepath:
+            return web.json_response({"error": "missing filepath"}, status=400)
+        asyncio.create_task(self._on_external_play(filepath))
+        return web.json_response({"ok": True})
 
     def set_artwork(self, data: bytes, content_type: str) -> None:
         """Store artwork fetched from Kodi. Called by the hub."""

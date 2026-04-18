@@ -100,11 +100,11 @@ english.FirewallGroup=Firewall:
 english.PlayerPageTitle=Configure external player
 english.PlayerPageSubtitle=Play Kodi videos directly in MPC-HC / MPC-BE (optional)
 english.PlayerEnable=Set up Kodi to launch videos in an external player (writes playercorefactory.xml)
-english.PlayerExeLbl=Player executable:
+english.PlayerExeLbl=MPC-HC / MPC-BE executable:
 english.PlayerBrowseBtn=Browse...
-english.PlayerNameLbl=Player name:
-english.PlayerArgsLbl=Launch arguments:
-english.PlayerArgHint=Use {filepath} as the file-path placeholder. Surround with " " for paths with spaces.
+english.PlayerUseResume=Use built-in resume — Bridge reads Kodi watch position and seeks MPC-HC to that point on launch
+english.PlayerArgsLbl=Direct launch arguments (not used when resume is enabled):
+english.PlayerArgHint=Use {filepath} as the placeholder. Surround paths with spaces in " ".
 english.PlayerHideKodi=Minimize Kodi during playback  (hidexbmc)
 english.PlayerHideConsole=Hide console / command window  (hideconsole)
 english.PlayerApplyLbl=Apply to:
@@ -112,7 +112,7 @@ english.PlayerVideoChk=Video files
 english.PlayerAudioChk=Audio files
 english.PlayerTypesLbl=File extensions  (pipe-separated  |  leave empty = all matching files):
 english.PlayerBackupChk=Back up existing playercorefactory.xml as .bak before overwriting
-english.ErrPlayerNoExe=Please select the player executable.
+english.ErrPlayerNoExe=Please select the MPC-HC / MPC-BE executable.
 
 ; ── German ────────────────────────────────────────────────────────────────────
 german.ConfigPageTitle=Kodi-Verbindung konfigurieren
@@ -138,10 +138,10 @@ german.FirewallGroup=Firewall:
 german.PlayerPageTitle=Externen Player konfigurieren
 german.PlayerPageSubtitle=Kodi-Videos direkt in MPC-HC / MPC-BE abspielen (optional)
 german.PlayerEnable=Kodi so einrichten, dass Videos in einem externen Player geöffnet werden (schreibt playercorefactory.xml)
-german.PlayerExeLbl=Player-Programm:
+german.PlayerExeLbl=MPC-HC / MPC-BE Programmdatei:
 german.PlayerBrowseBtn=Durchsuchen...
-german.PlayerNameLbl=Player-Name:
-german.PlayerArgsLbl=Startargumente:
+german.PlayerUseResume=Integriertes Resume nutzen — Bridge liest die Kodi-Wiedergabeposition und springt beim Start direkt dorthin
+german.PlayerArgsLbl=Direktstart-Argumente (nicht verwendet, wenn Resume aktiv ist):
 german.PlayerArgHint=Platzhalter {filepath} für den Dateipfad verwenden. Pfade mit Leerzeichen in " " einschließen.
 german.PlayerHideKodi=Kodi während der Wiedergabe minimieren  (hidexbmc)
 german.PlayerHideConsole=Konsolenfenster ausblenden  (hideconsole)
@@ -150,7 +150,7 @@ german.PlayerVideoChk=Videodateien
 german.PlayerAudioChk=Audiodateien
 german.PlayerTypesLbl=Dateiendungen  (mit | trennen  |  leer = alle passenden Dateien):
 german.PlayerBackupChk=Vorhandene playercorefactory.xml vor dem Überschreiben als .bak sichern
-german.ErrPlayerNoExe=Bitte das Player-Programm auswählen.
+german.ErrPlayerNoExe=Bitte die MPC-HC / MPC-BE Programmdatei auswählen.
 
 ; ── French ────────────────────────────────────────────────────────────────────
 french.ConfigPageTitle=Configurer la connexion Kodi
@@ -176,10 +176,10 @@ french.FirewallGroup=Pare-feu :
 french.PlayerPageTitle=Configurer le lecteur externe
 french.PlayerPageSubtitle=Lire les vidéos Kodi directement dans MPC-HC / MPC-BE (optionnel)
 french.PlayerEnable=Configurer Kodi pour lancer les vidéos dans un lecteur externe (écrit playercorefactory.xml)
-french.PlayerExeLbl=Lecteur externe :
+french.PlayerExeLbl=Exécutable MPC-HC / MPC-BE :
 french.PlayerBrowseBtn=Parcourir...
-french.PlayerNameLbl=Nom du lecteur :
-french.PlayerArgsLbl=Arguments de lancement :
+french.PlayerUseResume=Utiliser le resume intégré — le Bridge lit la position Kodi et déplace MPC-HC à cet endroit au démarrage
+french.PlayerArgsLbl=Arguments de lancement directs (non utilisés si le resume est actif) :
 french.PlayerArgHint=Utiliser {filepath} comme espace réservé. Entourez les chemins avec espaces de " ".
 french.PlayerHideKodi=Réduire Kodi pendant la lecture  (hidexbmc)
 french.PlayerHideConsole=Masquer la fenêtre console  (hideconsole)
@@ -188,7 +188,7 @@ french.PlayerVideoChk=Fichiers vidéo
 french.PlayerAudioChk=Fichiers audio
 french.PlayerTypesLbl=Extensions  (séparées par |  |  vide = tous les fichiers correspondants) :
 french.PlayerBackupChk=Sauvegarder le playercorefactory.xml existant en .bak avant l'écriture
-french.ErrPlayerNoExe=Veuillez sélectionner l'exécutable du lecteur.
+french.ErrPlayerNoExe=Veuillez sélectionner l'exécutable MPC-HC / MPC-BE.
 
 ; ── Spanish ───────────────────────────────────────────────────────────────────
 spanish.ConfigPageTitle=Configurar conexión de Kodi
@@ -214,10 +214,10 @@ spanish.FirewallGroup=Firewall:
 spanish.PlayerPageTitle=Configurar reproductor externo
 spanish.PlayerPageSubtitle=Reproducir vídeos de Kodi directamente en MPC-HC / MPC-BE (opcional)
 spanish.PlayerEnable=Configurar Kodi para abrir vídeos en un reproductor externo (escribe playercorefactory.xml)
-spanish.PlayerExeLbl=Ejecutable del reproductor:
+spanish.PlayerExeLbl=Ejecutable MPC-HC / MPC-BE:
 spanish.PlayerBrowseBtn=Examinar...
-spanish.PlayerNameLbl=Nombre del reproductor:
-spanish.PlayerArgsLbl=Argumentos de inicio:
+spanish.PlayerUseResume=Usar resume integrado — el Bridge lee la posición de Kodi y lleva MPC-HC a ese punto al iniciar
+spanish.PlayerArgsLbl=Argumentos de inicio directo (no se usan si el resume está activo):
 spanish.PlayerArgHint=Use {filepath} como marcador de posición. Encierre rutas con espacios entre " ".
 spanish.PlayerHideKodi=Minimizar Kodi durante la reproducción  (hidexbmc)
 spanish.PlayerHideConsole=Ocultar ventana de consola  (hideconsole)
@@ -226,7 +226,7 @@ spanish.PlayerVideoChk=Archivos de vídeo
 spanish.PlayerAudioChk=Archivos de audio
 spanish.PlayerTypesLbl=Extensiones  (separadas con |  |  vacío = todos los archivos coincidentes):
 spanish.PlayerBackupChk=Guardar copia de seguridad del playercorefactory.xml existente como .bak
-spanish.ErrPlayerNoExe=Por favor, seleccione el ejecutable del reproductor.
+spanish.ErrPlayerNoExe=Por favor, seleccione el ejecutable MPC-HC / MPC-BE.
 
 ; ── Italian ───────────────────────────────────────────────────────────────────
 italian.ConfigPageTitle=Configura connessione Kodi
@@ -252,10 +252,10 @@ italian.FirewallGroup=Firewall:
 italian.PlayerPageTitle=Configura lettore esterno
 italian.PlayerPageSubtitle=Riproduci i video di Kodi direttamente in MPC-HC / MPC-BE (opzionale)
 italian.PlayerEnable=Configura Kodi per aprire i video in un lettore esterno (scrive playercorefactory.xml)
-italian.PlayerExeLbl=Eseguibile lettore:
+italian.PlayerExeLbl=Eseguibile MPC-HC / MPC-BE:
 italian.PlayerBrowseBtn=Sfoglia...
-italian.PlayerNameLbl=Nome lettore:
-italian.PlayerArgsLbl=Argomenti di avvio:
+italian.PlayerUseResume=Usa il resume integrato — il Bridge legge la posizione Kodi e porta MPC-HC a quel punto all'avvio
+italian.PlayerArgsLbl=Argomenti di avvio diretto (non usati se il resume è attivo):
 italian.PlayerArgHint=Usa {filepath} come segnaposto. Racchiudi i percorsi con spazi tra " ".
 italian.PlayerHideKodi=Riduci a icona Kodi durante la riproduzione  (hidexbmc)
 italian.PlayerHideConsole=Nascondi finestra console  (hideconsole)
@@ -264,7 +264,7 @@ italian.PlayerVideoChk=File video
 italian.PlayerAudioChk=File audio
 italian.PlayerTypesLbl=Estensioni  (separate da |  |  vuoto = tutti i file corrispondenti):
 italian.PlayerBackupChk=Crea backup del playercorefactory.xml esistente come .bak
-italian.ErrPlayerNoExe=Selezionare l'eseguibile del lettore.
+italian.ErrPlayerNoExe=Selezionare l'eseguibile MPC-HC / MPC-BE.
 
 ; ============================================================
 [Tasks]
@@ -321,7 +321,7 @@ var
   chkEnablePlayer: TNewCheckBox;
   edtPlayerExe:    TNewEdit;
   btnBrowseExe:    TNewButton;
-  cmbPlayerName:   TNewComboBox;
+  chkUseResume:    TNewCheckBox;
   cmbArgs:         TNewComboBox;
   chkHideKodi:     TNewCheckBox;
   chkHideConsole:  TNewCheckBox;
@@ -395,8 +395,9 @@ begin
   e := chkEnablePlayer.Checked;
   edtPlayerExe.Enabled   := e;
   btnBrowseExe.Enabled   := e;
-  cmbPlayerName.Enabled  := e;
-  cmbArgs.Enabled        := e;
+  chkUseResume.Enabled   := e;
+  // Direct-launch args only editable when resume mode is OFF
+  cmbArgs.Enabled        := e and not chkUseResume.Checked;
   chkHideKodi.Enabled    := e;
   chkHideConsole.Enabled := e;
   chkVideo.Enabled       := e;
@@ -406,7 +407,15 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Browse for player exe — auto-fills Name + Args based on detected filename
+// Toggle args combo when "use resume" checkbox changes
+// --------------------------------------------------------------------------
+procedure ToggleResumeControls(Sender: TObject);
+begin
+  cmbArgs.Enabled := chkEnablePlayer.Checked and not chkUseResume.Checked;
+end;
+
+// --------------------------------------------------------------------------
+// Browse for player exe — auto-fills Args based on detected filename
 // --------------------------------------------------------------------------
 procedure BrowseExeClick(Sender: TObject);
 var
@@ -422,16 +431,12 @@ begin
     'exe'
   ) then begin
     edtPlayerExe.Text := FileName;
-    Base := LowerCase(ExtractFileName(FileName));
-    if (Base = 'mpc-hc.exe') or (Base = 'mpc-hc64.exe') then begin
-      cmbPlayerName.Text := 'MPC-HC';
-      cmbArgs.Text := '"{filepath}" /fullscreen';
-    end else if (Base = 'mpc-be.exe') or (Base = 'mpc-be64.exe') then begin
-      cmbPlayerName.Text := 'MPC-BE';
-      cmbArgs.Text := '"{filepath}" /fullscreen';
-    end else if Pos('proxy', Base) > 0 then begin
-      cmbPlayerName.Text := 'MPC Proxy';
-      cmbArgs.Text := '"{filepath}"';
+    // Pre-fill args for direct mode (ignored when resume is active)
+    if not chkUseResume.Checked then begin
+      Base := LowerCase(ExtractFileName(FileName));
+      if (Base = 'mpc-hc.exe') or (Base = 'mpc-hc64.exe') or
+         (Base = 'mpc-be.exe') or (Base = 'mpc-be64.exe') then
+        cmbArgs.Text := '"{filepath}" /fullscreen';
     end;
   end;
 end;
@@ -480,22 +485,22 @@ begin
   chkEnablePlayer.Left     := 0;
   chkEnablePlayer.Top      := 0;
   chkEnablePlayer.Width    := PW;
-  chkEnablePlayer.Height   := 32;
+  chkEnablePlayer.Height   := 30;
   chkEnablePlayer.WordWrap := True;
   chkEnablePlayer.Checked  := False;
   chkEnablePlayer.OnClick  := @TogglePlayerControls;
 
-  // ── Executable path ───────────────────────────────────────────────────────
+  // ── MPC-HC executable path ────────────────────────────────────────────────
   lbl := TLabel.Create(WizardForm);
   lbl.Parent   := PlayerPage.Surface;
   lbl.Caption  := CustomMessage('PlayerExeLbl');
-  lbl.Left := 0; lbl.Top := 40;
+  lbl.Left := 0; lbl.Top := 36;
   lbl.AutoSize := True;
 
   edtPlayerExe := TNewEdit.Create(WizardForm);
   edtPlayerExe.Parent  := PlayerPage.Surface;
   edtPlayerExe.Left    := 0;
-  edtPlayerExe.Top     := 54;
+  edtPlayerExe.Top     := 50;
   edtPlayerExe.Width   := PW - 90;
   edtPlayerExe.Height  := BH;
   edtPlayerExe.Enabled := False;
@@ -504,60 +509,52 @@ begin
   btnBrowseExe.Parent   := PlayerPage.Surface;
   btnBrowseExe.Caption  := CustomMessage('PlayerBrowseBtn');
   btnBrowseExe.Left     := PW - 86;
-  btnBrowseExe.Top      := 54;
+  btnBrowseExe.Top      := 50;
   btnBrowseExe.Width    := 86;
   btnBrowseExe.Height   := BH;
   btnBrowseExe.Enabled  := False;
   btnBrowseExe.OnClick  := @BrowseExeClick;
 
-  // ── Player name (left col) + Arguments (right col) ───────────────────────
-  lbl := TLabel.Create(WizardForm);
-  lbl.Parent  := PlayerPage.Surface;
-  lbl.Caption := CustomMessage('PlayerNameLbl');
-  lbl.Left := 0; lbl.Top := 84;
-  lbl.AutoSize := True;
+  // ── Resume feature checkbox ───────────────────────────────────────────────
+  chkUseResume := TNewCheckBox.Create(WizardForm);
+  chkUseResume.Parent   := PlayerPage.Surface;
+  chkUseResume.Caption  := CustomMessage('PlayerUseResume');
+  chkUseResume.Left     := 0;
+  chkUseResume.Top      := 80;
+  chkUseResume.Width    := PW;
+  chkUseResume.Height   := 28;
+  chkUseResume.WordWrap := True;
+  chkUseResume.Checked  := True;
+  chkUseResume.Enabled  := False;
+  chkUseResume.OnClick  := @ToggleResumeControls;
 
+  // ── Direct-launch arguments (only for non-resume mode) ───────────────────
   lbl := TLabel.Create(WizardForm);
-  lbl.Parent  := PlayerPage.Surface;
-  lbl.Caption := CustomMessage('PlayerArgsLbl');
-  lbl.Left := 188; lbl.Top := 84;
+  lbl.Parent   := PlayerPage.Surface;
+  lbl.Caption  := CustomMessage('PlayerArgsLbl');
+  lbl.Left := 0; lbl.Top := 114;
   lbl.AutoSize := True;
-
-  cmbPlayerName := TNewComboBox.Create(WizardForm);
-  cmbPlayerName.Parent  := PlayerPage.Surface;
-  cmbPlayerName.Left    := 0;
-  cmbPlayerName.Top     := 98;
-  cmbPlayerName.Width   := 182;
-  cmbPlayerName.Height  := BH;
-  cmbPlayerName.Enabled := False;
-  cmbPlayerName.Items.Add('MPC-HC');
-  cmbPlayerName.Items.Add('MPC-BE');
-  cmbPlayerName.Items.Add('MPC Proxy');
-  cmbPlayerName.Items.Add('VLC media player');
-  cmbPlayerName.ItemIndex := 0;
 
   cmbArgs := TNewComboBox.Create(WizardForm);
   cmbArgs.Parent  := PlayerPage.Surface;
-  cmbArgs.Left    := 188;
-  cmbArgs.Top     := 98;
-  cmbArgs.Width   := PW - 188;
+  cmbArgs.Left    := 0;
+  cmbArgs.Top     := 128;
+  cmbArgs.Width   := PW;
   cmbArgs.Height  := BH;
   cmbArgs.Enabled := False;
-  cmbArgs.Items.Add('"{filepath}"');
   cmbArgs.Items.Add('"{filepath}" /fullscreen');
+  cmbArgs.Items.Add('"{filepath}"');
   cmbArgs.Items.Add('"{filepath}" /fullscreen /close');
   cmbArgs.Items.Add('/fullscreen "{filepath}"');
-  cmbArgs.Items.Add('/fullscreen /close "{filepath}"');
   cmbArgs.ItemIndex := 0;
 
-  // ── Hint label for args ───────────────────────────────────────────────────
   lbl := TLabel.Create(WizardForm);
   lbl.Parent    := PlayerPage.Surface;
   lbl.Caption   := CustomMessage('PlayerArgHint');
-  lbl.Left      := 188;
-  lbl.Top       := 124;
-  lbl.Width     := PW - 188;
-  lbl.Height    := 20;
+  lbl.Left      := 0;
+  lbl.Top       := 154;
+  lbl.Width     := PW;
+  lbl.Height    := 18;
   lbl.AutoSize  := False;
   lbl.WordWrap  := True;
   lbl.Font.Size := 7;
@@ -567,8 +564,8 @@ begin
   chkHideKodi.Parent   := PlayerPage.Surface;
   chkHideKodi.Caption  := CustomMessage('PlayerHideKodi');
   chkHideKodi.Left     := 0;
-  chkHideKodi.Top      := 128;
-  chkHideKodi.Width    := 182;
+  chkHideKodi.Top      := 176;
+  chkHideKodi.Width    := PW;
   chkHideKodi.Height   := 18;
   chkHideKodi.Checked  := True;
   chkHideKodi.Enabled  := False;
@@ -577,8 +574,8 @@ begin
   chkHideConsole.Parent   := PlayerPage.Surface;
   chkHideConsole.Caption  := CustomMessage('PlayerHideConsole');
   chkHideConsole.Left     := 0;
-  chkHideConsole.Top      := 148;
-  chkHideConsole.Width    := 182;
+  chkHideConsole.Top      := 196;
+  chkHideConsole.Width    := PW;
   chkHideConsole.Height   := 18;
   chkHideConsole.Checked  := True;
   chkHideConsole.Enabled  := False;
@@ -587,15 +584,15 @@ begin
   lbl := TLabel.Create(WizardForm);
   lbl.Parent   := PlayerPage.Surface;
   lbl.Caption  := CustomMessage('PlayerApplyLbl');
-  lbl.Left := 0; lbl.Top := 172;
+  lbl.Left := 0; lbl.Top := 220;
   lbl.AutoSize := True;
 
   chkVideo := TNewCheckBox.Create(WizardForm);
   chkVideo.Parent   := PlayerPage.Surface;
   chkVideo.Caption  := CustomMessage('PlayerVideoChk');
   chkVideo.Left     := 0;
-  chkVideo.Top      := 186;
-  chkVideo.Width    := 110;
+  chkVideo.Top      := 234;
+  chkVideo.Width    := 120;
   chkVideo.Height   := 18;
   chkVideo.Checked  := True;
   chkVideo.Enabled  := False;
@@ -603,9 +600,9 @@ begin
   chkAudio := TNewCheckBox.Create(WizardForm);
   chkAudio.Parent   := PlayerPage.Surface;
   chkAudio.Caption  := CustomMessage('PlayerAudioChk');
-  chkAudio.Left     := 116;
-  chkAudio.Top      := 186;
-  chkAudio.Width    := 110;
+  chkAudio.Left     := 126;
+  chkAudio.Top      := 234;
+  chkAudio.Width    := 120;
   chkAudio.Height   := 18;
   chkAudio.Checked  := False;
   chkAudio.Enabled  := False;
@@ -615,7 +612,7 @@ begin
   lbl.Parent    := PlayerPage.Surface;
   lbl.Caption   := CustomMessage('PlayerTypesLbl');
   lbl.Left      := 0;
-  lbl.Top       := 208;
+  lbl.Top       := 256;
   lbl.Width     := PW;
   lbl.Height    := 16;
   lbl.AutoSize  := False;
@@ -624,7 +621,7 @@ begin
   edtFileTypes := TNewEdit.Create(WizardForm);
   edtFileTypes.Parent  := PlayerPage.Surface;
   edtFileTypes.Left    := 0;
-  edtFileTypes.Top     := 224;
+  edtFileTypes.Top     := 272;
   edtFileTypes.Width   := PW;
   edtFileTypes.Height  := BH;
   edtFileTypes.Text    := '';
@@ -635,7 +632,7 @@ begin
   chkBackup.Parent   := PlayerPage.Surface;
   chkBackup.Caption  := CustomMessage('PlayerBackupChk');
   chkBackup.Left     := 0;
-  chkBackup.Top      := 254;
+  chkBackup.Top      := 300;
   chkBackup.Width    := PW;
   chkBackup.Height   := 18;
   chkBackup.Checked  := True;
@@ -767,6 +764,7 @@ var
   PlayerName, Exe, Args, FileTypes: String;
   HideKodi, HideCon, AudioAttr, VideoAttr: String;
   RuleExtra, Xml: String;
+  MpcBase: String;
 begin
   KodiUD  := GetEnv('APPDATA') + '\Kodi\userdata';
   XmlPath := KodiUD + '\playercorefactory.xml';
@@ -780,28 +778,38 @@ begin
     if FileExists(XmlPath) and (not FileExists(BakPath)) then
       FileCopy(XmlPath, BakPath, False);
 
-  // Read field values
-  PlayerName := Trim(cmbPlayerName.Text);
-  if PlayerName = '' then PlayerName := 'MPC-HC';
-
-  Exe       := Trim(edtPlayerExe.Text);
-  Args      := Trim(cmbArgs.Text);
-  if Args = '' then Args := '"{filepath}"';
-
   FileTypes := Trim(edtFileTypes.Text);
+
+  if chkUseResume.Checked then begin
+    // ── Resume mode: Bridge is the external player ─────────────────────────
+    // Kodi launches kodi-bridge.exe --play "{filepath}"
+    // Bridge reads Kodi resume position and seeks MPC-HC after launch.
+    PlayerName := 'Kodi-MPC-HC Bridge';
+    Exe        := ExpandConstant('{app}\{#AppExe}');
+    Args       := '--play "{filepath}"';
+  end else begin
+    // ── Direct mode: MPC-HC launched without resume seek ──────────────────
+    Exe  := Trim(edtPlayerExe.Text);
+    Args := Trim(cmbArgs.Text);
+    if Args = '' then Args := '"{filepath}" /fullscreen';
+    // Auto-detect player name from exe filename
+    MpcBase := LowerCase(ExtractFileName(Exe));
+    if Pos('mpc-be', MpcBase) > 0 then
+      PlayerName := 'MPC-BE'
+    else
+      PlayerName := 'MPC-HC';
+  end;
 
   if chkHideKodi.Checked    then HideKodi  := 'true' else HideKodi  := 'false';
   if chkHideConsole.Checked then HideCon   := 'true' else HideCon   := 'false';
   if chkVideo.Checked       then VideoAttr := 'true' else VideoAttr := 'false';
   if chkAudio.Checked       then AudioAttr := 'true' else AudioAttr := 'false';
 
-  // Optional filetypes filter on the rule
   if FileTypes <> '' then
     RuleExtra := ' filetypes="' + EscapeXmlAttr(FileTypes) + '"'
   else
     RuleExtra := '';
 
-  // Build the XML
   Xml :=
     '<?xml version="1.0" encoding="utf-8"?>' + #13#10 +
     '<playercorefactory>' + #13#10 +
@@ -811,10 +819,10 @@ begin
       ' type="ExternalPlayer"' +
       ' audio="' + AudioAttr + '"' +
       ' video="' + VideoAttr + '">' + #13#10 +
-    '      <filename>'   + EscapeXmlContent(Exe)   + '</filename>'   + #13#10 +
-    '      <args>'       + EscapeXmlContent(Args)   + '</args>'       + #13#10 +
-    '      <hidexbmc>'   + HideKodi                 + '</hidexbmc>'   + #13#10 +
-    '      <hideconsole>' + HideCon                 + '</hideconsole>' + #13#10 +
+    '      <filename>'    + EscapeXmlContent(Exe)  + '</filename>'    + #13#10 +
+    '      <args>'        + EscapeXmlContent(Args) + '</args>'        + #13#10 +
+    '      <hidexbmc>'    + HideKodi               + '</hidexbmc>'    + #13#10 +
+    '      <hideconsole>' + HideCon                + '</hideconsole>' + #13#10 +
     '    </player>' + #13#10 +
     '  </players>' + #13#10 +
     '  <rules action="prepend">' + #13#10 +
@@ -837,27 +845,50 @@ var
   ConfigFile: String;
   Lines: TStringList;
   Json: String;
+  ResumeStr: String;
 begin
   if CurStep <> ssPostInstall then Exit;
 
   // --- config.json (first installation only) ---
   ConfigFile := ExpandConstant('{app}\config.json');
   if not FileExists(ConfigFile) then begin
-    Json :=
-      '{' + #13#10 +
-      '  "kodi_host": "'     + EscapeJson(Trim(ConfigPage.Values[0])) + '",' + #13#10 +
-      '  "kodi_port": '      + IntToStr(StrToIntDef(ConfigPage.Values[1], 8080)) + ',' + #13#10 +
-      '  "kodi_ws_port": '   + IntToStr(StrToIntDef(ConfigPage.Values[2], 9090)) + ',' + #13#10 +
-      '  "kodi_username": "' + EscapeJson(ConfigPage.Values[3]) + '",' + #13#10 +
-      '  "kodi_password": "' + EscapeJson(ConfigPage.Values[4]) + '",' + #13#10 +
-      '  "kodi_ssl": false,' + #13#10 +
-      '  "kodi_enabled": true,' + #13#10 +
-      '  "mpchc_host": "localhost",' + #13#10 +
-      '  "mpchc_port": 13579,' + #13#10 +
-      '  "mpchc_enabled": true,' + #13#10 +
-      '  "server_host": "0.0.0.0",' + #13#10 +
-      '  "server_port": 13590' + #13#10 +
-      '}';
+    // Include player settings only when the player page was filled in
+    if chkUseResume.Checked then ResumeStr := 'true' else ResumeStr := 'false';
+    if chkEnablePlayer.Checked then begin
+      Json :=
+        '{' + #13#10 +
+        '  "kodi_host": "'       + EscapeJson(Trim(ConfigPage.Values[0])) + '",' + #13#10 +
+        '  "kodi_port": '        + IntToStr(StrToIntDef(ConfigPage.Values[1], 8080)) + ',' + #13#10 +
+        '  "kodi_ws_port": '     + IntToStr(StrToIntDef(ConfigPage.Values[2], 9090)) + ',' + #13#10 +
+        '  "kodi_username": "'   + EscapeJson(ConfigPage.Values[3]) + '",' + #13#10 +
+        '  "kodi_password": "'   + EscapeJson(ConfigPage.Values[4]) + '",' + #13#10 +
+        '  "kodi_ssl": false,' + #13#10 +
+        '  "kodi_enabled": true,' + #13#10 +
+        '  "mpchc_host": "localhost",' + #13#10 +
+        '  "mpchc_port": 13579,' + #13#10 +
+        '  "mpchc_enabled": true,' + #13#10 +
+        '  "server_host": "0.0.0.0",' + #13#10 +
+        '  "server_port": 13590,' + #13#10 +
+        '  "mpchc_exe_path": "' + EscapeJson(Trim(edtPlayerExe.Text)) + '",' + #13#10 +
+        '  "resume_enabled": ' + ResumeStr + #13#10 +
+        '}';
+    end else begin
+      Json :=
+        '{' + #13#10 +
+        '  "kodi_host": "'     + EscapeJson(Trim(ConfigPage.Values[0])) + '",' + #13#10 +
+        '  "kodi_port": '      + IntToStr(StrToIntDef(ConfigPage.Values[1], 8080)) + ',' + #13#10 +
+        '  "kodi_ws_port": '   + IntToStr(StrToIntDef(ConfigPage.Values[2], 9090)) + ',' + #13#10 +
+        '  "kodi_username": "' + EscapeJson(ConfigPage.Values[3]) + '",' + #13#10 +
+        '  "kodi_password": "' + EscapeJson(ConfigPage.Values[4]) + '",' + #13#10 +
+        '  "kodi_ssl": false,' + #13#10 +
+        '  "kodi_enabled": true,' + #13#10 +
+        '  "mpchc_host": "localhost",' + #13#10 +
+        '  "mpchc_port": 13579,' + #13#10 +
+        '  "mpchc_enabled": true,' + #13#10 +
+        '  "server_host": "0.0.0.0",' + #13#10 +
+        '  "server_port": 13590' + #13#10 +
+        '}';
+    end;
     Lines := TStringList.Create;
     try
       Lines.Text := Json;

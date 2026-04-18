@@ -146,6 +146,7 @@ class Hub:
             config_manager=config,
             host=cfg.server_host,
             port=cfg.server_port,
+            on_external_play=self.external_play,
         )
 
     # ------------------------------------------------------------------
@@ -512,6 +513,84 @@ class Hub:
                 return False, str(exc)
 
         return True, "already_inactive"
+
+    # ------------------------------------------------------------------
+    # External player / built-in resume
+    # ------------------------------------------------------------------
+    async def external_play(self, filepath: str) -> None:
+        """
+        Called when ``kodi-bridge.exe --play <filepath>`` POSTs to
+        ``/api/external_play``.
+
+        Sequence
+        --------
+        1. (Optional) Read Kodi's resume position for the file.
+        2. Launch MPC-HC with the file path.
+        3. Poll MPC-HC's HTTP API until it responds (max 15 s, 0.5 s intervals).
+        4. After a 1 s settling pause, seek to the resume position.
+        """
+        import subprocess
+
+        cfg = self._config.cfg
+        mpc_exe = (cfg.mpchc_exe_path or "").strip()
+        if not mpc_exe:
+            _LOG.error("external_play: mpchc_exe_path not configured — cannot launch player")
+            return
+
+        # 1. Resume position ──────────────────────────────────────────────────
+        resume_pos: float = 0.0
+        if cfg.resume_enabled:
+            try:
+                resume_pos = await self._kodi.get_resume_position(filepath)
+                _LOG.info(
+                    "external_play: Kodi resume position = %.1f s for %r",
+                    resume_pos, filepath,
+                )
+            except Exception as exc:
+                _LOG.warning("external_play: could not read resume position: %s", exc)
+
+        # 2. Launch MPC-HC ────────────────────────────────────────────────────
+        try:
+            subprocess.Popen([mpc_exe, filepath])
+            _LOG.info("external_play: launched %r with %r", mpc_exe, filepath)
+        except Exception as exc:
+            _LOG.error("external_play: launch failed: %s", exc)
+            return
+
+        if resume_pos <= 0.0:
+            return  # nothing to seek to
+
+        # 3. Poll until MPC-HC HTTP API is ready (max 15 s) ──────────────────
+        import aiohttp as _aiohttp
+
+        mpc_url = f"http://{cfg.mpchc_host}:{cfg.mpchc_port}/variables.html"
+        deadline = asyncio.get_running_loop().time() + 15.0
+        ready = False
+        try:
+            async with _aiohttp.ClientSession(
+                timeout=_aiohttp.ClientTimeout(total=1.5)
+            ) as sess:
+                while asyncio.get_running_loop().time() < deadline:
+                    try:
+                        async with sess.get(mpc_url) as resp:
+                            if resp.status == 200:
+                                ready = True
+                                break
+                    except Exception:
+                        pass
+                    await asyncio.sleep(0.5)
+        except Exception as exc:
+            _LOG.warning("external_play: poll session error: %s", exc)
+
+        if not ready:
+            _LOG.warning("external_play: MPC-HC did not respond within 15 s — seek skipped")
+            return
+
+        # 4. Settle then seek ─────────────────────────────────────────────────
+        await asyncio.sleep(1.0)
+        seek_ms = int(resume_pos * 1000)
+        _LOG.info("external_play: seeking to %d ms (%.1f s)", seek_ms, resume_pos)
+        await self._mpchc.seek(seek_ms)
 
     # ------------------------------------------------------------------
     # MKV parser (blocking, runs in thread pool)
