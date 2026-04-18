@@ -265,6 +265,23 @@ _WEB_UI = """<!DOCTYPE html>
   .player-badge.none{background:#2a2a2a;color:#666}
   .kbd-hint{font-size:.72rem;color:#555;margin-top:6px}
   kbd{background:#222;border:1px solid #444;border-radius:3px;padding:1px 5px;font-size:.75rem}
+  /* Season episode list */
+  .ep-list{max-height:320px;overflow-y:auto;margin-top:4px}
+  .ep-row{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;
+          cursor:pointer;font-size:.83rem;transition:background .12s}
+  .ep-row:hover{background:#2a2a2a}
+  .ep-row.ep-current{background:#1a3a1a;border-left:3px solid #4a4}
+  .ep-row.ep-watched{color:#555}
+  .ep-num{min-width:36px;font-size:.75rem;color:#666;text-align:right;flex-shrink:0}
+  .ep-row.ep-current .ep-num{color:#6f6}
+  .ep-title{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ep-row.ep-current .ep-title{color:#eee;font-weight:600}
+  .ep-row.ep-watched .ep-title{color:#555}
+  .ep-badge{font-size:.72rem;padding:1px 6px;border-radius:8px;white-space:nowrap;flex-shrink:0}
+  .ep-badge.ep-seen{background:#1a3d1a;color:#6f6}
+  .ep-badge.ep-resume{background:#3d2a00;color:#fa0}
+  .ep-runtime{min-width:36px;text-align:right;font-size:.72rem;color:#555;flex-shrink:0}
+  .season-hdr{font-size:.78rem;color:#888;margin-bottom:6px}
 </style>
 </head>
 <body>
@@ -347,6 +364,12 @@ _WEB_UI = """<!DOCTYPE html>
     <table id="tbl-tracks"></table>
   </div>
 
+  <!-- Card: Season episodes (full width, hidden when no episode is playing) -->
+  <div class="card" id="card-season" style="grid-column:1/-1;display:none">
+    <h2 id="season-hdr"></h2>
+    <div id="ep-list" class="ep-list"></div>
+  </div>
+
   <!-- Card: External player setup (full width) -->
   <div class="card" style="grid-column:1/-1">
     <h2 data-i18n="card_ext_player"></h2>
@@ -411,6 +434,9 @@ const _TR = {
     ext_configured:'\u2713 Configured',
     btn_ext_player_on:'\u25B6 Ext. Player: ON',
     btn_ext_player_off:'\u23F8 Ext. Player: OFF',
+    card_season:'Season',
+    lbl_ep_resume:'Resume',
+    lbl_no_episodes:'No episode data available.',
   },
   de:{
     status_connecting:'Verbinde\u2026',
@@ -450,6 +476,9 @@ const _TR = {
     ext_configured:'\u2713 Konfiguriert',
     btn_ext_player_on:'\u25B6 Ext. Player: AN',
     btn_ext_player_off:'\u23F8 Ext. Player: AUS',
+    card_season:'Staffel',
+    lbl_ep_resume:'Fortsetzen',
+    lbl_no_episodes:'Keine Episodendaten verf\u00fcgbar.',
   },
   fr:{
     status_connecting:'Connexion\u2026',
@@ -656,6 +685,8 @@ function renderAll() {
     extBtn.style.borderColor  = on ? '#2a6a2a' : '#8a2a2a';
     extBtn.style.color        = on ? '#6f6'    : '#f99';
   }
+
+  renderSeasonEpisodes();
 }
 
 function cmd(c, val) {
@@ -745,6 +776,98 @@ async function setupExtPlayer() {
     msgEl.style.color = '#f66';
     msgEl.textContent = '\u2717 ' + e;
   }
+}
+
+// ── Season episode list ───────────────────────────────────────────────────────
+function fmtRuntime(secs) {
+  if (!secs) return '';
+  const m = Math.round(secs / 60);
+  return m + '\u202Fmin';
+}
+
+function fmtResumeTime(secs) {
+  if (!secs) return '';
+  const s = Math.round(secs);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  return h > 0
+    ? h + ':' + String(m).padStart(2,'0') + ':' + String(ss).padStart(2,'0')
+    : m + ':' + String(ss).padStart(2,'0');
+}
+
+function renderSeasonEpisodes() {
+  const card = document.getElementById('card-season');
+  const hdr  = document.getElementById('season-hdr');
+  const list = document.getElementById('ep-list');
+  if (!card || !hdr || !list) return;
+
+  const eps = state.season_episodes;
+  if (!eps || !eps.length) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+
+  // Header: "Staffel 2  ·  The Office  (12 Folgen)"
+  const season = (eps[0] && eps[0].season) ? eps[0].season : (state.season || '');
+  const show   = state.tv_show || '';
+  hdr.textContent =
+    t('card_season') + (season ? ' ' + season : '') +
+    (show ? '  \u00B7  ' + show : '') +
+    '  (' + eps.length + ')';
+
+  const idx = state.playlist_index != null ? state.playlist_index : -1;
+
+  list.innerHTML = eps.map((ep, i) => {
+    const isCur     = i === idx;
+    const isWatched = ep.playcount > 0 && !isCur;
+    const hasResume = ep.resume_pos > 10 && !isWatched;
+
+    let cls = 'ep-row';
+    if (isCur)     cls += ' ep-current';
+    if (isWatched) cls += ' ep-watched';
+
+    // File path escaped for onclick attribute
+    const fileEsc = (ep.file || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+
+    const numStr   = 'E' + String(ep.episode).padStart(2,'0');
+    const title    = ep.title || ('Episode ' + ep.episode);
+    const runtime  = fmtRuntime(ep.runtime);
+
+    let badges = '';
+    if (isCur) {
+      badges += '<span class="ep-badge ep-seen">\u25B6</span>';
+    } else if (isWatched) {
+      badges += '<span class="ep-badge ep-seen">\u2713</span>';
+    }
+    if (hasResume) {
+      badges += '<span class="ep-badge ep-resume">\u23F5 ' + fmtResumeTime(ep.resume_pos) + '</span>';
+    }
+
+    return (
+      '<div class="' + cls + '" onclick="playEpisode(\'' + fileEsc + '\')">' +
+        '<span class="ep-num">' + numStr + '</span>' +
+        '<span class="ep-title">' + title.replace(/</g,'&lt;') + '</span>' +
+        badges +
+        '<span class="ep-runtime">' + runtime + '</span>' +
+      '</div>'
+    );
+  }).join('');
+
+  // Scroll current episode into view
+  if (idx >= 0) {
+    const rows = list.querySelectorAll('.ep-row');
+    if (rows[idx]) rows[idx].scrollIntoView({block:'nearest'});
+  }
+}
+
+function playEpisode(filepath) {
+  fetch('/api/external_play', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({filepath: filepath}),
+  }).catch(() => {});
 }
 
 function connect() {

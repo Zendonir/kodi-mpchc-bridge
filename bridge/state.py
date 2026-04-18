@@ -100,6 +100,10 @@ class UnifiedState:
     # --- bridge config reflected in state (for remote UI) ---
     external_player_enabled: bool = True
 
+    # --- Season episode list (populated when MPC-HC plays an episode) ---
+    season_episodes: list[dict] = field(default_factory=list)
+    playlist_index:  int = -1   # 0-based index of current file; -1 = unknown
+
     # --- MPC-HC internals (not pushed to clients) ---
     filepath: str = ""
 
@@ -185,5 +189,7 @@ class StateManager:
                 "hdr": "",
                 "video_codec": "",
                 "video_bitrate_kbps": 0,
+                "season_episodes": [],
+                "playlist_index": -1,
             }
         )

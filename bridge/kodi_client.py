@@ -208,6 +208,8 @@ class KodiClient:
                 "tv_show":  item.get("showtitle", "")  or "" if is_episode else "",
                 "season":   item.get("season", 0)      or 0  if is_episode else 0,
                 "episode":  item.get("episode", 0)     or 0  if is_episode else 0,
+                # tvshowid is used by hub to fetch season episode list; not stored in state
+                "tvshowid": item.get("tvshowid", -1)   if is_episode else -1,
             }
 
         filename = os.path.basename(filepath)
@@ -326,6 +328,45 @@ class KodiClient:
             0,
         )
         return total_seasons, ep_count
+
+    async def get_season_episodes(self, tvshowid: int, season: int) -> list[dict]:
+        """
+        Fetch all episodes for a show/season from Kodi, sorted by episode number.
+
+        Each returned dict contains:
+          episodeid, episode, title, file, playcount, resume_pos (seconds),
+          runtime (seconds).
+
+        Returns an empty list if the call fails or returns no data.
+        """
+        result = await self._call("VideoLibrary.GetEpisodes", {
+            "tvshowid": tvshowid,
+            "season":   season,
+            "properties": [
+                "title", "episode", "season", "file",
+                "resume", "playcount", "runtime",
+            ],
+            "sort": {"order": "ascending", "method": "episode"},
+        })
+        if not result or not isinstance(result, dict):
+            return []
+        episodes = result.get("episodes", [])
+        out: list[dict] = []
+        for ep in episodes:
+            out.append({
+                "episodeid":  ep.get("episodeid", 0),
+                "episode":    ep.get("episode",   0),
+                "title":      ep.get("title",      ""),
+                "file":       ep.get("file",        ""),
+                "playcount":  ep.get("playcount",   0),
+                "resume_pos": float((ep.get("resume") or {}).get("position", 0)),
+                "runtime":    ep.get("runtime", 0),
+            })
+        _LOG.info(
+            "get_season_episodes: tvshowid=%d season=%d → %d episodes",
+            tvshowid, season, len(out),
+        )
+        return out
 
     def _image_url(self, kodi_url: str) -> str:
         """

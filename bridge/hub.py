@@ -401,6 +401,9 @@ class Hub:
             updates.setdefault("hdr", "")
             updates.setdefault("video_codec", "")
             updates.setdefault("video_fps", 0.0)
+            # Clear season episode list so the UI goes back to normal
+            updates["season_episodes"] = []
+            updates["playlist_index"]  = -1
             _LOG.info("ACTIVE PLAYER → none   (mpchc idle, kodi may take over)")
             # Sync playback state to Kodi library in the background
             _fp  = self._last_filepath
@@ -498,6 +501,9 @@ class Hub:
         Order of preference for artwork:
         1. Kodi library (get_file_info — also returns title/year/show/season/episode)
         2. Local poster file next to the video (poster.jpg, folder.jpg, …)
+
+        Also fetches the full season episode list when an episode is detected,
+        storing it in state so the web UI can display it.
         """
         try:
             data: bytes | None = None
@@ -506,6 +512,9 @@ class Hub:
             # Kodi library lookup — returns artwork URL + metadata
             info = await self._kodi.get_file_info(filepath)
             if info:
+                # Extract tvshowid before pushing (not a UnifiedState field)
+                tvshowid: int = info.pop("tvshowid", -1)
+
                 # Push metadata immediately (year, tv_show, season, episode, title)
                 meta_patch = {
                     k: v for k, v in info.items()
@@ -514,6 +523,27 @@ class Hub:
                 if meta_patch:
                     _LOG.info("FileInfo metadata: %s", meta_patch)
                     await self._push(meta_patch)
+
+                # Season episode list — fetch when it's a TV episode
+                cur_season = info.get("season", 0)
+                if tvshowid >= 0 and cur_season > 0:
+                    try:
+                        eps = await self._kodi.get_season_episodes(tvshowid, cur_season)
+                        if eps:
+                            import os as _os
+                            cur_norm = filepath.replace("\\", "/")
+                            idx = next(
+                                (i for i, e in enumerate(eps)
+                                 if e.get("file", "").replace("\\", "/") == cur_norm),
+                                -1,
+                            )
+                            await self._push({"season_episodes": eps, "playlist_index": idx})
+                            _LOG.info(
+                                "Season S%02d: %d episodes fetched, current index=%d",
+                                cur_season, len(eps), idx,
+                            )
+                    except Exception as exc:
+                        _LOG.warning("Season episode fetch failed: %s", exc)
 
                 kodi_url = info.get("artwork_url", "")
                 if kodi_url:
