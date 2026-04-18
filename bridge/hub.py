@@ -498,6 +498,26 @@ class Hub:
                     updates["current_subtitle"] = idx
                     _LOG.info("MPC-HC initial subtitle track: %r → %d", self._last_subtitletrack_name, idx)
 
+            # Immediately update playlist_index if the new file is already in the
+            # season episode list that's currently displayed.  This gives instant
+            # visual feedback on episode switches without waiting for _fetch_artwork
+            # to complete (which requires multiple async Kodi API round-trips).
+            if new_filepath:
+                existing_eps = self._state.state.season_episodes
+                if existing_eps:
+                    cur_norm = _norm_path(new_filepath)
+                    quick_idx = next(
+                        (i for i, ep in enumerate(existing_eps)
+                         if _norm_path(ep.get("file", "")) == cur_norm),
+                        None,
+                    )
+                    if quick_idx is not None:
+                        updates["playlist_index"] = quick_idx
+                        _LOG.info(
+                            "playlist_index quick-update: %r → index %d",
+                            new_filepath, quick_idx,
+                        )
+
             # Fetch cover art from Kodi library in background (avoids blocking state push)
             task = asyncio.get_running_loop().create_task(self._fetch_artwork(new_filepath))
             task.add_done_callback(
