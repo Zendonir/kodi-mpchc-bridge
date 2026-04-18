@@ -294,6 +294,60 @@ begin
 end;
 
 // --------------------------------------------------------------------------
+// Read a string value from an existing config.json.
+// Uses simple substring search — good enough for well-formed JSON files
+// written by the bridge (no nested objects or arrays in string values).
+// --------------------------------------------------------------------------
+function ReadConfigString(const Key: String): String;
+var
+  FilePath, Content, SearchStr: String;
+  P, Q: Integer;
+  Ch: Char;
+begin
+  Result := '';
+  FilePath := ExpandConstant('{app}\config.json');
+  if not FileExists(FilePath) then Exit;
+  if not LoadStringFromFile(FilePath, Content) then Exit;
+
+  SearchStr := '"' + Key + '": "';
+  P := Pos(SearchStr, Content);
+  if P = 0 then Exit;
+  P := P + Length(SearchStr);
+
+  // Walk forward collecting characters, honouring backslash escapes
+  Q := P;
+  while Q <= Length(Content) do begin
+    Ch := Content[Q];
+    if Ch = '"' then Break;
+    if (Ch = '\') and (Q < Length(Content)) then begin
+      // Emit the character after the backslash literally (handles \\ and \")
+      Inc(Q);
+      Result := Result + Content[Q];
+    end else
+      Result := Result + Ch;
+    Inc(Q);
+  end;
+end;
+
+// --------------------------------------------------------------------------
+// Read a boolean value (true/false) from config.json.
+// --------------------------------------------------------------------------
+function ReadConfigBool(const Key: String): Boolean;
+var
+  FilePath, Content, SearchStr: String;
+  P: Integer;
+begin
+  Result := False;
+  FilePath := ExpandConstant('{app}\config.json');
+  if not FileExists(FilePath) then Exit;
+  if not LoadStringFromFile(FilePath, Content) then Exit;
+  SearchStr := '"' + Key + '": ';
+  P := Pos(SearchStr, Content);
+  if P = 0 then Exit;
+  Result := Copy(Content, P + Length(SearchStr), 4) = 'true';
+end;
+
+// --------------------------------------------------------------------------
 // JSON character escaping
 // --------------------------------------------------------------------------
 function EscapeJson(const s: String): String;
@@ -373,6 +427,7 @@ end;
 procedure InitializeWizard;
 var
   PW: Integer;
+  ExistingExe: String;
 begin
   // ── Page 1: Kodi connection ───────────────────────────────────────────────
   ConfigPage := CreateInputQueryPage(
@@ -447,6 +502,17 @@ begin
   chkBackup.Caption  := CustomMessage('PlayerBackupChk');
   chkBackup.Checked  := True;
   chkBackup.Enabled  := False;
+
+  // ── Pre-fill from existing config.json on upgrade ─────────────────────────
+  if ConfigExists then begin
+    ExistingExe := ReadConfigString('mpchc_exe_path');
+    if Trim(ExistingExe) <> '' then begin
+      edtPlayerExe.Text      := ExistingExe;
+      chkEnablePlayer.Checked := True;
+      chkUseResume.Checked    := ReadConfigBool('resume_enabled');
+      TogglePlayerControls(nil);
+    end;
+  end;
 end;
 
 // --------------------------------------------------------------------------
