@@ -100,8 +100,7 @@ english.FirewallGroup=Firewall:
 english.PlayerPageTitle=Configure external player
 english.PlayerPageSubtitle=Play Kodi videos directly in MPC-HC / MPC-BE (optional)
 english.PlayerEnable=Configure Kodi to open videos in an external player
-english.PlayerPageExeDesc=Paste or type the full path to mpc-hc.exe / mpc-hc64.exe / mpc-be64.exe
-english.PlayerExeLbl=Full path to MPC-HC / MPC-BE executable:
+english.PlayerExeLbl=MPC-HC / MPC-BE executable:
 english.PlayerBrowseBtn=Browse...
 english.PlayerUseResume=Use built-in resume (seek MPC-HC to Kodi's saved position)
 english.PlayerBackupChk=Backup existing playercorefactory.xml as .bak
@@ -131,8 +130,7 @@ german.FirewallGroup=Firewall:
 german.PlayerPageTitle=Externen Player konfigurieren
 german.PlayerPageSubtitle=Kodi-Videos direkt in MPC-HC / MPC-BE abspielen (optional)
 german.PlayerEnable=Kodi auf externen Videoplayer umleiten
-german.PlayerPageExeDesc=Vollständigen Pfad zu mpc-hc.exe / mpc-hc64.exe / mpc-be64.exe einfügen oder eingeben
-german.PlayerExeLbl=Vollständiger Pfad zur MPC-HC / MPC-BE Programmdatei:
+german.PlayerExeLbl=MPC-HC / MPC-BE Programmdatei:
 german.PlayerBrowseBtn=Durchsuchen...
 german.PlayerUseResume=Integriertes Resume (MPC-HC springt zur gespeicherten Kodi-Position)
 german.PlayerBackupChk=Bestehende playercorefactory.xml als .bak sichern
@@ -162,8 +160,7 @@ french.FirewallGroup=Pare-feu :
 french.PlayerPageTitle=Configurer le lecteur externe
 french.PlayerPageSubtitle=Lire les vidéos Kodi directement dans MPC-HC / MPC-BE (optionnel)
 french.PlayerEnable=Configurer Kodi pour utiliser un lecteur externe
-french.PlayerPageExeDesc=Collez ou saisissez le chemin complet vers mpc-hc.exe / mpc-hc64.exe / mpc-be64.exe
-french.PlayerExeLbl=Chemin complet vers l'exécutable MPC-HC / MPC-BE :
+french.PlayerExeLbl=Exécutable MPC-HC / MPC-BE :
 french.PlayerBrowseBtn=Parcourir...
 french.PlayerUseResume=Resume intégré (positionne MPC-HC à la position Kodi)
 french.PlayerBackupChk=Sauvegarder playercorefactory.xml existant en .bak
@@ -193,8 +190,7 @@ spanish.FirewallGroup=Firewall:
 spanish.PlayerPageTitle=Configurar reproductor externo
 spanish.PlayerPageSubtitle=Reproducir vídeos de Kodi directamente en MPC-HC / MPC-BE (opcional)
 spanish.PlayerEnable=Configurar Kodi para usar un reproductor externo
-spanish.PlayerPageExeDesc=Pegue o escriba la ruta completa a mpc-hc.exe / mpc-hc64.exe / mpc-be64.exe
-spanish.PlayerExeLbl=Ruta completa al ejecutable MPC-HC / MPC-BE:
+spanish.PlayerExeLbl=Ejecutable MPC-HC / MPC-BE:
 spanish.PlayerBrowseBtn=Examinar...
 spanish.PlayerUseResume=Resume integrado (lleva MPC-HC a la posición guardada en Kodi)
 spanish.PlayerBackupChk=Copia de seguridad de playercorefactory.xml existente como .bak
@@ -224,8 +220,7 @@ italian.FirewallGroup=Firewall:
 italian.PlayerPageTitle=Configura lettore esterno
 italian.PlayerPageSubtitle=Riproduci i video di Kodi direttamente in MPC-HC / MPC-BE (opzionale)
 italian.PlayerEnable=Configura Kodi per usare un lettore esterno
-italian.PlayerPageExeDesc=Incolla o digita il percorso completo di mpc-hc.exe / mpc-hc64.exe / mpc-be64.exe
-italian.PlayerExeLbl=Percorso completo dell'eseguibile MPC-HC / MPC-BE:
+italian.PlayerExeLbl=Eseguibile MPC-HC / MPC-BE:
 italian.PlayerBrowseBtn=Sfoglia...
 italian.PlayerUseResume=Resume integrato (porta MPC-HC alla posizione salvata in Kodi)
 italian.PlayerBackupChk=Backup del playercorefactory.xml esistente come .bak
@@ -281,10 +276,14 @@ var
   // ── Kodi connection page ──────────────────────────────────────────────────
   ConfigPage: TInputQueryWizardPage;
 
-  // ── External player pages (3 native pages, zero manual layout) ───────────
-  PlayerEnablePage: TInputOptionWizardPage;   // "enable external player?"
-  PlayerExePage:    TInputQueryWizardPage;    // select MPC-HC/BE exe
-  PlayerOptPage:    TInputOptionWizardPage;   // resume + backup options
+  // ── External player page (one custom page, all controls) ─────────────────
+  PlayerPage:      TWizardPage;
+  chkEnablePlayer: TNewCheckBox;
+  lblPlayerExe:    TLabel;
+  edtPlayerExe:    TNewEdit;
+  btnBrowseExe:    TNewButton;
+  chkUseResume:    TNewCheckBox;
+  chkBackup:       TNewCheckBox;
 
 // --------------------------------------------------------------------------
 // Helper: config.json exists? (upgrade detection)
@@ -343,9 +342,37 @@ begin
 end;
 
 // --------------------------------------------------------------------------
+// Enable/disable sub-controls based on master checkbox
+// --------------------------------------------------------------------------
+procedure TogglePlayerControls(Sender: TObject);
+var en: Boolean;
+begin
+  en := chkEnablePlayer.Checked;
+  lblPlayerExe.Enabled  := en;
+  edtPlayerExe.Enabled  := en;
+  btnBrowseExe.Enabled  := en;
+  chkUseResume.Enabled  := en;
+  chkBackup.Enabled     := en;
+end;
+
+// --------------------------------------------------------------------------
+// Browse for player executable
+// --------------------------------------------------------------------------
+procedure BrowseExeClick(Sender: TObject);
+var F: String;
+begin
+  F := edtPlayerExe.Text;
+  if GetOpenFileName('', F, '',
+    'Executables (*.exe)|*.exe|All files (*.*)|*.*', 'exe') then
+    edtPlayerExe.Text := F;
+end;
+
+// --------------------------------------------------------------------------
 // Create wizard pages
 // --------------------------------------------------------------------------
 procedure InitializeWizard;
+var
+  PW: Integer;
 begin
   // ── Page 1: Kodi connection ───────────────────────────────────────────────
   ConfigPage := CreateInputQueryPage(
@@ -366,53 +393,69 @@ begin
   ConfigPage.Values[3] := '';
   ConfigPage.Values[4] := '';
 
-  // ── Page 2: Enable external player? ──────────────────────────────────────
-  PlayerEnablePage := CreateInputOptionPage(
+  // ── Page 2: External player ───────────────────────────────────────────────
+  PlayerPage := CreateCustomPage(
     ConfigPage.ID,
     CustomMessage('PlayerPageTitle'),
-    CustomMessage('PlayerPageSubtitle'),
-    '',
-    False,   // not exclusive → checkboxes
-    False    // not list-box
+    CustomMessage('PlayerPageSubtitle')
   );
-  PlayerEnablePage.Add(CustomMessage('PlayerEnable'));
-  PlayerEnablePage.Values[0] := False;
 
-  // ── Page 3: Select executable ─────────────────────────────────────────────
-  PlayerExePage := CreateInputQueryPage(
-    PlayerEnablePage.ID,
-    CustomMessage('PlayerPageTitle'),
-    CustomMessage('PlayerPageSubtitle'),
-    CustomMessage('PlayerPageExeDesc')
-  );
-  PlayerExePage.Add(CustomMessage('PlayerExeLbl'), False);
-  PlayerExePage.Values[0] := '';
+  PW := PlayerPage.Surface.Width;
 
-  // ── Page 4: Options (resume + backup) ────────────────────────────────────
-  PlayerOptPage := CreateInputOptionPage(
-    PlayerExePage.ID,
-    CustomMessage('PlayerPageTitle'),
-    CustomMessage('PlayerPageSubtitle'),
-    '',
-    False,   // not exclusive → checkboxes
-    False
-  );
-  PlayerOptPage.Add(CustomMessage('PlayerUseResume'));
-  PlayerOptPage.Add(CustomMessage('PlayerBackupChk'));
-  PlayerOptPage.Values[0] := True;   // resume on by default
-  PlayerOptPage.Values[1] := True;   // backup on by default
+  // ── Row A (Y=0): master enable checkbox ───────────────────────────────────
+  chkEnablePlayer := TNewCheckBox.Create(PlayerPage.Surface);
+  chkEnablePlayer.Parent  := PlayerPage.Surface;
+  chkEnablePlayer.SetBounds(0, 0, PW, ScaleY(20));
+  chkEnablePlayer.Caption := CustomMessage('PlayerEnable');
+  chkEnablePlayer.Checked := False;
+  chkEnablePlayer.OnClick := @TogglePlayerControls;
+
+  // ── Row B (Y≈40): exe label ───────────────────────────────────────────────
+  lblPlayerExe := TLabel.Create(PlayerPage.Surface);
+  lblPlayerExe.Parent   := PlayerPage.Surface;
+  lblPlayerExe.AutoSize := False;
+  lblPlayerExe.SetBounds(0, ScaleY(40), PW, ScaleY(17));
+  lblPlayerExe.Caption  := CustomMessage('PlayerExeLbl');
+  lblPlayerExe.Enabled  := False;
+
+  // ── Row C (Y≈59): exe edit + browse button ────────────────────────────────
+  edtPlayerExe := TNewEdit.Create(PlayerPage.Surface);
+  edtPlayerExe.Parent  := PlayerPage.Surface;
+  edtPlayerExe.SetBounds(0, ScaleY(59), PW - ScaleX(90), ScaleY(23));
+  edtPlayerExe.Enabled := False;
+
+  btnBrowseExe := TNewButton.Create(PlayerPage.Surface);
+  btnBrowseExe.Parent   := PlayerPage.Surface;
+  btnBrowseExe.SetBounds(PW - ScaleX(86), ScaleY(59), ScaleX(86), ScaleY(23));
+  btnBrowseExe.Caption  := CustomMessage('PlayerBrowseBtn');
+  btnBrowseExe.Enabled  := False;
+  btnBrowseExe.OnClick  := @BrowseExeClick;
+
+  // ── Row D (Y≈100): resume checkbox ───────────────────────────────────────
+  chkUseResume := TNewCheckBox.Create(PlayerPage.Surface);
+  chkUseResume.Parent   := PlayerPage.Surface;
+  chkUseResume.SetBounds(0, ScaleY(100), PW, ScaleY(20));
+  chkUseResume.Caption  := CustomMessage('PlayerUseResume');
+  chkUseResume.Checked  := True;
+  chkUseResume.Enabled  := False;
+
+  // ── Row E (Y≈132): backup checkbox ───────────────────────────────────────
+  chkBackup := TNewCheckBox.Create(PlayerPage.Surface);
+  chkBackup.Parent   := PlayerPage.Surface;
+  chkBackup.SetBounds(0, ScaleY(132), PW, ScaleY(20));
+  chkBackup.Caption  := CustomMessage('PlayerBackupChk');
+  chkBackup.Checked  := True;
+  chkBackup.Enabled  := False;
 end;
 
 // --------------------------------------------------------------------------
-// Skip config page on upgrade; skip exe+options pages if player disabled
+// Skip config page on upgrade
 // --------------------------------------------------------------------------
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
   if PageID = ConfigPage.ID then
     Result := ConfigExists;
-  if (PageID = PlayerExePage.ID) or (PageID = PlayerOptPage.ID) then
-    Result := not PlayerEnablePage.Values[0];
 end;
 
 // --------------------------------------------------------------------------
@@ -442,9 +485,9 @@ begin
     end;
   end;
 
-  // ── External player exe page ──────────────────────────────────────────────
-  if CurPageID = PlayerExePage.ID then begin
-    if Trim(PlayerExePage.Values[0]) = '' then begin
+  // ── External player page ─────────────────────────────────────────────────
+  if CurPageID = PlayerPage.ID then begin
+    if chkEnablePlayer.Checked and (Trim(edtPlayerExe.Text) = '') then begin
       MsgBox(CustomMessage('ErrPlayerNoExe'), mbError, MB_OK);
       Result := False; Exit;
     end;
@@ -536,18 +579,18 @@ begin
   ForceDirectories(KodiUD);
 
   // Back up existing config once (never overwrite an existing .bak)
-  if PlayerOptPage.Values[1] then
+  if chkBackup.Checked then
     if FileExists(XmlPath) and (not FileExists(BakPath)) then
       FileCopy(XmlPath, BakPath, False);
 
-  if PlayerOptPage.Values[0] then begin
+  if chkUseResume.Checked then begin
     // ── Resume mode: Bridge is the external player ─────────────────────────
     PlayerName := 'Kodi-MPC-HC Bridge';
     Exe        := ExpandConstant('{app}\{#AppExe}');
     Args       := '--play "{filepath}"';
   end else begin
     // ── Direct mode: MPC-HC launched directly ─────────────────────────────
-    Exe     := Trim(PlayerExePage.Values[0]);
+    Exe     := Trim(edtPlayerExe.Text);
     Args    := '"{filepath}" /fullscreen';
     MpcBase := LowerCase(ExtractFileName(Exe));
     if Pos('mpc-be', MpcBase) > 0 then
@@ -596,8 +639,8 @@ begin
   ConfigFile := ExpandConstant('{app}\config.json');
   if not FileExists(ConfigFile) then begin
     // Include player settings only when the player page was filled in
-    if PlayerOptPage.Values[0] then ResumeStr := 'true' else ResumeStr := 'false';
-    if PlayerEnablePage.Values[0] then begin
+    if chkUseResume.Checked then ResumeStr := 'true' else ResumeStr := 'false';
+    if chkEnablePlayer.Checked then begin
       Json :=
         '{' + #13#10 +
         '  "kodi_host": "'       + EscapeJson(Trim(ConfigPage.Values[0])) + '",' + #13#10 +
@@ -612,7 +655,7 @@ begin
         '  "mpchc_enabled": true,' + #13#10 +
         '  "server_host": "0.0.0.0",' + #13#10 +
         '  "server_port": 13590,' + #13#10 +
-        '  "mpchc_exe_path": "' + EscapeJson(Trim(PlayerExePage.Values[0])) + '",' + #13#10 +
+        '  "mpchc_exe_path": "' + EscapeJson(Trim(edtPlayerExe.Text)) + '",' + #13#10 +
         '  "resume_enabled": ' + ResumeStr + #13#10 +
         '}';
     end else begin
@@ -642,7 +685,7 @@ begin
   end;
 
   // --- External player config (only if user enabled it) ---
-  if PlayerEnablePage.Values[0] then
+  if chkEnablePlayer.Checked then
     WritePlayerCoreFactory;
 
   // --- Autostart task (no admin needed) ---
