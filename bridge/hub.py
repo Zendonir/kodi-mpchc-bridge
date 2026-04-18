@@ -426,9 +426,15 @@ class Hub:
             updates.setdefault("hdr", "")
             updates.setdefault("video_codec", "")
             updates.setdefault("video_fps", 0.0)
-            # Clear season episode list so the UI goes back to normal
-            updates["season_episodes"] = []
-            updates["playlist_index"]  = -1
+            # NOTE: season_episodes / playlist_index are intentionally NOT cleared
+            # here.  MPC-HC briefly reports state=0 during file transitions (when
+            # the user switches to a different episode in the web UI), which also
+            # fires active_player→none.  Clearing the list here would make it
+            # disappear on every episode switch.  The list is cleared in two
+            # places instead:
+            #   • _signal_mpchc_stopped() — explicit Stop / Back from the remote
+            #   • _on_kodi_update()       — when Kodi regains the active player
+            #     role after the last episode ends naturally
             _LOG.info("ACTIVE PLAYER → none   (mpchc idle, kodi may take over)")
             # Sync playback state to Kodi library in the background
             _fp  = self._last_filepath
@@ -658,6 +664,12 @@ class Hub:
         if updates.get("active_player") == "kodi" and self._state.state.active_player != "kodi":
             _LOG.info("ACTIVE PLAYER → kodi   (state=%s, title=%s)",
                       updates.get("state", "?"), updates.get("title", ""))
+            # Kodi is taking over as active player — clear any leftover season
+            # episode list from MPC-HC.  This covers the case where the last
+            # episode ends naturally (MPC-HC goes idle, no explicit Stop pressed)
+            # so the season card doesn't linger on-screen after Kodi resumes.
+            updates.setdefault("season_episodes", [])
+            updates.setdefault("playlist_index", -1)
         if "state" in updates and updates.get("active_player") != "kodi":
             _LOG.debug("Kodi state: %s  pos=%.1fs", updates["state"], updates.get("position", 0))
 
@@ -761,6 +773,10 @@ class Hub:
         _LOG.info("Explicit stop — immediately signalling active_player=none")
         # Re-use the full transition logic in _on_mpchc_update
         await self._on_mpchc_update({"active_player": "none", "state": "idle"})
+        # Explicit stop: clear the season episode list now.
+        # (Not done in _on_mpchc_update itself so that the list survives the
+        # brief active_player→none blip that MPC-HC emits during file switches.)
+        await self._push({"season_episodes": [], "playlist_index": -1})
 
     # ------------------------------------------------------------------
     # External player — setup (writes playercorefactory.xml + config)
