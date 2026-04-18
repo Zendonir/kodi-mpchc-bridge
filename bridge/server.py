@@ -59,6 +59,7 @@ class BridgeServer:
         self._app.router.add_post("/api/external_player/setup", self._handle_ext_player_setup)
         self._app.router.add_get("/api/ws", self._handle_ws)
         self._app.router.add_get("/api/artwork", self._handle_artwork)
+        self._app.router.add_get("/api/logs", self._handle_logs)
         self._app.router.add_get("/", self._handle_root)
         self._artwork_data: bytes | None = None
         self._artwork_ct: str = "image/jpeg"
@@ -197,6 +198,21 @@ class BridgeServer:
             return web.Response(status=404, text="no artwork")
         return web.Response(body=self._artwork_data, content_type=self._artwork_ct)
 
+    async def _handle_logs(self, request: web.Request) -> web.Response:
+        """GET /api/logs?limit=50&level=INFO&search=keyword — last N log records."""
+        try:
+            from bridge.log_buffer import handler as _buf
+            limit  = max(1, min(500, int(request.rel_url.query.get("limit",  "50"))))
+            level  = request.rel_url.query.get("level",  "").upper().strip()
+            search = request.rel_url.query.get("search", "").strip()
+            if level not in ("DEBUG", "INFO", "WARNING", "ERROR"):
+                level = ""
+            records = _buf.get(limit=limit, level=level, search=search)
+        except Exception as exc:
+            _LOG.warning("_handle_logs error: %s", exc)
+            records = []
+        return web.json_response({"records": records})
+
     async def _handle_ws(self, request: web.Request) -> web.WebSocketResponse:
         ws = web.WebSocketResponse(heartbeat=30)
         await ws.prepare(request)
@@ -282,6 +298,17 @@ _WEB_UI = """<!DOCTYPE html>
   .ep-badge.ep-resume{background:#3d2a00;color:#fa0}
   .ep-runtime{min-width:36px;text-align:right;font-size:.72rem;color:#555;flex-shrink:0}
   .season-hdr{font-size:.78rem;color:#888;margin-bottom:6px}
+  /* Log viewer */
+  .log-controls{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+  .log-controls select,.log-controls input[type=text]{background:#1e1e1e;border:1px solid #444;
+    color:#ddd;border-radius:4px;padding:3px 7px;font-size:.82rem}
+  .log-output{font-family:'Cascadia Code','Consolas',monospace;font-size:.72rem;height:340px;
+    overflow-y:auto;background:#0a0a0a;padding:8px;border-radius:4px;line-height:1.5}
+  .log-ln{padding:1px 0;border-bottom:1px solid #111;white-space:pre-wrap;word-break:break-all}
+  .log-DEBUG{color:#555}
+  .log-INFO{color:#999}
+  .log-WARNING{color:#c80}
+  .log-ERROR{color:#e44}
 </style>
 </head>
 <body>
@@ -340,9 +367,7 @@ _WEB_UI = """<!DOCTYPE html>
     <div class="btns">
       <button onclick="cmd('fullscreen')" data-i18n="btn_fullscreen"></button>
       <button onclick="restartConfirm()" data-i18n="btn_restart_pc" style="background:#5c1a1a;border-color:#8a2a2a;color:#f99"></button>
-    </div>
-    <div class="btns" style="margin-top:4px">
-      <button id="btn-ext-toggle" onclick="cmd('toggle_external_player')"></button>
+      <button onclick="toggleLogs()" data-i18n="btn_logs" style="background:#1a2a3d;border-color:#2a4a6a;color:#6af"></button>
     </div>
   </div>
 
@@ -366,28 +391,40 @@ _WEB_UI = """<!DOCTYPE html>
 
   <!-- Card: Season episodes (full width, hidden when no episode is playing) -->
   <div class="card" id="card-season" style="grid-column:1/-1;display:none">
-    <h2 id="season-hdr"></h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <h2 id="season-hdr" style="margin:0"></h2>
+      <div style="display:flex;gap:5px">
+        <button id="btn-prev-ep" onclick="prevEpisode()" data-i18n="btn_prev_ep" disabled></button>
+        <button id="btn-next-ep" onclick="nextEpisode()" data-i18n="btn_next_ep" disabled></button>
+      </div>
+    </div>
     <div id="ep-list" class="ep-list"></div>
   </div>
 
-  <!-- Card: External player setup (full width) -->
-  <div class="card" style="grid-column:1/-1">
-    <h2 data-i18n="card_ext_player"></h2>
-    <div id="ext-status" style="font-size:.84rem;margin-bottom:10px"></div>
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <input id="mpc-exe" type="text"
-             placeholder="C:\\Program Files\\MPC-HC\\mpc-hc64.exe"
-             style="flex:1;min-width:240px;background:#2a2a2a;border:1px solid #444;
-                    color:#ddd;border-radius:6px;padding:5px 9px;font-size:.84rem">
-      <label style="display:flex;align-items:center;gap:5px;font-size:.84rem;
-                    cursor:pointer;white-space:nowrap">
-        <input type="checkbox" id="resume-chk" checked>
-        <span data-i18n="lbl_resume_chk"></span>
+  <!-- Card: Log viewer (full width, hidden by default) -->
+  <div class="card" id="card-logs" style="grid-column:1/-1;display:none">
+    <h2 data-i18n="card_logs"></h2>
+    <div class="log-controls">
+      <select id="log-level">
+        <option value="">ALL</option>
+        <option value="DEBUG">DEBUG</option>
+        <option value="INFO">INFO</option>
+        <option value="WARNING">WARNING</option>
+        <option value="ERROR">ERROR</option>
+      </select>
+      <input id="log-search" type="text" placeholder="Filter\u2026" style="flex:1;min-width:100px">
+      <select id="log-count">
+        <option value="50" selected>50</option>
+        <option value="100">100</option>
+        <option value="200">200</option>
+        <option value="500">500</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:4px;font-size:.82rem;cursor:pointer;white-space:nowrap">
+        <input type="checkbox" id="log-auto"> Auto
       </label>
-      <button onclick="setupExtPlayer()" data-i18n="btn_setup_player"
-              style="white-space:nowrap"></button>
+      <button onclick="fetchLogs()" data-i18n="btn_log_refresh"></button>
     </div>
-    <div id="ext-msg" style="margin-top:7px;font-size:.8rem"></div>
+    <div id="log-output" class="log-output"></div>
   </div>
 
 </div>
@@ -427,16 +464,14 @@ const _TR = {
     btn_fullscreen:'\u26F6 Fullscreen',
     btn_restart_pc:'\u23FB Restart PC',
     confirm_restart:'Schedule a system restart in 10 seconds?',
-    card_ext_player:'External Player Setup',
-    lbl_resume_chk:'Use built-in resume',
-    btn_setup_player:'\u2699 Configure',
-    ext_not_configured:'\u26A0 Not configured \u2014 enter the MPC-HC path and click Configure.',
-    ext_configured:'\u2713 Configured',
-    btn_ext_player_on:'\u25B6 Ext. Player: ON',
-    btn_ext_player_off:'\u23F8 Ext. Player: OFF',
     card_season:'Season',
     lbl_ep_resume:'Resume',
     lbl_no_episodes:'No episode data available.',
+    btn_prev_ep:'\u23EE Prev',
+    btn_next_ep:'Next \u23ED',
+    btn_logs:'\uD83D\uDCCB Log',
+    card_logs:'Bridge Log',
+    btn_log_refresh:'\u21BB',
   },
   de:{
     status_connecting:'Verbinde\u2026',
@@ -469,16 +504,14 @@ const _TR = {
     btn_fullscreen:'\u26F6 Vollbild',
     btn_restart_pc:'\u23FB PC neu starten',
     confirm_restart:'PC in 10 Sekunden neu starten?',
-    card_ext_player:'Externen Player einrichten',
-    lbl_resume_chk:'Resume aktivieren',
-    btn_setup_player:'\u2699 Einrichten',
-    ext_not_configured:'\u26A0 Nicht konfiguriert \u2014 MPC-HC Pfad eingeben und Einrichten klicken.',
-    ext_configured:'\u2713 Konfiguriert',
-    btn_ext_player_on:'\u25B6 Ext. Player: AN',
-    btn_ext_player_off:'\u23F8 Ext. Player: AUS',
     card_season:'Staffel',
     lbl_ep_resume:'Fortsetzen',
     lbl_no_episodes:'Keine Episodendaten verf\u00fcgbar.',
+    btn_prev_ep:'\u23EE Zurück',
+    btn_next_ep:'Weiter \u23ED',
+    btn_logs:'\uD83D\uDCCB Log',
+    card_logs:'Bridge Log',
+    btn_log_refresh:'\u21BB',
   },
   fr:{
     status_connecting:'Connexion\u2026',
@@ -676,16 +709,6 @@ function renderAll() {
     artEl.src = '';
   }
 
-  // Update external player toggle button
-  const extBtn = document.getElementById('btn-ext-toggle');
-  if (extBtn) {
-    const on = state.external_player_enabled !== false;
-    extBtn.textContent = t(on ? 'btn_ext_player_on' : 'btn_ext_player_off');
-    extBtn.style.background   = on ? '#1a3d1a' : '#3d1a1a';
-    extBtn.style.borderColor  = on ? '#2a6a2a' : '#8a2a2a';
-    extBtn.style.color        = on ? '#6f6'    : '#f99';
-  }
-
   renderSeasonEpisodes();
 }
 
@@ -714,68 +737,66 @@ document.addEventListener('keydown', function(e) {
   if (map[e.key]) { e.preventDefault(); cmd(map[e.key]); }
 });
 
-// ── External player setup ──────────────────────────────────────────────────────
-async function loadExtPlayerStatus() {
+// ── Log viewer ────────────────────────────────────────────────────────────────
+let _logAutoTimer = null;
+
+function toggleLogs() {
+  const card = document.getElementById('card-logs');
+  if (!card) return;
+  const visible = card.style.display !== 'none';
+  card.style.display = visible ? 'none' : '';
+  if (!visible) fetchLogs();
+}
+
+async function fetchLogs() {
+  const level  = (document.getElementById('log-level')  || {}).value || '';
+  const search = (document.getElementById('log-search') || {}).value || '';
+  const count  = (document.getElementById('log-count')  || {}).value || '50';
+  let url = '/api/logs?limit=' + encodeURIComponent(count);
+  if (level)  url += '&level='  + encodeURIComponent(level);
+  if (search) url += '&search=' + encodeURIComponent(search);
   try {
-    const d = await fetch('/api/external_player').then(r => r.json());
-    const el = document.getElementById('ext-status');
-    const inp = document.getElementById('mpc-exe');
-    const chk = document.getElementById('resume-chk');
-    const on  = d.external_player_enabled !== false;
-    const enabledBadge = on
-      ? ' &nbsp;<span style="color:#6f6;font-size:.75rem">&#x25B6; ' + t('btn_ext_player_on') + '</span>'
-      : ' &nbsp;<span style="color:#f99;font-size:.75rem">&#x23F8; ' + t('btn_ext_player_off') + '</span>';
-    if (d.mpchc_exe_path) {
-      const xmlOk = d.xml_exists
-        ? ' &nbsp;<span style="color:#6af;font-size:.75rem">&#x2713; playercorefactory.xml</span>'
-        : ' &nbsp;<span style="color:#f96;font-size:.75rem">&#x26A0; playercorefactory.xml fehlt!</span>';
-      el.innerHTML = '<span style="color:#6f6">' + t('ext_configured') + '</span>: '
-        + d.mpchc_exe_path + xmlOk + enabledBadge;
-      inp.value = d.mpchc_exe_path;
-    } else {
-      el.innerHTML = '<span style="color:#f96">' + t('ext_not_configured') + '</span>' + enabledBadge;
-    }
-    if (chk) chk.checked = d.resume_enabled !== false;
-    // Sync toggle button in case WS hasn't delivered state yet
-    const extBtn = document.getElementById('btn-ext-toggle');
-    if (extBtn) {
-      extBtn.textContent    = t(on ? 'btn_ext_player_on' : 'btn_ext_player_off');
-      extBtn.style.background  = on ? '#1a3d1a' : '#3d1a1a';
-      extBtn.style.borderColor = on ? '#2a6a2a' : '#8a2a2a';
-      extBtn.style.color       = on ? '#6f6'    : '#f99';
-    }
+    const d = await fetch(url).then(r => r.json());
+    const out = document.getElementById('log-output');
+    if (!out) return;
+    const recs = d.records || [];
+    out.innerHTML = recs.map(function(r) {
+      const txt = r.msg
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return '<div class="log-ln log-' + r.level + '">' + txt + '</div>';
+    }).join('');
+    out.scrollTop = out.scrollHeight;
   } catch(e) {}
 }
 
-async function setupExtPlayer() {
-  const exe  = (document.getElementById('mpc-exe').value || '').trim();
-  const res  = document.getElementById('resume-chk').checked;
-  const msgEl = document.getElementById('ext-msg');
-  if (!exe) {
-    msgEl.style.color = '#f96';
-    msgEl.textContent = '\u26A0 Bitte Pfad zu mpc-hc64.exe eingeben.';
-    return;
+(function _setupLogListeners() {
+  // Auto-refresh toggle
+  document.addEventListener('DOMContentLoaded', function() {}, false);
+  var autoChk = document.getElementById('log-auto');
+  if (autoChk) {
+    autoChk.addEventListener('change', function() {
+      clearInterval(_logAutoTimer);
+      if (this.checked) { _logAutoTimer = setInterval(fetchLogs, 2000); fetchLogs(); }
+    });
   }
-  msgEl.style.color = '#888';
-  msgEl.textContent = '\u23F3 Einrichten\u2026';
-  try {
-    const d = await fetch('/api/external_player/setup', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({mpchc_exe: exe, resume_enabled: res}),
-    }).then(r => r.json());
-    if (d.ok) {
-      msgEl.style.color = '#6f6';
-      msgEl.textContent = '\u2713 Fertig! playercorefactory.xml: ' + d.xml_path;
-    } else {
-      msgEl.style.color = '#f66';
-      msgEl.textContent = '\u2717 Fehler: ' + (d.error || 'unbekannt');
-    }
-    loadExtPlayerStatus();
-  } catch(e) {
-    msgEl.style.color = '#f66';
-    msgEl.textContent = '\u2717 ' + e;
-  }
+  // Re-fetch on Enter in search box
+  var srch = document.getElementById('log-search');
+  if (srch) { srch.addEventListener('keydown', function(e){ if(e.key==='Enter') fetchLogs(); }); }
+}());
+
+// ── Episode navigation ────────────────────────────────────────────────────────
+function prevEpisode() {
+  const eps = state.season_episodes;
+  const idx = state.playlist_index != null ? state.playlist_index : -1;
+  if (!eps || idx <= 0) return;
+  playEpisode(eps[idx - 1].file);
+}
+
+function nextEpisode() {
+  const eps = state.season_episodes;
+  const idx = state.playlist_index != null ? state.playlist_index : -1;
+  if (!eps || idx < 0 || idx >= eps.length - 1) return;
+  playEpisode(eps[idx + 1].file);
 }
 
 // ── Season episode list ───────────────────────────────────────────────────────
@@ -865,6 +886,12 @@ function renderSeasonEpisodes() {
     if (row && row.dataset.epfile) playEpisode(row.dataset.epfile);
   };
 
+  // Enable / disable prev/next navigation buttons
+  const prevBtn = document.getElementById('btn-prev-ep');
+  const nextBtn = document.getElementById('btn-next-ep');
+  if (prevBtn) prevBtn.disabled = idx <= 0;
+  if (nextBtn) nextBtn.disabled = idx < 0 || idx >= eps.length - 1;
+
   // Scroll current episode into view
   if (idx >= 0) {
     const rows = list.querySelectorAll('.ep-row');
@@ -900,7 +927,6 @@ function connect() {
 }
 
 connect();
-loadExtPlayerStatus();
 </script>
 </body>
 </html>

@@ -350,6 +350,7 @@ class Hub:
             self._state, self._kodi, self._mpchc,
             on_mpchc_stop=self._signal_mpchc_stopped,
             on_toggle_ext_player=self._toggle_external_player,
+            on_play_episode=self._play_episode_cmd,
         )
 
         self._server = BridgeServer(
@@ -797,6 +798,34 @@ class Hub:
         # (Not done in _on_mpchc_update itself so that the list survives the
         # brief active_player→none blip that MPC-HC emits during file switches.)
         await self._push({"season_episodes": [], "playlist_index": -1})
+
+    # ------------------------------------------------------------------
+    # Episode navigation (next / prev within season list)
+    # ------------------------------------------------------------------
+    async def _play_episode_cmd(self, direction: str) -> bool:
+        """
+        Called by the router for ``next_episode`` / ``prev_episode`` commands.
+
+        Looks up the adjacent episode in the current ``season_episodes`` list
+        and fires ``external_play`` for it.  Returns False when no list is
+        loaded or the boundary is already reached.
+        """
+        eps = self._state.state.season_episodes
+        idx = self._state.state.playlist_index
+        if not eps or idx < 0:
+            _LOG.debug("_play_episode_cmd: no season list / index — ignored")
+            return False
+        new_idx = idx + (1 if direction == "next_episode" else -1)
+        if new_idx < 0 or new_idx >= len(eps):
+            _LOG.debug("_play_episode_cmd: boundary reached (idx=%d, len=%d)", idx, len(eps))
+            return False
+        filepath = eps[new_idx].get("file", "")
+        if not filepath:
+            _LOG.warning("_play_episode_cmd: episode %d has no file path", new_idx)
+            return False
+        _LOG.info("Episode nav %s: index %d → %d  (%s)", direction, idx, new_idx, filepath)
+        asyncio.create_task(self.external_play(filepath))
+        return True
 
     # ------------------------------------------------------------------
     # External player — setup (writes playercorefactory.xml + config)

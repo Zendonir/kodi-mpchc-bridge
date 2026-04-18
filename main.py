@@ -41,6 +41,13 @@ def _setup_logging(level: str, log_dir: str | None = None) -> None:
 
     handlers: list[logging.Handler] = [logging.StreamHandler()]
 
+    # In-memory circular buffer — queried by HTTP /api/logs
+    try:
+        from bridge.log_buffer import handler as _log_buf
+        handlers.append(_log_buf)
+    except Exception:
+        pass
+
     if log_dir:
         try:
             from logging.handlers import RotatingFileHandler

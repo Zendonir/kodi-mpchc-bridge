@@ -469,4 +469,12 @@ class MpcHcClient:
             updates["subtitletrack_name"] = subtitletrack
             self._last["subtitletrack"] = subtitletrack
 
+        # Current chapter — MPC-HC reports 1-based; state uses 0-based index
+        chapternumber_str = fields.get("chapternumber", "")
+        if chapternumber_str and chapternumber_str.isdigit():
+            chapter_idx = max(0, int(chapternumber_str) - 1)
+            if chapter_idx != self._last.get("current_chapter"):
+                updates["current_chapter"] = chapter_idx
+                self._last["current_chapter"] = chapter_idx
+
         return updates

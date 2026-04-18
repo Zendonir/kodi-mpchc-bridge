@@ -101,6 +101,7 @@ class CommandRouter:
         mpchc: "MpcHcClient",
         on_mpchc_stop: "Callable | None" = None,
         on_toggle_ext_player: "Callable | None" = None,
+        on_play_episode: "Callable | None" = None,
     ) -> None:
         self._state = state
         self._kodi = kodi
@@ -110,6 +111,9 @@ class CommandRouter:
         self._on_mpchc_stop = on_mpchc_stop
         # Optional async callback — toggles external_player_enabled in config.
         self._on_toggle_ext_player = on_toggle_ext_player
+        # Optional async callback(direction) — plays next/prev episode from the
+        # season episode list currently in state.
+        self._on_play_episode = on_play_episode
         # While the resume dialog is visible this is set to the dialog's
         # inject-key function.  All nav/stop commands are redirected there.
         self._dialog_handler: "Callable[[str], None] | None" = None
@@ -153,6 +157,13 @@ class CommandRouter:
                 return True
 
         active = self._active
+
+        # Episode navigation — available whenever a season list is loaded
+        if cmd in ("next_episode", "prev_episode"):
+            _LOG.info("CMD %-22s → episode nav", cmd)
+            if self._on_play_episode:
+                return await self._on_play_episode(cmd)
+            return False
 
         # System-level commands (player-independent)
         if cmd == "toggle_external_player":
