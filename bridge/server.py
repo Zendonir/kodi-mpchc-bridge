@@ -384,7 +384,7 @@ _WEB_UI = """<!DOCTYPE html>
     <div id="ext-status" style="font-size:.84rem;margin-bottom:10px"></div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <input id="mpc-exe" type="text"
-             placeholder="C:\Program Files\MPC-HC\mpc-hc64.exe"
+             placeholder="C:\\Program Files\\MPC-HC\\mpc-hc64.exe"
              style="flex:1;min-width:240px;background:#2a2a2a;border:1px solid #444;
                     color:#ddd;border-radius:6px;padding:5px 9px;font-size:.84rem">
       <label style="display:flex;align-items:center;gap:5px;font-size:.84rem;

@@ -114,39 +114,112 @@ def _match_track(tracks: list[dict], current_name: str) -> int:
 
 def _show_resume_dialog(position_sec: float) -> bool:
     """
-    Show a Windows MessageBox asking the user whether to resume or start from
-    the beginning.  Returns True = resume, False = start from beginning.
+    Show a full-screen dark overlay asking the user to resume or restart.
+    Returns True = resume (Ja), False = from beginning (Nein).
+    "Ja" button is pre-focused — pressing Enter or Space confirms resume.
 
-    Runs in a thread-pool executor so it does not block the asyncio event loop.
-    Falls back to True (resume) on non-Windows or if the dialog raises.
+    Runs in a thread-pool executor (blocking), so it never blocks the asyncio
+    event loop.  Falls back to True (resume) if tkinter is unavailable.
     """
     if sys.platform != "win32":
         return True
-    import ctypes
+
+    try:
+        import tkinter as tk
+    except ImportError:
+        _LOG.warning("_show_resume_dialog: tkinter not available — defaulting to resume")
+        return True
 
     h = int(position_sec // 3600)
     m = int((position_sec % 3600) // 60)
     s = int(position_sec % 60)
     time_str = f"{h}:{m:02d}:{s:02d}" if h > 0 else f"{m}:{s:02d}"
 
-    msg = (
-        f"Möchten Sie den Film fortsetzen?\n\n"
-        f"  ▶  Fortsetzen ab {time_str}\n"
-        f"  ↩  Von Anfang starten"
-    )
-    title = "Kodi · MPC-HC Bridge"
+    result = [True]  # default: resume
 
-    MB_YESNO        = 0x0004
-    MB_ICONQUESTION = 0x0020
-    MB_TOPMOST      = 0x40000
-    MB_SETFOREGROUND = 0x10000
-    IDYES = 6
+    root = tk.Tk()
+    root.title("Kodi · MPC-HC Bridge")
+    root.attributes("-fullscreen", True)
+    root.attributes("-topmost", True)
+    root.overrideredirect(True)   # remove OS title bar for clean overlay
+    root.configure(bg="#111111")
 
-    result = ctypes.windll.user32.MessageBoxW(
-        0, msg, title,
-        MB_YESNO | MB_ICONQUESTION | MB_TOPMOST | MB_SETFOREGROUND,
+    def _choose(val: bool) -> None:
+        result[0] = val
+        root.quit()
+
+    def _on_key(event) -> None:
+        if event.keysym in ("Return", "KP_Enter", "space"):
+            _choose(True)
+        elif event.keysym in ("Escape", "BackSpace"):
+            _choose(False)
+
+    root.bind("<Key>", _on_key)
+
+    # ── Center frame ─────────────────────────────────────────────────────────
+    center = tk.Frame(root, bg="#111111")
+    center.place(relx=0.5, rely=0.44, anchor="center")
+
+    tk.Label(
+        center,
+        text="Film fortsetzen?",
+        font=("Segoe UI", 40, "bold"),
+        fg="#ffffff", bg="#111111",
+    ).pack(pady=(0, 14))
+
+    tk.Label(
+        center,
+        text=f"Zuletzt gesehen bis  {time_str}",
+        font=("Segoe UI", 20),
+        fg="#888888", bg="#111111",
+    ).pack(pady=(0, 56))
+
+    btn_row = tk.Frame(center, bg="#111111")
+    btn_row.pack()
+
+    btn_yes = tk.Button(
+        btn_row,
+        text="Ja",
+        font=("Segoe UI", 24, "bold"),
+        bg="#1c6e2e", fg="#ffffff",
+        activebackground="#27963e", activeforeground="#ffffff",
+        relief="flat", bd=0,
+        width=12, pady=22,
+        cursor="hand2",
+        command=lambda: _choose(True),
     )
-    return result == IDYES
+    btn_yes.grid(row=0, column=0, padx=28)
+
+    btn_no = tk.Button(
+        btn_row,
+        text="Nein",
+        font=("Segoe UI", 24),
+        bg="#2d2d2d", fg="#cccccc",
+        activebackground="#3d3d3d", activeforeground="#ffffff",
+        relief="flat", bd=0,
+        width=12, pady=22,
+        cursor="hand2",
+        command=lambda: _choose(False),
+    )
+    btn_no.grid(row=0, column=1, padx=28)
+
+    # ── Keyboard hint ────────────────────────────────────────────────────────
+    tk.Label(
+        root,
+        text="Enter = Ja   ·   Esc = Nein",
+        font=("Segoe UI", 13),
+        fg="#3a3a3a", bg="#111111",
+    ).place(relx=0.5, rely=0.91, anchor="center")
+
+    btn_yes.focus_set()
+    root.update()
+    root.mainloop()
+    try:
+        root.destroy()
+    except Exception:
+        pass
+
+    return result[0]
 
 
 class Hub:
@@ -599,12 +672,70 @@ class Hub:
     # Toggle external player on / off
     # ------------------------------------------------------------------
     async def _toggle_external_player(self) -> bool:
-        """Flip external_player_enabled in config and broadcast to all clients."""
+        """
+        Flip external_player_enabled in config, update playercorefactory.xml
+        so Kodi immediately uses/stops using the external player, and broadcast
+        the new state to all connected clients.
+        """
         new_val = not self._config.cfg.external_player_enabled
         self._config.update({"external_player_enabled": new_val})
         _LOG.info("External player %s via remote command", "ENABLED" if new_val else "DISABLED")
+
+        # Modify playercorefactory.xml so Kodi's behaviour changes immediately:
+        #   OFF → rename .xml → .xml.bridge_disabled  (Kodi uses internal player)
+        #   ON  → restore .xml.bridge_disabled → .xml  (Kodi calls bridge again)
+        if new_val:
+            self._enable_ext_player_xml()
+        else:
+            self._disable_ext_player_xml()
+
         await self._push({"external_player_enabled": new_val})
         return True
+
+    def _disable_ext_player_xml(self) -> None:
+        """
+        Rename playercorefactory.xml → playercorefactory.xml.bridge_disabled
+        so Kodi falls back to its internal player immediately.
+        """
+        import os
+        xml_path = self._proxy_xml_path()
+        if not xml_path or not os.path.exists(xml_path):
+            _LOG.info("_disable_ext_player_xml: XML not found — nothing to rename")
+            return
+        disabled_path = xml_path + ".bridge_disabled"
+        try:
+            os.replace(xml_path, disabled_path)
+            _LOG.info("Ext. player XML disabled (renamed → %s)", disabled_path)
+        except OSError as exc:
+            _LOG.warning("Cannot disable ext. player XML: %s", exc)
+
+    def _enable_ext_player_xml(self) -> None:
+        """
+        Restore playercorefactory.xml.bridge_disabled → playercorefactory.xml,
+        or re-write it from config if the disabled backup does not exist.
+        """
+        import os
+        xml_path = self._proxy_xml_path()
+        if not xml_path:
+            return
+        disabled_path = xml_path + ".bridge_disabled"
+        if os.path.exists(disabled_path):
+            try:
+                os.replace(disabled_path, xml_path)
+                _LOG.info("Ext. player XML re-enabled (restored from %s)", disabled_path)
+                return
+            except OSError as exc:
+                _LOG.warning("Cannot restore ext. player XML: %s — will re-write", exc)
+        # Fallback: re-write the XML from current config values
+        cfg = self._config.cfg
+        if cfg.mpchc_exe_path:
+            ok, detail = self.setup_external_player(cfg.mpchc_exe_path, cfg.resume_enabled)
+            _LOG.info("Ext. player XML re-written: ok=%s  path=%s", ok, detail)
+        else:
+            _LOG.warning(
+                "Ext. player toggle ON but mpchc_exe_path not configured — "
+                "playercorefactory.xml was NOT written"
+            )
 
     # ------------------------------------------------------------------
     # Immediate MPC-HC stop signal (called by router on explicit stop/back)
