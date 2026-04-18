@@ -386,19 +386,47 @@ class Hub:
     # MPC Proxy integration
     # ------------------------------------------------------------------
     @staticmethod
+    def _proxy_xml_path() -> str:
+        """Return the full path to Kodi's playercorefactory.xml."""
+        import os
+        return os.path.join(
+            os.environ.get("APPDATA", ""),
+            "Kodi", "userdata", "playercorefactory.xml",
+        )
+
+    @staticmethod
+    def proxy_status() -> str:
+        """
+        Check whether MPC Proxy is currently active in Kodi's
+        ``playercorefactory.xml``.
+
+        Returns ``"active"`` if the file exists and references MPC Proxy,
+        ``"inactive"`` otherwise (file missing, empty, or different player).
+        """
+        import os
+        xml_path = Hub._proxy_xml_path()
+        if not os.path.exists(xml_path):
+            return "inactive"
+        try:
+            with open(xml_path, "r", encoding="utf-8", errors="replace") as fh:
+                return "active" if "MPC Proxy" in fh.read() else "inactive"
+        except Exception:
+            return "inactive"
+
+    @staticmethod
     def setup_proxy(proxy_path: str) -> tuple[bool, str]:
         """
         Write *playercorefactory.xml* to Kodi's userdata folder so that
         MPC Proxy is used as the external player for all video files.
 
-        *proxy_path* is the full path to ``mpc_proxy.exe``.
+        If a ``playercorefactory.xml`` already exists and no ``.bak`` backup
+        has been taken yet, a backup is created first so the original can be
+        restored later via :meth:`disable_proxy`.
 
         Returns ``(True, xml_path)`` on success or ``(False, error_msg)`` on failure.
-        The XML instructs Kodi to launch the proxy for every video file;
-        the proxy itself reads the Kodi resume point, shows a fullscreen dialog,
-        and then spawns MPC-HC with the correct ``/startpos`` flag.
         """
         import os
+        import shutil
         import xml.sax.saxutils as _saxutils
 
         appdata = os.environ.get("APPDATA", "")
@@ -412,8 +440,17 @@ class Hub:
             return False, f"Cannot create Kodi userdata dir: {exc}"
 
         xml_path = os.path.join(userdata, "playercorefactory.xml")
-        proxy_esc = _saxutils.escape(proxy_path, {'"': "&quot;"})
+        bak_path = xml_path + ".bak"
 
+        # Back up the existing file exactly once (don't overwrite an earlier backup)
+        if os.path.exists(xml_path) and not os.path.exists(bak_path):
+            try:
+                shutil.copy2(xml_path, bak_path)
+                _LOG.info("MPC Proxy setup: backed up original → %s", bak_path)
+            except OSError as exc:
+                _LOG.warning("MPC Proxy setup: backup skipped — %s", exc)
+
+        proxy_esc = _saxutils.escape(proxy_path, {'"': "&quot;"})
         xml = (
             '<?xml version="1.0" encoding="utf-8"?>\n'
             '<playercorefactory>\n'
@@ -438,6 +475,43 @@ class Hub:
         except OSError as exc:
             _LOG.error("MPC Proxy setup failed: %s", exc)
             return False, str(exc)
+
+    @staticmethod
+    def disable_proxy() -> tuple[bool, str]:
+        """
+        Deactivate MPC Proxy as Kodi's external player.
+
+        * If a ``.bak`` backup exists → restore it (the user's original config).
+        * Otherwise → delete ``playercorefactory.xml`` entirely.
+
+        Returns ``(True, detail_msg)`` on success or ``(False, error_msg)`` on failure.
+        ``detail_msg`` is one of ``"restored"``, ``"removed"``, or ``"already_inactive"``.
+        """
+        import os
+        import shutil
+
+        xml_path = Hub._proxy_xml_path()
+        bak_path = xml_path + ".bak"
+
+        if os.path.exists(bak_path):
+            try:
+                shutil.copy2(bak_path, xml_path)
+                _LOG.info("MPC Proxy disabled: original config restored from %s", bak_path)
+                return True, "restored"
+            except OSError as exc:
+                _LOG.error("MPC Proxy disable (restore) failed: %s", exc)
+                return False, str(exc)
+
+        if os.path.exists(xml_path):
+            try:
+                os.remove(xml_path)
+                _LOG.info("MPC Proxy disabled: removed %s (no backup existed)", xml_path)
+                return True, "removed"
+            except OSError as exc:
+                _LOG.error("MPC Proxy disable (remove) failed: %s", exc)
+                return False, str(exc)
+
+        return True, "already_inactive"
 
     # ------------------------------------------------------------------
     # MKV parser (blocking, runs in thread pool)

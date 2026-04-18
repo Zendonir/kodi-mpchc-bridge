@@ -50,7 +50,9 @@ class BridgeServer:
         self._app.router.add_post("/api/command", self._handle_command)
         self._app.router.add_get("/api/config", self._handle_config_get)
         self._app.router.add_post("/api/config", self._handle_config_post)
+        self._app.router.add_get("/api/proxy/status", self._handle_proxy_status)
         self._app.router.add_post("/api/proxy/setup", self._handle_proxy_setup)
+        self._app.router.add_post("/api/proxy/disable", self._handle_proxy_disable)
         self._app.router.add_get("/api/ws", self._handle_ws)
         self._app.router.add_get("/api/artwork", self._handle_artwork)
         self._app.router.add_get("/", self._handle_root)
@@ -124,6 +126,11 @@ class BridgeServer:
         self._config.update(body)
         return web.json_response({"ok": True})
 
+    async def _handle_proxy_status(self, request: web.Request) -> web.Response:
+        """GET /api/proxy/status — returns "active" or "inactive"."""
+        from bridge.hub import Hub
+        return web.json_response({"status": Hub.proxy_status()})
+
     async def _handle_proxy_setup(self, request: web.Request) -> web.Response:
         """POST /api/proxy/setup — write Kodi playercorefactory.xml for MPC Proxy."""
         try:
@@ -138,6 +145,14 @@ class BridgeServer:
         if ok:
             return web.json_response({"ok": True, "xml_path": result})
         return web.json_response({"ok": False, "error": result}, status=500)
+
+    async def _handle_proxy_disable(self, request: web.Request) -> web.Response:
+        """POST /api/proxy/disable — restore original playercorefactory.xml."""
+        from bridge.hub import Hub
+        ok, detail = Hub.disable_proxy()
+        if ok:
+            return web.json_response({"ok": True, "detail": detail})
+        return web.json_response({"ok": False, "error": detail}, status=500)
 
     def set_artwork(self, data: bytes, content_type: str) -> None:
         """Store artwork fetched from Kodi. Called by the hub."""
