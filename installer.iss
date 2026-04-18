@@ -300,7 +300,8 @@ end;
 // --------------------------------------------------------------------------
 function ReadConfigString(const Key: String): String;
 var
-  FilePath, Content, SearchStr: String;
+  FilePath, SearchStr: String;
+  Content: AnsiString;
   P, Q: Integer;
   Ch: Char;
 begin
@@ -334,7 +335,8 @@ end;
 // --------------------------------------------------------------------------
 function ReadConfigBool(const Key: String): Boolean;
 var
-  FilePath, Content, SearchStr: String;
+  FilePath, SearchStr: String;
+  Content: AnsiString;
   P: Integer;
 begin
   Result := False;
