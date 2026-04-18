@@ -141,7 +141,10 @@ class Hub:
             on_state=self._on_mpchc_update,
         )
 
-        self._router = CommandRouter(self._state, self._kodi, self._mpchc)
+        self._router = CommandRouter(
+            self._state, self._kodi, self._mpchc,
+            on_mpchc_stop=self._signal_mpchc_stopped,
+        )
 
         self._server = BridgeServer(
             state_manager=self._state,
@@ -549,6 +552,24 @@ class Hub:
         return True, "already_inactive"
 
     # ------------------------------------------------------------------
+    # Immediate MPC-HC stop signal (called by router on explicit stop/back)
+    # ------------------------------------------------------------------
+    async def _signal_mpchc_stopped(self) -> None:
+        """
+        Called by the CommandRouter when the user explicitly stops MPC-HC via
+        the bridge (stop button, back/home nav).
+
+        Immediately pushes active_player=none so the --play process can exit
+        right away and Kodi returns to its UI without waiting for the next
+        MPC-HC poll cycle.
+        """
+        if not self._mpchc_active:
+            return
+        _LOG.info("Explicit stop — immediately signalling active_player=none")
+        # Re-use the full transition logic in _on_mpchc_update
+        await self._on_mpchc_update({"active_player": "none", "state": "idle"})
+
+    # ------------------------------------------------------------------
     # External player — setup (writes playercorefactory.xml + config)
     # ------------------------------------------------------------------
     def setup_external_player(
@@ -722,13 +743,21 @@ class Hub:
         * position ≥ 90 % of duration  →  mark watched
           (playcount = 1, lastplayed = now, resume cleared)
         * position ≥ 60 s              →  save resume point
-        * otherwise                    →  no-op  (too short to bother)
+        * otherwise                    →  reset playcount only
+
+        Kodi auto-marks any file as watched when an external player process
+        exits (Player.OnStop).  We must always reset playcount to 0 when the
+        film was NOT actually finished, otherwise the library incorrectly shows
+        it as seen.  A short sleep is inserted so that our write arrives
+        *after* Kodi's auto-mark (the --play process exits ≤1 s after we push
+        active_player=none, and Kodi fires OnStop shortly after).
         """
         if not filepath:
             return
 
         _WATCH_THRESHOLD = 0.90   # fraction of duration considered "done"
         _MIN_RESUME_SECS = 60.0   # don't save resume for <1 min watched
+        _AUTO_MARK_WAIT  = 4.0    # seconds to wait for Kodi's auto-mark to land
 
         try:
             found = await self._kodi.find_library_item(filepath)
@@ -747,6 +776,7 @@ class Hub:
             return
 
         if duration > 0 and position >= duration * _WATCH_THRESHOLD:
+            # Truly finished — Kodi's auto-mark and ours agree; no reset needed.
             _LOG.info(
                 "kodi sync: position %.1f s / %.1f s (%.0f %%) → marking watched"
                 "  [%s id=%d]",
@@ -755,19 +785,26 @@ class Hub:
             )
             await self._kodi.set_watched(media_type, media_id)
 
-        elif position >= _MIN_RESUME_SECS:
-            _LOG.info(
-                "kodi sync: position %.1f s / %.1f s → saving resume point"
-                "  [%s id=%d]",
-                position, duration, media_type, media_id,
-            )
-            await self._kodi.set_resume_position(media_type, media_id, position, duration)
-
         else:
-            _LOG.debug(
-                "kodi sync: position %.1f s is too short to save  [%s id=%d]",
-                position, media_type, media_id,
-            )
+            # Not finished — wait for Kodi's external-player auto-mark to land,
+            # then reset playcount to 0 and optionally save resume.
+            await asyncio.sleep(_AUTO_MARK_WAIT)
+
+            await self._kodi.reset_watched(media_type, media_id)
+
+            if position >= _MIN_RESUME_SECS:
+                _LOG.info(
+                    "kodi sync: position %.1f s / %.1f s → saving resume point"
+                    "  [%s id=%d]",
+                    position, duration, media_type, media_id,
+                )
+                await self._kodi.set_resume_position(media_type, media_id, position, duration)
+            else:
+                _LOG.debug(
+                    "kodi sync: position %.1f s is too short to save"
+                    " — playcount reset only  [%s id=%d]",
+                    position, media_type, media_id,
+                )
 
     # ------------------------------------------------------------------
     # MKV parser (blocking, runs in thread pool)

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from bridge.kodi_client import KodiClient
@@ -99,10 +99,14 @@ class CommandRouter:
         state: "StateManager",
         kodi: "KodiClient",
         mpchc: "MpcHcClient",
+        on_mpchc_stop: "Callable | None" = None,
     ) -> None:
         self._state = state
         self._kodi = kodi
         self._mpchc = mpchc
+        # Optional async callback — called before MPC-HC is closed so the hub
+        # can immediately signal active_player=none (speeds up Kodi return).
+        self._on_mpchc_stop = on_mpchc_stop
 
     @property
     def _active(self) -> str:
@@ -248,7 +252,10 @@ class CommandRouter:
         if cmd == "play_pause":
             return await self._mpchc.send_command(CMD_PLAY_PAUSE)
         elif cmd == "stop":
-            # Stop = close MPC-HC entirely
+            # Signal hub immediately so active_player=none is pushed right away
+            # → --play process exits → Kodi returns without waiting for poll timeout
+            if self._on_mpchc_stop:
+                await self._on_mpchc_stop()
             await self._mpchc.close()
             return True
         elif cmd == "next_chapter":
@@ -303,7 +310,9 @@ class CommandRouter:
     # ------------------------------------------------------------------
     async def _handle_mpchc_nav(self, cmd: str) -> bool:
         if cmd in ("navigate_back", "navigate_home"):
-            # Back / Home → close MPC-HC
+            # Back / Home → close MPC-HC (same as stop — signal immediately)
+            if self._on_mpchc_stop:
+                await self._on_mpchc_stop()
             await self._mpchc.close()
             return True
         elif cmd == "show_info":

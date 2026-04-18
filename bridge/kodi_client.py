@@ -529,6 +529,27 @@ class KodiClient:
         _LOG.warning("set_resume_position: %s id=%d failed", media_type, media_id)
         return False
 
+    async def reset_watched(self, media_type: str, media_id: int) -> bool:
+        """
+        Reset watched status to unwatched (playcount = 0).
+
+        Called after MPC-HC stops when the film was not finished.  Kodi
+        auto-marks any file as watched when an external player process exits,
+        so we need to undo that explicitly.
+        """
+        if media_type == "movie":
+            method = "VideoLibrary.SetMovieDetails"
+            params: dict = {"movieid": media_id, "playcount": 0}
+        else:
+            method = "VideoLibrary.SetEpisodeDetails"
+            params = {"episodeid": media_id, "playcount": 0}
+        result = await self._call(method, params)
+        if result is not None:
+            _LOG.info("reset_watched: %s id=%d → playcount=0", media_type, media_id)
+            return True
+        _LOG.warning("reset_watched: %s id=%d failed", media_type, media_id)
+        return False
+
     async def set_watched(self, media_type: str, media_id: int) -> bool:
         """
         Mark a movie or episode as watched in Kodi.
