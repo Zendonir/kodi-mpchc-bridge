@@ -116,7 +116,11 @@ def _show_resume_dialog(position_sec: float) -> bool:
     """
     Show a full-screen dark overlay asking the user to resume or restart.
     Returns True = resume (Ja), False = from beginning (Nein).
-    "Ja" button is pre-focused — pressing Enter or Space confirms resume.
+
+    Keyboard navigation:
+      ←  /  →  /  Tab     — switch between Ja and Nein
+      Enter / Space        — confirm focused button
+      Esc / Backspace      — choose Nein (start from beginning)
 
     Runs in a thread-pool executor (blocking), so it never blocks the asyncio
     event loop.  Falls back to True (resume) if tkinter is unavailable.
@@ -135,7 +139,8 @@ def _show_resume_dialog(position_sec: float) -> bool:
     s = int(position_sec % 60)
     time_str = f"{h}:{m:02d}:{s:02d}" if h > 0 else f"{m}:{s:02d}"
 
-    result = [True]  # default: resume
+    result  = [True]   # default: resume
+    focused = [0]      # 0 = Ja,  1 = Nein
 
     root = tk.Tk()
     root.title("Kodi · MPC-HC Bridge")
@@ -148,11 +153,28 @@ def _show_resume_dialog(position_sec: float) -> bool:
         result[0] = val
         root.quit()
 
-    def _on_key(event) -> None:
-        if event.keysym in ("Return", "KP_Enter", "space"):
-            _choose(True)
-        elif event.keysym in ("Escape", "BackSpace"):
+    # ── Button wrapper frames act as focus-indicator borders ─────────────────
+    # frame bg="#ffffff" = focused (white border)  /  bg="#111111" = unfocused
+    frame_yes: "tk.Frame"
+    frame_no:  "tk.Frame"
+
+    def _set_focus(idx: int) -> None:
+        """Move keyboard focus to button 0 (Ja) or 1 (Nein) and redraw borders."""
+        focused[0] = idx
+        frame_yes.config(bg="#ffffff" if idx == 0 else "#111111")
+        frame_no.config( bg="#ffffff" if idx == 1 else "#111111")
+
+    def _on_key(event) -> str:
+        ks = event.keysym
+        if ks in ("Right", "Tab"):
+            _set_focus(1)
+        elif ks == "Left":
+            _set_focus(0)
+        elif ks in ("Return", "KP_Enter", "space"):
+            _choose(focused[0] == 0)   # confirm whichever button is active
+        elif ks in ("Escape", "BackSpace"):
             _choose(False)
+        return "break"  # prevent tkinter's own Tab / arrow handling
 
     root.bind("<Key>", _on_key)
 
@@ -177,8 +199,11 @@ def _show_resume_dialog(position_sec: float) -> bool:
     btn_row = tk.Frame(center, bg="#111111")
     btn_row.pack()
 
+    # Ja — pre-selected, white border
+    frame_yes = tk.Frame(btn_row, bg="#ffffff", padx=4, pady=4)
+    frame_yes.grid(row=0, column=0, padx=28)
     btn_yes = tk.Button(
-        btn_row,
+        frame_yes,
         text="Ja",
         font=("Segoe UI", 24, "bold"),
         bg="#1c6e2e", fg="#ffffff",
@@ -188,10 +213,13 @@ def _show_resume_dialog(position_sec: float) -> bool:
         cursor="hand2",
         command=lambda: _choose(True),
     )
-    btn_yes.grid(row=0, column=0, padx=28)
+    btn_yes.pack()
 
+    # Nein — no border initially
+    frame_no = tk.Frame(btn_row, bg="#111111", padx=4, pady=4)
+    frame_no.grid(row=0, column=1, padx=28)
     btn_no = tk.Button(
-        btn_row,
+        frame_no,
         text="Nein",
         font=("Segoe UI", 24),
         bg="#2d2d2d", fg="#cccccc",
@@ -201,17 +229,18 @@ def _show_resume_dialog(position_sec: float) -> bool:
         cursor="hand2",
         command=lambda: _choose(False),
     )
-    btn_no.grid(row=0, column=1, padx=28)
+    btn_no.pack()
 
     # ── Keyboard hint ────────────────────────────────────────────────────────
     tk.Label(
         root,
-        text="Enter = Ja   ·   Esc = Nein",
+        text="\u2190 \u2192 Auswahl   \u00B7   Enter = Best\u00E4tigen   \u00B7   Esc = Nein",
         font=("Segoe UI", 13),
         fg="#3a3a3a", bg="#111111",
     ).place(relx=0.5, rely=0.91, anchor="center")
 
-    btn_yes.focus_set()
+    # Give keyboard focus to the root window so all key events are caught
+    root.focus_force()
     root.update()
     root.mainloop()
     try:
