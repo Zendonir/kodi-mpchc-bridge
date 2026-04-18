@@ -127,12 +127,19 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # ── External player mode: forward filepath to the running bridge ──────────
-    # kodi-bridge.exe --play "C:\path\to\file.mkv"
-    # POSTs to the running bridge's /api/external_play and exits immediately.
+    # ── External player mode ───────────────────────────────────────────────────
+    # Kodi calls:  kodi-bridge.exe --play "{filepath}"
+    #
+    # This process acts as the "pseudo-player" that Kodi waits on:
+    #   1. POST /api/external_play  → bridge opens MPC-HC (with resume seek)
+    #   2. Poll /api/state          → wait until active_player == "mpchc"
+    #   3. Poll /api/state          → stay alive while active_player == "mpchc"
+    #   4. Exit                     → Kodi sees player closed → returns to UI
     if args.play:
         import json as _json
-        import urllib.request
+        import time as _time
+        import urllib.request as _urq
+
         _setup_logging(args.log_level)
         port = 13590
         try:
@@ -140,18 +147,50 @@ def main() -> None:
             port = ConfigManager(args.config_dir).cfg.server_port
         except Exception:
             pass
-        url = f"http://localhost:{port}/api/external_play"
+
+        base = f"http://localhost:{port}"
+
+        # ── Step 1: tell bridge to launch MPC-HC ─────────────────────────────
         payload = _json.dumps({"filepath": args.play}).encode()
         try:
-            req = urllib.request.Request(
-                url, data=payload,
+            req = _urq.Request(
+                f"{base}/api/external_play", data=payload,
                 headers={"Content-Type": "application/json"},
             )
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                _LOG.info("--play: bridge accepted request (HTTP %d)", resp.status)
+            with _urq.urlopen(req, timeout=5) as resp:
+                _LOG.info("--play: bridge accepted (HTTP %d)", resp.status)
         except Exception as exc:
-            _LOG.error("--play: could not contact bridge at %s: %s", url, exc)
+            _LOG.error("--play: cannot reach bridge at %s — %s", base, exc)
             sys.exit(1)
+
+        def _active_player() -> str | None:
+            """Return active_player field from /api/state, or None on error."""
+            try:
+                with _urq.urlopen(f"{base}/api/state", timeout=3) as r:
+                    return _json.loads(r.read()).get("active_player", "none")
+            except Exception:
+                return None
+
+        # ── Step 2: wait up to 30 s for MPC-HC to appear ─────────────────────
+        _LOG.info("--play: waiting for MPC-HC to become active…")
+        _deadline = _time.monotonic() + 30
+        while _time.monotonic() < _deadline:
+            if _active_player() == "mpchc":
+                break
+            _time.sleep(1)
+        else:
+            _LOG.warning("--play: MPC-HC did not start within 30 s — exiting")
+            sys.exit(0)
+
+        # ── Step 3: stay alive while MPC-HC is playing ────────────────────────
+        _LOG.info("--play: MPC-HC active — holding process alive for Kodi…")
+        while True:
+            ap = _active_player()
+            if ap is not None and ap != "mpchc":
+                break
+            _time.sleep(2)
+
+        _LOG.info("--play: MPC-HC closed — releasing Kodi")
         sys.exit(0)
 
     # Test-Client bekommt kein Datei-Logging (nur kurzlebiges Debug-Fenster)
