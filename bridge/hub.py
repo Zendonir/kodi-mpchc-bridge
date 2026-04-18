@@ -150,6 +150,7 @@ class Hub:
             host=cfg.server_host,
             port=cfg.server_port,
             on_external_play=self.external_play,
+            on_player_setup=self.setup_external_player,
         )
 
     # ------------------------------------------------------------------
@@ -163,6 +164,15 @@ class Hub:
         if cfg.mpchc_enabled:
             self._mpchc.start()
         _LOG.info("Hub started")
+        if cfg.mpchc_exe_path:
+            _LOG.info("External player: exe=%r  resume=%s", cfg.mpchc_exe_path, cfg.resume_enabled)
+        else:
+            _LOG.warning(
+                "External player NOT configured (mpchc_exe_path is empty). "
+                "Open the Bridge web UI at http://localhost:%d and use "
+                "'External Player Setup' to configure it.",
+                cfg.server_port,
+            )
 
     async def stop(self) -> None:
         await self._kodi.stop()
@@ -534,6 +544,87 @@ class Hub:
                 return False, str(exc)
 
         return True, "already_inactive"
+
+    # ------------------------------------------------------------------
+    # External player — setup (writes playercorefactory.xml + config)
+    # ------------------------------------------------------------------
+    def setup_external_player(
+        self, mpchc_exe: str, resume_enabled: bool
+    ) -> tuple[bool, str]:
+        """
+        1. Persist mpchc_exe_path + resume_enabled to config.json.
+        2. Write %APPDATA%\\Kodi\\userdata\\playercorefactory.xml so that
+           Kodi calls ``kodi-bridge.exe --play "{filepath}"`` as external player.
+
+        Returns (True, xml_path) on success, (False, error_msg) on failure.
+        """
+        import os
+        import shutil
+        import sys
+        import xml.sax.saxutils as _sx
+
+        # 1. Update config ────────────────────────────────────────────────────
+        self._config.update({
+            "mpchc_exe_path": mpchc_exe,
+            "resume_enabled": resume_enabled,
+        })
+        _LOG.info("Config updated: mpchc_exe_path=%r, resume_enabled=%s",
+                  mpchc_exe, resume_enabled)
+
+        # 2. Determine this exe's path ─────────────────────────────────────────
+        if getattr(sys, "frozen", False):
+            bridge_exe = sys.executable  # kodi-bridge.exe in frozen mode
+        else:
+            # Dev / source mode — derive from config file location
+            bridge_exe = os.path.join(
+                os.path.dirname(self._config._path), "kodi-bridge.exe"
+            )
+
+        # 3. Write playercorefactory.xml ──────────────────────────────────────
+        appdata = os.environ.get("APPDATA", "")
+        if not appdata:
+            return False, "APPDATA environment variable not set"
+        userdata = os.path.join(appdata, "Kodi", "userdata")
+        try:
+            os.makedirs(userdata, exist_ok=True)
+        except OSError as exc:
+            return False, f"Cannot create Kodi userdata dir: {exc}"
+
+        xml_path = os.path.join(userdata, "playercorefactory.xml")
+        bak_path = xml_path + ".bak"
+        if os.path.exists(xml_path) and not os.path.exists(bak_path):
+            try:
+                shutil.copy2(xml_path, bak_path)
+                _LOG.info("Backed up original playercorefactory.xml → %s", bak_path)
+            except OSError:
+                pass  # non-fatal
+
+        exe_esc = _sx.escape(bridge_exe, {'"': "&quot;"})
+        xml = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<playercorefactory>\n'
+            '  <players>\n'
+            '    <player name="Kodi-MPC-HC Bridge"'
+            ' type="ExternalPlayer" audio="false" video="true">\n'
+            f'      <filename>{exe_esc}</filename>\n'
+            '      <args>--play "{filepath}"</args>\n'
+            '      <hidexbmc>true</hidexbmc>\n'
+            '      <hideconsole>true</hideconsole>\n'
+            '    </player>\n'
+            '  </players>\n'
+            '  <rules action="prepend">\n'
+            '    <rule video="true" audio="false" player="Kodi-MPC-HC Bridge"/>\n'
+            '  </rules>\n'
+            '</playercorefactory>\n'
+        )
+        try:
+            with open(xml_path, "w", encoding="utf-8") as fh:
+                fh.write(xml)
+            _LOG.info("playercorefactory.xml written → %s", xml_path)
+            return True, xml_path
+        except OSError as exc:
+            _LOG.error("Cannot write playercorefactory.xml: %s", exc)
+            return False, str(exc)
 
     # ------------------------------------------------------------------
     # External player / built-in resume

@@ -35,6 +35,7 @@ class BridgeServer:
         host: str = "0.0.0.0",
         port: int = 13590,
         on_external_play=None,
+        on_player_setup=None,
     ) -> None:
         self._state = state_manager
         self._router = router
@@ -42,6 +43,7 @@ class BridgeServer:
         self._host = host
         self._port = port
         self._on_external_play = on_external_play
+        self._on_player_setup = on_player_setup
         self._ws_clients: set[web.WebSocketResponse] = set()
         self._app = web.Application()
         self._runner: web.AppRunner | None = None
@@ -56,6 +58,8 @@ class BridgeServer:
         self._app.router.add_post("/api/proxy/setup", self._handle_proxy_setup)
         self._app.router.add_post("/api/proxy/disable", self._handle_proxy_disable)
         self._app.router.add_post("/api/external_play", self._handle_external_play)
+        self._app.router.add_get("/api/external_player", self._handle_ext_player_get)
+        self._app.router.add_post("/api/external_player/setup", self._handle_ext_player_setup)
         self._app.router.add_get("/api/ws", self._handle_ws)
         self._app.router.add_get("/api/artwork", self._handle_artwork)
         self._app.router.add_get("/", self._handle_root)
@@ -170,6 +174,36 @@ class BridgeServer:
             return web.json_response({"error": "missing filepath"}, status=400)
         asyncio.create_task(self._on_external_play(filepath))
         return web.json_response({"ok": True})
+
+    async def _handle_ext_player_get(self, request: web.Request) -> web.Response:
+        """GET /api/external_player — current external player config."""
+        import os
+        cfg = self._config.cfg
+        appdata = os.environ.get("APPDATA", "")
+        xml_path = os.path.join(appdata, "Kodi", "userdata", "playercorefactory.xml") if appdata else ""
+        return web.json_response({
+            "mpchc_exe_path": cfg.mpchc_exe_path,
+            "resume_enabled": cfg.resume_enabled,
+            "xml_exists": os.path.exists(xml_path),
+            "xml_path": xml_path,
+        })
+
+    async def _handle_ext_player_setup(self, request: web.Request) -> web.Response:
+        """POST /api/external_player/setup — write playercorefactory.xml + update config."""
+        if self._on_player_setup is None:
+            return web.json_response({"error": "not available"}, status=501)
+        try:
+            body = await request.json()
+        except Exception:
+            return web.json_response({"error": "invalid JSON"}, status=400)
+        mpchc_exe = (body.get("mpchc_exe") or "").strip()
+        if not mpchc_exe:
+            return web.json_response({"error": "mpchc_exe is required"}, status=400)
+        resume_enabled = bool(body.get("resume_enabled", True))
+        ok, detail = self._on_player_setup(mpchc_exe, resume_enabled)
+        if ok:
+            return web.json_response({"ok": True, "xml_path": detail})
+        return web.json_response({"ok": False, "error": detail}, status=500)
 
     def set_artwork(self, data: bytes, content_type: str) -> None:
         """Store artwork fetched from Kodi. Called by the hub."""
@@ -333,6 +367,26 @@ _WEB_UI = """<!DOCTYPE html>
     <table id="tbl-tracks"></table>
   </div>
 
+  <!-- Card: External player setup (full width) -->
+  <div class="card" style="grid-column:1/-1">
+    <h2 data-i18n="card_ext_player"></h2>
+    <div id="ext-status" style="font-size:.84rem;margin-bottom:10px"></div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input id="mpc-exe" type="text"
+             placeholder="C:\Program Files\MPC-HC\mpc-hc64.exe"
+             style="flex:1;min-width:240px;background:#2a2a2a;border:1px solid #444;
+                    color:#ddd;border-radius:6px;padding:5px 9px;font-size:.84rem">
+      <label style="display:flex;align-items:center;gap:5px;font-size:.84rem;
+                    cursor:pointer;white-space:nowrap">
+        <input type="checkbox" id="resume-chk" checked>
+        <span data-i18n="lbl_resume_chk"></span>
+      </label>
+      <button onclick="setupExtPlayer()" data-i18n="btn_setup_player"
+              style="white-space:nowrap"></button>
+    </div>
+    <div id="ext-msg" style="margin-top:7px;font-size:.8rem"></div>
+  </div>
+
 </div>
 
 <script>
@@ -370,6 +424,11 @@ const _TR = {
     btn_fullscreen:'\u26F6 Fullscreen',
     btn_restart_pc:'\u23FB Restart PC',
     confirm_restart:'Schedule a system restart in 10 seconds?',
+    card_ext_player:'External Player Setup',
+    lbl_resume_chk:'Use built-in resume',
+    btn_setup_player:'\u2699 Configure',
+    ext_not_configured:'\u26A0 Not configured \u2014 enter the MPC-HC path and click Configure.',
+    ext_configured:'\u2713 Configured',
   },
   de:{
     status_connecting:'Verbinde\u2026',
@@ -402,6 +461,11 @@ const _TR = {
     btn_fullscreen:'\u26F6 Vollbild',
     btn_restart_pc:'\u23FB PC neu starten',
     confirm_restart:'PC in 10 Sekunden neu starten?',
+    card_ext_player:'Externen Player einrichten',
+    lbl_resume_chk:'Resume aktivieren',
+    btn_setup_player:'\u2699 Einrichten',
+    ext_not_configured:'\u26A0 Nicht konfiguriert \u2014 MPC-HC Pfad eingeben und Einrichten klicken.',
+    ext_configured:'\u2713 Konfiguriert',
   },
   fr:{
     status_connecting:'Connexion\u2026',
@@ -625,6 +689,58 @@ document.addEventListener('keydown', function(e) {
   if (map[e.key]) { e.preventDefault(); cmd(map[e.key]); }
 });
 
+// ── External player setup ──────────────────────────────────────────────────────
+async function loadExtPlayerStatus() {
+  try {
+    const d = await fetch('/api/external_player').then(r => r.json());
+    const el = document.getElementById('ext-status');
+    const inp = document.getElementById('mpc-exe');
+    const chk = document.getElementById('resume-chk');
+    if (d.mpchc_exe_path) {
+      const xmlOk = d.xml_exists
+        ? ' &nbsp;<span style="color:#6af;font-size:.75rem">&#x2713; playercorefactory.xml</span>'
+        : ' &nbsp;<span style="color:#f96;font-size:.75rem">&#x26A0; playercorefactory.xml fehlt!</span>';
+      el.innerHTML = '<span style="color:#6f6">' + t('ext_configured') + '</span>: '
+        + d.mpchc_exe_path + xmlOk;
+      inp.value = d.mpchc_exe_path;
+    } else {
+      el.innerHTML = '<span style="color:#f96">' + t('ext_not_configured') + '</span>';
+    }
+    if (chk) chk.checked = d.resume_enabled !== false;
+  } catch(e) {}
+}
+
+async function setupExtPlayer() {
+  const exe  = (document.getElementById('mpc-exe').value || '').trim();
+  const res  = document.getElementById('resume-chk').checked;
+  const msgEl = document.getElementById('ext-msg');
+  if (!exe) {
+    msgEl.style.color = '#f96';
+    msgEl.textContent = '\u26A0 Bitte Pfad zu mpc-hc64.exe eingeben.';
+    return;
+  }
+  msgEl.style.color = '#888';
+  msgEl.textContent = '\u23F3 Einrichten\u2026';
+  try {
+    const d = await fetch('/api/external_player/setup', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({mpchc_exe: exe, resume_enabled: res}),
+    }).then(r => r.json());
+    if (d.ok) {
+      msgEl.style.color = '#6f6';
+      msgEl.textContent = '\u2713 Fertig! playercorefactory.xml: ' + d.xml_path;
+    } else {
+      msgEl.style.color = '#f66';
+      msgEl.textContent = '\u2717 Fehler: ' + (d.error || 'unbekannt');
+    }
+    loadExtPlayerStatus();
+  } catch(e) {
+    msgEl.style.color = '#f66';
+    msgEl.textContent = '\u2717 ' + e;
+  }
+}
+
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${proto}://${location.host}/api/ws`);
@@ -645,6 +761,7 @@ function connect() {
 }
 
 connect();
+loadExtPlayerStatus();
 </script>
 </body>
 </html>

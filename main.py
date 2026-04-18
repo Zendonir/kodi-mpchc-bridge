@@ -140,7 +140,8 @@ def main() -> None:
         import time as _time
         import urllib.request as _urq
 
-        _setup_logging(args.log_level)
+        # Log to file too — process runs hidden (hideconsole=true in playercorefactory.xml)
+        _setup_logging(args.log_level, log_dir=args.config_dir)
         port = 13590
         try:
             from bridge.config import ConfigManager
