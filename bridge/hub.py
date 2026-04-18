@@ -363,13 +363,24 @@ class Hub:
         if subtitletrack_name is not None:
             self._last_subtitletrack_name = subtitletrack_name
 
-        # MKV parsing on filepath change
+        # Video info / track parsing on filepath change.
+        # MKV → full EBML parse (tracks, chapters, video info) + ffprobe HDR fallback.
+        # Other video containers → ffprobe HDR only (EBML returns empty gracefully).
+        _VIDEO_EXTS = frozenset({
+            ".mkv", ".mp4", ".m4v", ".mov", ".avi",
+            ".ts", ".m2ts", ".mpg", ".mpeg", ".wmv",
+        })
         new_filepath = updates.get("filepath")
         if new_filepath is not None and new_filepath != self._last_filepath:
             self._last_filepath = new_filepath
             _LOG.info("MPC-HC filepath: %s", new_filepath)
-            if new_filepath and new_filepath.lower().endswith(".mkv"):
-                _LOG.info("Parsing MKV tracks…")
+            import os as _os
+            _fp_ext = _os.path.splitext(new_filepath.lower())[1] if new_filepath else ""
+            if new_filepath and _fp_ext in _VIDEO_EXTS:
+                if _fp_ext == ".mkv":
+                    _LOG.info("Parsing MKV tracks + video info…")
+                else:
+                    _LOG.info("Probing video info via ffprobe (%s)…", _fp_ext)
                 mkv_updates = await asyncio.get_running_loop().run_in_executor(
                     None, self._parse_mkv_sync, new_filepath
                 )
@@ -1018,9 +1029,17 @@ class Hub:
         await self._kodi.notify_library_update(media_type, media_id)
 
     # ------------------------------------------------------------------
-    # MKV parser (blocking, runs in thread pool)
+    # Video info parser (blocking, runs in thread pool)
     # ------------------------------------------------------------------
     def _parse_mkv_sync(self, filepath: str) -> dict[str, Any]:
+        """
+        Parse video metadata from *filepath*.
+
+        For .mkv: full EBML parse (tracks, chapters, resolution, FPS, HDR)
+                  with ffprobe HDR fallback inside parse_mkv().
+        For other containers: parse_mkv() returns empty gracefully; the ffprobe
+                  fallback inside it still fills in the HDR field.
+        """
         try:
             tracks = parse_mkv(filepath)
             audio, subs, chapters, video_info = tracks_to_dicts(tracks)
@@ -1031,17 +1050,17 @@ class Hub:
                 result["subtitle_tracks"] = subs
             if chapters:
                 result["chapters"] = chapters
-            # Always push video info (even zeros clear stale values)
+            # Always push video info (even zeros clear stale values from previous file)
             result.update(video_info)
             v = tracks.video
             _LOG.info(
-                "MKV parsed: %d audio, %d subs, %d chapters, "
-                "video=%dx%d %.3ffps %s bitrate=%dkbps from %s",
+                "Video info: %d audio, %d subs, %d chapters, "
+                "%dx%d %.3ffps %s bitrate=%dkbps  [%s]",
                 len(audio), len(subs), len(chapters),
                 v.width, v.height, v.fps, v.hdr or "SDR",
                 v.bitrate_kbps, filepath,
             )
             return result
         except Exception as exc:
-            _LOG.warning("MKV parse error for %s: %s", filepath, exc)
+            _LOG.warning("Video parse error for %s: %s", filepath, exc)
             return {}

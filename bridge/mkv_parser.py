@@ -2,16 +2,25 @@
 Minimal EBML/MKV parser — extracts audio tracks, subtitle tracks, chapters,
 video info (resolution, FPS, HDR), and total bitrate.
 
-No external dependencies. Reads only the Segment Info, Tracks, and Chapters
-elements near the beginning of the file (up to READ_LIMIT bytes).
+No external dependencies for MKV parsing. Reads only the Segment Info, Tracks,
+and Chapters elements near the beginning of the file (up to READ_LIMIT bytes).
+
+HDR detection uses a two-step approach:
+  1. EBML colour metadata (TransferCharacteristics, ColorPrimaries, MaxCLL …)
+  2. ffprobe fallback — catches HDR10/HLG/DV encoded in the H.265 SEI bitstream
+     but not reflected in the MKV container headers (common in BD remuxes).
+     ffprobe(.exe) is searched next to the bridge executable first, then on PATH.
 """
 
 from __future__ import annotations
 
+import logging
 import os
 import struct
 from dataclasses import dataclass, field
 from typing import Optional
+
+_LOG = logging.getLogger(__name__)
 
 READ_LIMIT = 8 * 1024 * 1024  # 8 MB — some remuxes put Tracks far into the file
 
@@ -451,6 +460,99 @@ def _parse_chapter_atom(data: bytes, start: int, end: int) -> Optional[Chapter]:
 
 
 # ---------------------------------------------------------------------------
+# ffprobe HDR detection (external fallback)
+# ---------------------------------------------------------------------------
+def _find_ffprobe() -> str | None:
+    """
+    Return the path to an ffprobe executable, or None if not found.
+
+    Search order:
+      1. ffprobe.exe / ffprobe next to the frozen bridge executable
+      2. ffprobe on the system PATH
+    """
+    import shutil
+    import sys
+
+    candidates: list[str] = []
+    if getattr(sys, "frozen", False):
+        exe_dir = os.path.dirname(sys.executable)
+        candidates.append(os.path.join(exe_dir, "ffprobe.exe"))
+        candidates.append(os.path.join(exe_dir, "ffprobe"))
+    candidates += ["ffprobe.exe", "ffprobe"]
+
+    for cand in candidates:
+        if os.path.isfile(cand):
+            return cand
+        found = shutil.which(cand)
+        if found:
+            return found
+    return None
+
+
+def probe_hdr_ffprobe(filepath: str) -> str:
+    """
+    Detect HDR type from *filepath* using ffprobe.
+
+    Returns one of ``"HDR10"`` | ``"HLG"`` | ``"DV"`` | ``""`` (SDR / unknown).
+    Returns ``""`` silently when ffprobe is not installed or the probe fails.
+
+    Detection logic (first match wins):
+      • side_data_list entry containing "Dolby" / "DOVI"  → "DV"
+      • color_transfer == "smpte2084"  (PQ)               → "HDR10"
+      • color_transfer == "arib-std-b67"  (HLG)           → "HLG"
+      • color_primaries == "bt2020"  (BT.2020 primaries)  → "HDR10"
+    """
+    import json
+    import subprocess
+    import sys
+
+    ffprobe = _find_ffprobe()
+    if not ffprobe:
+        return ""
+
+    try:
+        kwargs: dict = {}
+        if sys.platform == "win32":
+            kwargs["creationflags"] = 0x08000000  # CREATE_NO_WINDOW
+        proc = subprocess.run(
+            [ffprobe, "-v", "quiet", "-print_format", "json",
+             "-show_streams", filepath],
+            capture_output=True, text=True, timeout=20,
+            **kwargs,
+        )
+        data = json.loads(proc.stdout)
+    except Exception as exc:
+        _LOG.debug("probe_hdr_ffprobe: ffprobe failed for %r: %s", filepath, exc)
+        return ""
+
+    for stream in data.get("streams", []):
+        if stream.get("codec_type") != "video":
+            continue
+
+        # Dolby Vision via side_data_list
+        for sd in stream.get("side_data_list", []):
+            sdt = sd.get("side_data_type", "").lower()
+            if "dolby" in sdt or "dovi" in sdt:
+                _LOG.debug("probe_hdr_ffprobe: DV detected via side_data in %r", filepath)
+                return "DV"
+
+        transfer  = stream.get("color_transfer",  "").lower()
+        primaries = stream.get("color_primaries", "").lower()
+
+        if "smpte2084" in transfer:       # PQ  → HDR10 (or HDR10+)
+            _LOG.debug("probe_hdr_ffprobe: HDR10 (smpte2084) in %r", filepath)
+            return "HDR10"
+        if "arib-std-b67" in transfer:    # HLG
+            _LOG.debug("probe_hdr_ffprobe: HLG (arib-std-b67) in %r", filepath)
+            return "HLG"
+        if "bt2020" in primaries:         # BT.2020 primaries with unspecified TC
+            _LOG.debug("probe_hdr_ffprobe: HDR10 (bt2020 primaries) in %r", filepath)
+            return "HDR10"
+
+    return ""
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 def parse_mkv(path: str) -> MkvTracks:
@@ -564,6 +666,14 @@ def parse_mkv(path: str) -> MkvTracks:
         duration_s = duration_units * timecode_scale / 1_000_000_000
         if duration_s > 0:
             result.video.bitrate_kbps = int(file_size * 8 / duration_s / 1000)
+
+    # ffprobe HDR fallback — handles BD remuxes where the HDR10/HLG/DV metadata
+    # is embedded in the H.265 SEI bitstream but absent from the MKV Colour element.
+    if not result.video.hdr:
+        hdr = probe_hdr_ffprobe(path)
+        if hdr:
+            _LOG.info("EBML: no HDR metadata found — ffprobe detected %s in %r", hdr, path)
+            result.video.hdr = hdr
 
     return result
 
