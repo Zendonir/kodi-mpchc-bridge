@@ -103,7 +103,7 @@ english.PlayerEnable=Configure Kodi to open videos in an external player
 english.PlayerExeLbl=MPC-HC / MPC-BE executable:
 english.PlayerBrowseBtn=Browse...
 english.PlayerUseResume=Use built-in resume (seek MPC-HC to Kodi's saved position)
-english.PlayerArgsLbl=Launch arguments  (direct mode — ignored when resume is active):
+english.PlayerArgsLbl=Arguments  (direct mode only — ignored when resume is active):
 english.PlayerArgHint=Use {filepath} as placeholder. Surround paths with spaces in " ".
 english.PlayerHideKodi=Minimize Kodi
 english.PlayerHideConsole=Hide console
@@ -141,7 +141,7 @@ german.PlayerEnable=Kodi auf externen Videoplayer umleiten
 german.PlayerExeLbl=MPC-HC / MPC-BE Programmdatei:
 german.PlayerBrowseBtn=Durchsuchen...
 german.PlayerUseResume=Integriertes Resume (MPC-HC springt zur gespeicherten Kodi-Position)
-german.PlayerArgsLbl=Startargumente  (Direktmodus — ignoriert wenn Resume aktiv ist):
+german.PlayerArgsLbl=Startargumente  (nur Direktmodus — ignoriert wenn Resume aktiv):
 german.PlayerArgHint=Platzhalter {filepath} verwenden. Pfade mit Leerzeichen in " " einschließen.
 german.PlayerHideKodi=Kodi minimieren
 german.PlayerHideConsole=Konsole ausblenden
@@ -476,71 +476,52 @@ begin
   PW := PlayerPage.Surface.Width;  // ~428 px at 96 DPI
   BH := 23;                        // standard control height
 
-  // Y=0  ── Master enable ────────────────────────────────────────────────────
+  // ── Row 0  (Y=0): Master enable ──────────────────────────────────────────
   chkEnablePlayer := TNewCheckBox.Create(WizardForm);
-  chkEnablePlayer.Parent   := PlayerPage.Surface;
-  chkEnablePlayer.Caption  := CustomMessage('PlayerEnable');
-  chkEnablePlayer.Left     := 0;
-  chkEnablePlayer.Top      := 0;
-  chkEnablePlayer.Width    := PW;
-  chkEnablePlayer.Height   := 18;
-  chkEnablePlayer.Checked  := False;
-  chkEnablePlayer.OnClick  := @TogglePlayerControls;
+  chkEnablePlayer.Parent  := PlayerPage.Surface;
+  chkEnablePlayer.Caption := CustomMessage('PlayerEnable');
+  chkEnablePlayer.SetBounds(0, 0, PW, 20);
+  chkEnablePlayer.Checked := False;
+  chkEnablePlayer.OnClick := @TogglePlayerControls;
 
-  // Y=24  ── MPC-HC executable ───────────────────────────────────────────────
+  // ── Row 1  (Y=28): Exe label + path edit + browse button ─────────────────
   lbl := TLabel.Create(WizardForm);
   lbl.Parent   := PlayerPage.Surface;
   lbl.Caption  := CustomMessage('PlayerExeLbl');
-  lbl.Left := 0; lbl.Top := 24;
-  lbl.AutoSize := True;
+  lbl.SetBounds(0, 28, PW, 16);
+  lbl.AutoSize := False;
 
   edtPlayerExe := TNewEdit.Create(WizardForm);
   edtPlayerExe.Parent  := PlayerPage.Surface;
-  edtPlayerExe.Left    := 0;
-  edtPlayerExe.Top     := 38;
-  edtPlayerExe.Width   := PW - 90;
-  edtPlayerExe.Height  := BH;
+  edtPlayerExe.SetBounds(0, 46, PW - 90, BH);
   edtPlayerExe.Enabled := False;
 
   btnBrowseExe := TNewButton.Create(WizardForm);
   btnBrowseExe.Parent   := PlayerPage.Surface;
   btnBrowseExe.Caption  := CustomMessage('PlayerBrowseBtn');
-  btnBrowseExe.Left     := PW - 86;
-  btnBrowseExe.Top      := 38;
-  btnBrowseExe.Width    := 86;
-  btnBrowseExe.Height   := BH;
+  btnBrowseExe.SetBounds(PW - 86, 46, 86, BH);
   btnBrowseExe.Enabled  := False;
   btnBrowseExe.OnClick  := @BrowseExeClick;
 
-  // Y=68  ── Resume checkbox ────────────────────────────────────────────────
+  // ── Row 2  (Y=80): Resume checkbox ───────────────────────────────────────
   chkUseResume := TNewCheckBox.Create(WizardForm);
   chkUseResume.Parent   := PlayerPage.Surface;
   chkUseResume.Caption  := CustomMessage('PlayerUseResume');
-  chkUseResume.Left     := 0;
-  chkUseResume.Top      := 68;
-  chkUseResume.Width    := PW;
-  chkUseResume.Height   := 18;
+  chkUseResume.SetBounds(0, 80, PW, 20);
   chkUseResume.Checked  := True;
   chkUseResume.Enabled  := False;
   chkUseResume.OnClick  := @ToggleResumeControls;
 
-  // Y=90  ── Direct-launch arguments ────────────────────────────────────────
+  // ── Row 3  (Y=108): Args label + combo ───────────────────────────────────
   lbl := TLabel.Create(WizardForm);
-  lbl.Parent    := PlayerPage.Surface;
-  lbl.Caption   := CustomMessage('PlayerArgsLbl');
-  lbl.Left      := 0;
-  lbl.Top       := 92;
-  lbl.Width     := PW;
-  lbl.Height    := 14;
-  lbl.AutoSize  := False;
-  lbl.Font.Size := 8;
+  lbl.Parent   := PlayerPage.Surface;
+  lbl.Caption  := CustomMessage('PlayerArgsLbl');
+  lbl.SetBounds(0, 108, PW, 16);
+  lbl.AutoSize := False;
 
   cmbArgs := TNewComboBox.Create(WizardForm);
   cmbArgs.Parent  := PlayerPage.Surface;
-  cmbArgs.Left    := 0;
-  cmbArgs.Top     := 108;
-  cmbArgs.Width   := PW;
-  cmbArgs.Height  := BH;
+  cmbArgs.SetBounds(0, 126, PW, BH);
   cmbArgs.Enabled := False;
   cmbArgs.Items.Add('"{filepath}" /fullscreen');
   cmbArgs.Items.Add('"{filepath}"');
@@ -548,55 +529,40 @@ begin
   cmbArgs.Items.Add('/fullscreen "{filepath}"');
   cmbArgs.ItemIndex := 0;
 
-  // Y=136  ── Behaviour checkboxes (two in a row) ────────────────────────────
+  // ── Row 4  (Y=160): Hide Kodi / Hide console ─────────────────────────────
   chkHideKodi := TNewCheckBox.Create(WizardForm);
   chkHideKodi.Parent   := PlayerPage.Surface;
   chkHideKodi.Caption  := CustomMessage('PlayerHideKodi');
-  chkHideKodi.Left     := 0;
-  chkHideKodi.Top      := 136;
-  chkHideKodi.Width    := PW div 2;
-  chkHideKodi.Height   := 18;
+  chkHideKodi.SetBounds(0, 160, PW div 2 - 4, 20);
   chkHideKodi.Checked  := True;
   chkHideKodi.Enabled  := False;
 
   chkHideConsole := TNewCheckBox.Create(WizardForm);
   chkHideConsole.Parent   := PlayerPage.Surface;
   chkHideConsole.Caption  := CustomMessage('PlayerHideConsole');
-  chkHideConsole.Left     := PW div 2 + 4;
-  chkHideConsole.Top      := 136;
-  chkHideConsole.Width    := PW div 2;
-  chkHideConsole.Height   := 18;
+  chkHideConsole.SetBounds(PW div 2 + 4, 160, PW div 2 - 4, 20);
   chkHideConsole.Checked  := True;
   chkHideConsole.Enabled  := False;
 
-  // Y=160  ── Apply-to + backup (three in a row) ─────────────────────────────
+  // ── Row 5  (Y=186): Video / Audio / Backup .bak ──────────────────────────
   chkVideo := TNewCheckBox.Create(WizardForm);
   chkVideo.Parent   := PlayerPage.Surface;
   chkVideo.Caption  := CustomMessage('PlayerVideoChk');
-  chkVideo.Left     := 0;
-  chkVideo.Top      := 160;
-  chkVideo.Width    := PW div 3;
-  chkVideo.Height   := 18;
+  chkVideo.SetBounds(0, 186, PW div 3 - 4, 20);
   chkVideo.Checked  := True;
   chkVideo.Enabled  := False;
 
   chkAudio := TNewCheckBox.Create(WizardForm);
   chkAudio.Parent   := PlayerPage.Surface;
   chkAudio.Caption  := CustomMessage('PlayerAudioChk');
-  chkAudio.Left     := PW div 3 + 4;
-  chkAudio.Top      := 160;
-  chkAudio.Width    := PW div 3;
-  chkAudio.Height   := 18;
+  chkAudio.SetBounds(PW div 3 + 4, 186, PW div 3 - 4, 20);
   chkAudio.Checked  := False;
   chkAudio.Enabled  := False;
 
   chkBackup := TNewCheckBox.Create(WizardForm);
   chkBackup.Parent   := PlayerPage.Surface;
   chkBackup.Caption  := CustomMessage('PlayerBackupChk');
-  chkBackup.Left     := (PW div 3) * 2 + 8;
-  chkBackup.Top      := 160;
-  chkBackup.Width    := PW div 3;
-  chkBackup.Height   := 18;
+  chkBackup.SetBounds((PW div 3) * 2 + 8, 186, PW div 3 - 8, 20);
   chkBackup.Checked  := True;
   chkBackup.Enabled  := False;
 end;
