@@ -36,6 +36,31 @@ _KODI_PASSTHROUGH_WHILE_MPCHC = {"volume", "muted"}
 _RE_EPISODE = re.compile(r"[Ss]\d{1,2}[Ee]\d{1,2}|\d{1,2}x\d{2}", re.ASCII)
 
 
+def _smb_to_unc(path: str) -> str:
+    """
+    Convert ``smb://host/share/path`` to ``\\\\host\\share\\path``.
+    Already-UNC and local paths are returned unchanged.
+    Needed because Kodi stores library file paths as smb:// URLs but
+    MPC-HC only understands Windows UNC paths.
+    """
+    if path.startswith("smb://"):
+        return "\\\\" + path[6:].replace("/", "\\")
+    return path
+
+
+def _norm_path(path: str) -> str:
+    """
+    Normalise a file path for equality comparison across smb:// and UNC forms.
+
+    Both ``smb://HOST/share/ep.mkv`` and ``\\\\HOST\\share\\ep.mkv`` become
+    ``//host/share/ep.mkv`` so they compare equal regardless of origin.
+    """
+    p = path
+    if p.startswith("smb://"):
+        p = "//" + p[6:]
+    return p.replace("\\", "/").lower()
+
+
 def _detect_media_type(filepath: str) -> str:
     """Guess 'movie' or 'episode' from the video file path."""
     import os
@@ -530,11 +555,10 @@ class Hub:
                     try:
                         eps = await self._kodi.get_season_episodes(tvshowid, cur_season)
                         if eps:
-                            import os as _os
-                            cur_norm = filepath.replace("\\", "/")
+                            cur_norm = _norm_path(filepath)
                             idx = next(
                                 (i for i, e in enumerate(eps)
-                                 if e.get("file", "").replace("\\", "/") == cur_norm),
+                                 if _norm_path(e.get("file", "")) == cur_norm),
                                 -1,
                             )
                             await self._push({"season_episodes": eps, "playlist_index": idx})
@@ -884,12 +908,16 @@ class Hub:
                 _LOG.warning("external_play: resume dialog failed: %s — defaulting to resume", exc)
 
         # 2. Launch MPC-HC ────────────────────────────────────────────────────
+        # MPC-HC cannot open smb:// URLs — convert to Windows UNC path first.
+        mpc_filepath = _smb_to_unc(filepath)
+        if mpc_filepath != filepath:
+            _LOG.info("external_play: converted smb:// → UNC: %r", mpc_filepath)
         try:
             kwargs: dict = {}
             if sys.platform == "win32":
                 kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-            subprocess.Popen([mpc_exe, filepath], **kwargs)
-            _LOG.info("external_play: launched %r with %r", mpc_exe, filepath)
+            subprocess.Popen([mpc_exe, mpc_filepath], **kwargs)
+            _LOG.info("external_play: launched %r with %r", mpc_exe, mpc_filepath)
         except Exception as exc:
             _LOG.error("external_play: launch failed: %s", exc)
             return

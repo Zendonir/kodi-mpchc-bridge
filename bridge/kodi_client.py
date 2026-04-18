@@ -487,13 +487,29 @@ class KodiClient:
                 {"playerid": self._active_player_id, "value": "bigbackward"},
             )
 
+    @staticmethod
+    def _norm_path(p: str) -> str:
+        """
+        Normalise a path for equality comparison across smb:// and UNC forms.
+
+        ``smb://HOST/share/ep.mkv`` and ``\\\\HOST\\share\\ep.mkv`` both
+        become ``//host/share/ep.mkv`` so they compare equal regardless of
+        whether the path came from Kodi's library (smb://) or Windows/MPC-HC
+        (UNC).
+        """
+        if p.startswith("smb://"):
+            p = "//" + p[6:]
+        return p.replace("\\", "/").lower()
+
     async def find_library_item(self, filepath: str) -> tuple[str, dict] | None:
         """
         Look up *filepath* in Kodi's video library.
 
         Tries movies first, then TV episodes.  Matching uses the basename
         for the API filter (one call per media type) and confirms the full
-        path with normalised slashes.
+        path with normalised slashes.  Both smb:// (Kodi library) and UNC
+        (Windows/MPC-HC) paths are normalised before comparison so they
+        always match.
 
         Returns *(media_type, item_dict)* where *media_type* is ``"movie"``
         or ``"episode"`` and *item_dict* is the raw Kodi item (contains
@@ -502,7 +518,7 @@ class KodiClient:
         """
         import os
         filename = os.path.basename(filepath)
-        norm = filepath.replace("\\", "/")
+        norm = self._norm_path(filepath)
 
         for method, list_key, media_type in (
             ("VideoLibrary.GetMovies",   "movies",   "movie"),
@@ -513,7 +529,7 @@ class KodiClient:
                 "filter": {"field": "filename", "operator": "is", "value": filename},
             })
             for item in (result or {}).get(list_key, []):
-                if item.get("file", "").replace("\\", "/") == norm:
+                if self._norm_path(item.get("file", "")) == norm:
                     _LOG.debug("find_library_item: %s → %s id=%s",
                                filename, media_type,
                                item.get("movieid") or item.get("episodeid"))
