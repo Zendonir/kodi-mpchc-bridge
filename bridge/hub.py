@@ -626,7 +626,24 @@ class Hub:
 
                 kodi_url = info.get("artwork_url", "")
                 if kodi_url:
-                    data, ct = await self._kodi.fetch_image_bytes(kodi_url)
+                    _art = await self._kodi.fetch_artwork_bytes(kodi_url)
+                    if _art:
+                        data, ct = _art
+
+                # Fallback: if artwork still not found but we know the tvshowid,
+                # fetch the show poster directly from Kodi + Textures cache.
+                # This covers the common case where per-episode art lookup fails
+                # but the show poster is already cached locally.
+                if not data and tvshowid >= 0:
+                    try:
+                        show_url = await self._kodi.get_tvshow_art(tvshowid)
+                        if show_url:
+                            _art2 = await self._kodi.fetch_artwork_bytes(show_url)
+                            if _art2:
+                                data, ct = _art2
+                                _LOG.info("Artwork from show poster (tvshowid=%d)", tvshowid)
+                    except Exception as exc:
+                        _LOG.debug("Show poster fallback failed: %s", exc)
 
             if not data:
                 # Filesystem fallback: look for poster/folder images in same dir

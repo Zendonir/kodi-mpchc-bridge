@@ -193,7 +193,10 @@ class KodiClient:
         def _pick_art(item: dict) -> str:
             art = item.get("art") or {}
             return (
-                art.get("poster", "")
+                art.get("tvshow.poster", "")   # TV-show poster (best for episodes)
+                or art.get("season.poster", "") # Season poster
+                or art.get("poster", "")        # Movie poster
+                or art.get("thumb", "")         # Episode thumbnail (scene capture)
                 or art.get("fanart", "")
                 or item.get("thumbnail", "")
                 or ""
@@ -409,6 +412,128 @@ class KodiClient:
         proxy = f"{self._http_base}/image/{encoded}"
         _LOG.debug("_image_url: Kodi proxy %s", proxy)
         return proxy
+
+    # ------------------------------------------------------------------
+    # Textures cache helpers
+    # ------------------------------------------------------------------
+    def _resolve_texture_path_sync(self, art_url: str) -> "str | None":
+        """
+        Look up *art_url* in Kodi's ``Textures13.db`` and return the full
+        local path to the cached image file under ``Thumbnails\\``, or None
+        if not cached.
+
+        Kodi stores artwork URLs as-is (e.g. ``https://artworks.thetvdb.com/…``
+        or ``smb://HOMESERVER/…``) in both ``MyVideos*.db`` → ``art.url`` and
+        ``Textures13.db`` → ``texture.url``.  The mapping is 1-to-1, so a
+        direct lookup works without any URL rewriting.
+        """
+        import os
+        import sqlite3
+
+        appdata = os.environ.get("APPDATA", "")
+        if not appdata:
+            return None
+        tx_db = os.path.join(
+            appdata, "Kodi", "userdata", "Database", "Textures13.db"
+        )
+        if not os.path.isfile(tx_db):
+            return None
+        root = os.path.join(appdata, "Kodi", "userdata", "Thumbnails")
+
+        # Try both the URL as-is and with a trailing slash stripped,
+        # because Kodi sometimes adds a trailing "/" to video thumbnails.
+        candidates = [art_url]
+        if art_url.endswith("/"):
+            candidates.append(art_url.rstrip("/"))
+
+        try:
+            conn = sqlite3.connect(
+                f"file:{tx_db}?mode=ro", uri=True, timeout=2.0
+            )
+            try:
+                for url_try in candidates:
+                    row = conn.execute(
+                        "SELECT cachedurl FROM texture WHERE url=? LIMIT 1",
+                        (url_try,),
+                    ).fetchone()
+                    if row:
+                        path = os.path.join(root, row[0].replace("/", os.sep))
+                        if os.path.isfile(path):
+                            return path
+                        _LOG.debug("Textures13: entry found but file missing: %s", path)
+            finally:
+                conn.close()
+        except Exception as exc:
+            _LOG.debug("Textures13 lookup failed for %r: %s", art_url[:60], exc)
+        return None
+
+    async def fetch_artwork_bytes(self, art_url: str) -> "tuple[bytes, str] | None":
+        """
+        Fetch artwork bytes for *art_url*.
+
+        Strategy
+        --------
+        1. Look up the URL in Kodi's local ``Textures13.db`` texture cache.
+           If found, read the file directly from ``Thumbnails\\`` — no HTTP
+           round-trip needed, works even when the original source is offline.
+        2. Fall back to an HTTP fetch (Kodi proxy for local thumbnails,
+           direct download for remote HTTPS URLs).
+
+        Returns ``(data, content_type)`` or ``None`` on failure.
+        """
+        import os
+
+        # 1. Local Textures cache
+        path = await asyncio.get_running_loop().run_in_executor(
+            None, self._resolve_texture_path_sync, art_url
+        )
+        if path:
+            try:
+                with open(path, "rb") as fh:
+                    data = fh.read()
+                ext = os.path.splitext(path)[1].lower()
+                ct = {
+                    ".jpg":  "image/jpeg",
+                    ".jpeg": "image/jpeg",
+                    ".png":  "image/png",
+                    ".webp": "image/webp",
+                }.get(ext, "image/jpeg")
+                _LOG.info(
+                    "Artwork from Textures cache: %s (%d bytes)", path, len(data)
+                )
+                return data, ct
+            except Exception as exc:
+                _LOG.debug("Cannot read texture cache file %s: %s", path, exc)
+
+        # 2. HTTP fallback
+        try:
+            data, ct = await self.fetch_image_bytes(art_url)
+            return data, ct
+        except Exception as exc:
+            _LOG.debug("HTTP artwork fetch failed for %r: %s", art_url[:60], exc)
+
+        return None
+
+    async def get_tvshow_art(self, tvshowid: int) -> str:
+        """
+        Return the best available art URL for a TV show (poster > fanart).
+        Used as a fallback when per-episode art lookup fails.
+        """
+        result = await self._call("VideoLibrary.GetTVShowDetails", {
+            "tvshowid": tvshowid,
+            "properties": ["art", "thumbnail"],
+        })
+        if not result or not isinstance(result, dict):
+            return ""
+        item = result.get("tvshowdetails", {})
+        art = item.get("art") or {}
+        url = (
+            art.get("poster", "")
+            or art.get("fanart", "")
+            or item.get("thumbnail", "")
+            or ""
+        )
+        return self._image_url(url) if url else ""
 
     def _get_file_info_from_db_sync(self, filepath: str) -> "dict[str, Any] | None":
         """
