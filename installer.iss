@@ -100,7 +100,8 @@ english.FirewallGroup=Firewall:
 english.PlayerPageTitle=Configure external player
 english.PlayerPageSubtitle=Play Kodi videos directly in MPC-HC / MPC-BE (optional)
 english.PlayerEnable=Configure Kodi to open videos in an external player
-english.PlayerExeLbl=MPC-HC / MPC-BE executable:
+english.PlayerPageExeDesc=Paste or type the full path to mpc-hc.exe / mpc-hc64.exe / mpc-be64.exe
+english.PlayerExeLbl=Full path to MPC-HC / MPC-BE executable:
 english.PlayerBrowseBtn=Browse...
 english.PlayerUseResume=Use built-in resume (seek MPC-HC to Kodi's saved position)
 english.PlayerBackupChk=Backup existing playercorefactory.xml as .bak
@@ -130,7 +131,8 @@ german.FirewallGroup=Firewall:
 german.PlayerPageTitle=Externen Player konfigurieren
 german.PlayerPageSubtitle=Kodi-Videos direkt in MPC-HC / MPC-BE abspielen (optional)
 german.PlayerEnable=Kodi auf externen Videoplayer umleiten
-german.PlayerExeLbl=MPC-HC / MPC-BE Programmdatei:
+german.PlayerPageExeDesc=Vollständigen Pfad zu mpc-hc.exe / mpc-hc64.exe / mpc-be64.exe einfügen oder eingeben
+german.PlayerExeLbl=Vollständiger Pfad zur MPC-HC / MPC-BE Programmdatei:
 german.PlayerBrowseBtn=Durchsuchen...
 german.PlayerUseResume=Integriertes Resume (MPC-HC springt zur gespeicherten Kodi-Position)
 german.PlayerBackupChk=Bestehende playercorefactory.xml als .bak sichern
@@ -160,7 +162,8 @@ french.FirewallGroup=Pare-feu :
 french.PlayerPageTitle=Configurer le lecteur externe
 french.PlayerPageSubtitle=Lire les vidéos Kodi directement dans MPC-HC / MPC-BE (optionnel)
 french.PlayerEnable=Configurer Kodi pour utiliser un lecteur externe
-french.PlayerExeLbl=Exécutable MPC-HC / MPC-BE :
+french.PlayerPageExeDesc=Collez ou saisissez le chemin complet vers mpc-hc.exe / mpc-hc64.exe / mpc-be64.exe
+french.PlayerExeLbl=Chemin complet vers l'exécutable MPC-HC / MPC-BE :
 french.PlayerBrowseBtn=Parcourir...
 french.PlayerUseResume=Resume intégré (positionne MPC-HC à la position Kodi)
 french.PlayerBackupChk=Sauvegarder playercorefactory.xml existant en .bak
@@ -190,7 +193,8 @@ spanish.FirewallGroup=Firewall:
 spanish.PlayerPageTitle=Configurar reproductor externo
 spanish.PlayerPageSubtitle=Reproducir vídeos de Kodi directamente en MPC-HC / MPC-BE (opcional)
 spanish.PlayerEnable=Configurar Kodi para usar un reproductor externo
-spanish.PlayerExeLbl=Ejecutable MPC-HC / MPC-BE:
+spanish.PlayerPageExeDesc=Pegue o escriba la ruta completa a mpc-hc.exe / mpc-hc64.exe / mpc-be64.exe
+spanish.PlayerExeLbl=Ruta completa al ejecutable MPC-HC / MPC-BE:
 spanish.PlayerBrowseBtn=Examinar...
 spanish.PlayerUseResume=Resume integrado (lleva MPC-HC a la posición guardada en Kodi)
 spanish.PlayerBackupChk=Copia de seguridad de playercorefactory.xml existente como .bak
@@ -220,7 +224,8 @@ italian.FirewallGroup=Firewall:
 italian.PlayerPageTitle=Configura lettore esterno
 italian.PlayerPageSubtitle=Riproduci i video di Kodi direttamente in MPC-HC / MPC-BE (opzionale)
 italian.PlayerEnable=Configura Kodi per usare un lettore esterno
-italian.PlayerExeLbl=Eseguibile MPC-HC / MPC-BE:
+italian.PlayerPageExeDesc=Incolla o digita il percorso completo di mpc-hc.exe / mpc-hc64.exe / mpc-be64.exe
+italian.PlayerExeLbl=Percorso completo dell'eseguibile MPC-HC / MPC-BE:
 italian.PlayerBrowseBtn=Sfoglia...
 italian.PlayerUseResume=Resume integrato (porta MPC-HC alla posizione salvata in Kodi)
 italian.PlayerBackupChk=Backup del playercorefactory.xml esistente come .bak
@@ -278,7 +283,7 @@ var
 
   // ── External player pages (3 native pages, zero manual layout) ───────────
   PlayerEnablePage: TInputOptionWizardPage;   // "enable external player?"
-  PlayerExePage:    TInputFileWizardPage;     // select MPC-HC/BE exe
+  PlayerExePage:    TInputQueryWizardPage;    // select MPC-HC/BE exe
   PlayerOptPage:    TInputOptionWizardPage;   // resume + backup options
 
 // --------------------------------------------------------------------------
@@ -374,12 +379,14 @@ begin
   PlayerEnablePage.Values[0] := False;
 
   // ── Page 3: Select executable ─────────────────────────────────────────────
-  PlayerExePage := CreateInputFilePage(
+  PlayerExePage := CreateInputQueryPage(
     PlayerEnablePage.ID,
     CustomMessage('PlayerPageTitle'),
     CustomMessage('PlayerPageSubtitle'),
-    CustomMessage('PlayerExeLbl')
+    CustomMessage('PlayerPageExeDesc')
   );
+  PlayerExePage.Add(CustomMessage('PlayerExeLbl'), False);
+  PlayerExePage.Values[0] := '';
 
   // ── Page 4: Options (resume + backup) ────────────────────────────────────
   PlayerOptPage := CreateInputOptionPage(
