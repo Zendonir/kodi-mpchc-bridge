@@ -486,7 +486,6 @@ begin
   chkEnablePlayer.Top      := 0;
   chkEnablePlayer.Width    := PW;
   chkEnablePlayer.Height   := 30;
-  chkEnablePlayer.WordWrap := True;
   chkEnablePlayer.Checked  := False;
   chkEnablePlayer.OnClick  := @TogglePlayerControls;
 
@@ -523,7 +522,6 @@ begin
   chkUseResume.Top      := 80;
   chkUseResume.Width    := PW;
   chkUseResume.Height   := 28;
-  chkUseResume.WordWrap := True;
   chkUseResume.Checked  := True;
   chkUseResume.Enabled  := False;
   chkUseResume.OnClick  := @ToggleResumeControls;
