@@ -590,7 +590,10 @@ class Hub:
             ct = "image/jpeg"
 
             # Kodi library lookup — returns artwork URL + metadata
-            info = await self._kodi.get_file_info(filepath)
+            info = await self._kodi.get_file_info(
+                filepath,
+                episode_art_mode=self._config.cfg.episode_art_mode,
+            )
             if info:
                 # Extract tvshowid before pushing (not a UnifiedState field)
                 tvshowid: int = info.pop("tvshowid", -1)

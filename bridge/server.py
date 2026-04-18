@@ -309,6 +309,12 @@ _WEB_UI = """<!DOCTYPE html>
   .log-INFO{color:#999}
   .log-WARNING{color:#c80}
   .log-ERROR{color:#e44}
+  /* Settings card */
+  .settings-row{display:flex;align-items:center;gap:12px;padding:6px 0;flex-wrap:wrap}
+  .settings-row>span:first-child{color:#888;min-width:130px;font-size:.84rem}
+  .radio-group{display:flex;gap:16px}
+  .radio-group label{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.84rem}
+  .radio-group input[type=radio]{cursor:pointer;accent-color:#4a9;width:15px;height:15px}
 </style>
 </head>
 <body>
@@ -368,6 +374,7 @@ _WEB_UI = """<!DOCTYPE html>
       <button onclick="cmd('fullscreen')" data-i18n="btn_fullscreen"></button>
       <button onclick="restartConfirm()" data-i18n="btn_restart_pc" style="background:#5c1a1a;border-color:#8a2a2a;color:#f99"></button>
       <button onclick="toggleLogs()" data-i18n="btn_logs" style="background:#1a2a3d;border-color:#2a4a6a;color:#6af"></button>
+      <button onclick="toggleSettings()" data-i18n="btn_settings" style="background:#1a2a3d;border-color:#2a4a6a;color:#6af"></button>
     </div>
   </div>
 
@@ -427,6 +434,24 @@ _WEB_UI = """<!DOCTYPE html>
     <div id="log-output" class="log-output"></div>
   </div>
 
+  <!-- Card: Settings (full width, hidden by default) -->
+  <div class="card" id="card-settings" style="grid-column:1/-1;display:none">
+    <h2 data-i18n="card_settings"></h2>
+    <div class="settings-row">
+      <span data-i18n="lbl_art_mode"></span>
+      <div class="radio-group">
+        <label>
+          <input type="radio" name="art_mode" value="poster" onchange="saveArtMode(this)">
+          <span data-i18n="opt_art_poster"></span>
+        </label>
+        <label>
+          <input type="radio" name="art_mode" value="thumb" onchange="saveArtMode(this)">
+          <span data-i18n="opt_art_thumb"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -472,6 +497,11 @@ const _TR = {
     btn_logs:'\U0001F4CB Log',
     card_logs:'Bridge Log',
     btn_log_refresh:'\u21BB',
+    btn_settings:'\u2699 Settings',
+    card_settings:'Settings',
+    lbl_art_mode:'Artwork mode',
+    opt_art_poster:'Series cover (poster)',
+    opt_art_thumb:'Thumbnail (scene)',
   },
   de:{
     status_connecting:'Verbinde\u2026',
@@ -512,6 +542,11 @@ const _TR = {
     btn_logs:'\U0001F4CB Log',
     card_logs:'Bridge Log',
     btn_log_refresh:'\u21BB',
+    btn_settings:'\u2699 Einstellungen',
+    card_settings:'Einstellungen',
+    lbl_art_mode:'Artwork-Modus',
+    opt_art_poster:'Seriencover (Poster)',
+    opt_art_thumb:'Thumbnail (Szene)',
   },
   fr:{
     status_connecting:'Connexion\u2026',
@@ -746,6 +781,37 @@ function toggleLogs() {
   const visible = card.style.display !== 'none';
   card.style.display = visible ? 'none' : '';
   if (!visible) fetchLogs();
+}
+
+// ── Settings card ─────────────────────────────────────────────────────────────
+function toggleSettings() {
+  const card = document.getElementById('card-settings');
+  if (!card) return;
+  const visible = card.style.display !== 'none';
+  card.style.display = visible ? 'none' : '';
+  if (!visible) loadSettings();
+}
+
+async function loadSettings() {
+  try {
+    const cfg = await fetch('/api/config').then(r => r.json());
+    syncSettingsUI(cfg);
+  } catch(e) {}
+}
+
+function syncSettingsUI(cfg) {
+  const mode = (cfg && cfg.episode_art_mode) || 'poster';
+  document.querySelectorAll('input[name=art_mode]').forEach(function(r) {
+    r.checked = r.value === mode;
+  });
+}
+
+function saveArtMode(radio) {
+  fetch('/api/config', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({episode_art_mode: radio.value}),
+  }).catch(function() {});
 }
 
 async function fetchLogs() {

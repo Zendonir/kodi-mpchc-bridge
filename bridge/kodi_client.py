@@ -169,7 +169,7 @@ class KodiClient:
             data = await resp.read()
             return data, resp.content_type or "image/jpeg"
 
-    async def get_file_info(self, filepath: str) -> dict[str, Any]:
+    async def get_file_info(self, filepath: str, episode_art_mode: str = "poster") -> dict[str, Any]:
         """
         Look up *filepath* in the Kodi library.
 
@@ -192,6 +192,17 @@ class KodiClient:
 
         def _pick_art(item: dict) -> str:
             art = item.get("art") or {}
+            if episode_art_mode == "thumb":
+                return (
+                    art.get("thumb", "")           # Episode thumbnail (scene capture) — preferred
+                    or art.get("season.poster", "") # Season poster
+                    or art.get("tvshow.poster", "") # TV-show poster fallback
+                    or art.get("poster", "")        # Movie poster
+                    or art.get("fanart", "")
+                    or item.get("thumbnail", "")
+                    or ""
+                )
+            # "poster" mode (default) — show/series poster first
             return (
                 art.get("tvshow.poster", "")   # TV-show poster (best for episodes)
                 or art.get("season.poster", "") # Season poster
@@ -329,7 +340,7 @@ class KodiClient:
         #    (e.g. MPC-HC is the active player so Kodi has no active player object,
         #    or the episode filename has characters that confuse the filter).
         db_result = await asyncio.get_running_loop().run_in_executor(
-            None, self._get_file_info_from_db_sync, filepath
+            None, lambda: self._get_file_info_from_db_sync(filepath, episode_art_mode)
         )
         if db_result:
             _LOG.info("FileInfo [5/5] DB fallback: title=%r art=%r",
@@ -550,7 +561,7 @@ class KodiClient:
         )
         return self._image_url(url) if url else ""
 
-    def _get_file_info_from_db_sync(self, filepath: str) -> "dict[str, Any] | None":
+    def _get_file_info_from_db_sync(self, filepath: str, episode_art_mode: str = "poster") -> "dict[str, Any] | None":
         """
         Read file info + artwork directly from Kodi's SQLite database.
 
@@ -620,20 +631,26 @@ class KodiClient:
                         "episode":  row["episode_num"] or 0,
                         "tvshowid": row["idShow"],
                     }
-                    # Prefer episode thumbnail; fall back to TV-show poster
-                    cur.execute("""
-                        SELECT url FROM art
-                        WHERE  (media_id = ? AND media_type = 'episode'
-                                AND type = 'thumb')
-                            OR (media_id = ? AND media_type = 'tvshow'
-                                AND type = 'poster')
-                        ORDER  BY CASE media_type
-                                    WHEN 'episode' THEN 1 ELSE 2 END
-                        LIMIT  1
-                    """, (row["idEpisode"], row["idShow"]))
-                    art = cur.fetchone()
-                    if art:
-                        result["artwork_url"] = self._image_url(art["url"])
+                    # Fetch episode thumbnail and TV-show poster separately,
+                    # then pick based on episode_art_mode setting.
+                    cur.execute(
+                        "SELECT url FROM art WHERE media_id=? AND media_type='episode'"
+                        " AND type='thumb' LIMIT 1",
+                        (row["idEpisode"],),
+                    )
+                    ep_thumb = cur.fetchone()
+                    cur.execute(
+                        "SELECT url FROM art WHERE media_id=? AND media_type='tvshow'"
+                        " AND type='poster' LIMIT 1",
+                        (row["idShow"],),
+                    )
+                    show_poster = cur.fetchone()
+                    if episode_art_mode == "thumb" and ep_thumb:
+                        result["artwork_url"] = self._image_url(ep_thumb["url"])
+                    elif show_poster:
+                        result["artwork_url"] = self._image_url(show_poster["url"])
+                    elif ep_thumb:
+                        result["artwork_url"] = self._image_url(ep_thumb["url"])
                     return result
 
                 # ── Movie ─────────────────────────────────────────────────
