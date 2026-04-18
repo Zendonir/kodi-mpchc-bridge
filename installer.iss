@@ -286,11 +286,31 @@ var
   chkBackup:       TNewCheckBox;
 
 // --------------------------------------------------------------------------
+// Get the previously-installed directory from the uninstall registry key.
+// Safe to call at any point — does NOT use {app} (which is unavailable
+// until the install directory page has been confirmed).
+// --------------------------------------------------------------------------
+function GetInstalledDir: String;
+begin
+  Result := '';
+  RegQueryStringValue(HKCU,
+    'Software\Microsoft\Windows\CurrentVersion\Uninstall\' +
+    '{B7A3C2D1-E4F5-4890-BCDE-F01234567890}_is1',
+    'InstallLocation', Result);
+  // Strip trailing backslash if present
+  if (Length(Result) > 0) and (Result[Length(Result)] = '\') then
+    Result := Copy(Result, 1, Length(Result) - 1);
+end;
+
+// --------------------------------------------------------------------------
 // Helper: config.json exists? (upgrade detection)
 // --------------------------------------------------------------------------
 function ConfigExists: Boolean;
+var
+  Dir: String;
 begin
-  Result := FileExists(ExpandConstant('{app}\config.json'));
+  Dir := GetInstalledDir;
+  Result := (Dir <> '') and FileExists(Dir + '\config.json');
 end;
 
 // --------------------------------------------------------------------------
@@ -306,7 +326,7 @@ var
   Ch: Char;
 begin
   Result := '';
-  FilePath := ExpandConstant('{app}\config.json');
+  FilePath := GetInstalledDir + '\config.json';
   if not FileExists(FilePath) then Exit;
   if not LoadStringFromFile(FilePath, Content) then Exit;
 
@@ -340,7 +360,7 @@ var
   P: Integer;
 begin
   Result := False;
-  FilePath := ExpandConstant('{app}\config.json');
+  FilePath := GetInstalledDir + '\config.json';
   if not FileExists(FilePath) then Exit;
   if not LoadStringFromFile(FilePath, Content) then Exit;
   SearchStr := '"' + Key + '": ';
