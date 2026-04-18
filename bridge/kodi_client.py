@@ -550,6 +550,58 @@ class KodiClient:
         _LOG.warning("reset_watched: %s id=%d failed", media_type, media_id)
         return False
 
+    async def set_resume_and_reset_watched(
+        self,
+        media_type: str,
+        media_id: int,
+        position: float,
+        total: float,
+    ) -> bool:
+        """
+        Atomically set resume position AND reset playcount to 0 in a single
+        API call.
+
+        This avoids the race condition where two separate calls
+        (reset_watched → set_resume_position) could be split by Kodi's own
+        database writes, leaving the resume at 0.
+        """
+        if media_type == "movie":
+            method = "VideoLibrary.SetMovieDetails"
+            params: dict = {
+                "movieid":  media_id,
+                "playcount": 0,
+                "resume":   {"position": position, "total": total},
+            }
+        else:
+            method = "VideoLibrary.SetEpisodeDetails"
+            params = {
+                "episodeid": media_id,
+                "playcount":  0,
+                "resume":     {"position": position, "total": total},
+            }
+        result = await self._call(method, params)
+        if result is not None:
+            _LOG.info(
+                "set_resume_and_reset_watched: %s id=%d → resume=%.1fs  playcount=0",
+                media_type, media_id, position,
+            )
+            return True
+        _LOG.warning("set_resume_and_reset_watched: %s id=%d failed", media_type, media_id)
+        return False
+
+    async def notify_library_update(self, media_type: str, media_id: int) -> None:
+        """
+        Notify Kodi to refresh its library UI for a specific item.
+
+        Without this, the progress bar / watched state in the Kodi UI stays
+        stale until the user navigates away and back.
+        """
+        await self._call("JSONRPC.NotifyAll", {
+            "sender":  "kodi-mpchc-bridge",
+            "message": "VideoLibrary.OnUpdate",
+            "data":    {"item": {"type": media_type, "id": media_id}},
+        })
+
     async def set_watched(self, media_type: str, media_id: int) -> bool:
         """
         Mark a movie or episode as watched in Kodi.

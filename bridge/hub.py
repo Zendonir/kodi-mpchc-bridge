@@ -775,8 +775,13 @@ class Hub:
             _LOG.warning("kodi sync: could not determine media id for %r", filepath)
             return
 
+        # Wait for Kodi to complete its external-player-exit processing before
+        # writing our state (Kodi fires Player.OnStop and may auto-mark as
+        # watched when the --play process exits, ≈1 s after stop signal).
+        await asyncio.sleep(_AUTO_MARK_WAIT)
+
         if duration > 0 and position >= duration * _WATCH_THRESHOLD:
-            # Truly finished — Kodi's auto-mark and ours agree; no reset needed.
+            # Truly finished — mark watched (our intent matches Kodi's auto-mark).
             _LOG.info(
                 "kodi sync: position %.1f s / %.1f s (%.0f %%) → marking watched"
                 "  [%s id=%d]",
@@ -785,26 +790,30 @@ class Hub:
             )
             await self._kodi.set_watched(media_type, media_id)
 
-        else:
-            # Not finished — wait for Kodi's external-player auto-mark to land,
-            # then reset playcount to 0 and optionally save resume.
-            await asyncio.sleep(_AUTO_MARK_WAIT)
+        elif position >= _MIN_RESUME_SECS:
+            # Not finished — atomic write: reset playcount=0 AND set resume in
+            # one call so no Kodi write can slip between them and zero the resume.
+            _LOG.info(
+                "kodi sync: position %.1f s / %.1f s → saving resume + reset watched"
+                "  [%s id=%d]",
+                position, duration, media_type, media_id,
+            )
+            await self._kodi.set_resume_and_reset_watched(
+                media_type, media_id, position, duration
+            )
 
+        else:
+            # Too short to save a resume point — just reset the auto-watched mark.
+            _LOG.debug(
+                "kodi sync: position %.1f s is too short to save"
+                " — playcount reset only  [%s id=%d]",
+                position, media_type, media_id,
+            )
             await self._kodi.reset_watched(media_type, media_id)
 
-            if position >= _MIN_RESUME_SECS:
-                _LOG.info(
-                    "kodi sync: position %.1f s / %.1f s → saving resume point"
-                    "  [%s id=%d]",
-                    position, duration, media_type, media_id,
-                )
-                await self._kodi.set_resume_position(media_type, media_id, position, duration)
-            else:
-                _LOG.debug(
-                    "kodi sync: position %.1f s is too short to save"
-                    " — playcount reset only  [%s id=%d]",
-                    position, media_type, media_id,
-                )
+        # Notify Kodi to refresh its library UI immediately (progress bar,
+        # watched checkmark) without waiting for the user to navigate away.
+        await self._kodi.notify_library_update(media_type, media_id)
 
     # ------------------------------------------------------------------
     # MKV parser (blocking, runs in thread pool)
