@@ -307,6 +307,17 @@ class KodiClient:
                 return {**_EMPTY, "artwork_url": self._image_url(thumb),
                         "title": item.get("label", "") or ""}
 
+        # 5) SQLite direct fallback — bypasses JSON-RPC API issues
+        #    (e.g. MPC-HC is the active player so Kodi has no active player object,
+        #    or the episode filename has characters that confuse the filter).
+        db_result = await asyncio.get_running_loop().run_in_executor(
+            None, self._get_file_info_from_db_sync, filepath
+        )
+        if db_result:
+            _LOG.info("FileInfo [5/5] DB fallback: title=%r art=%r",
+                      db_result.get("title"), db_result.get("artwork_url", "")[:60])
+            return db_result
+
         _LOG.info("FileInfo: nothing found in Kodi library for %r", filepath)
         return dict(_EMPTY)
 
@@ -398,6 +409,129 @@ class KodiClient:
         proxy = f"{self._http_base}/image/{encoded}"
         _LOG.debug("_image_url: Kodi proxy %s", proxy)
         return proxy
+
+    def _get_file_info_from_db_sync(self, filepath: str) -> "dict[str, Any] | None":
+        """
+        Read file info + artwork directly from Kodi's SQLite database.
+
+        Used as a fallback when the JSON-RPC API cannot find the file
+        (e.g. MPC-HC is the active player so Kodi reports no active item,
+        or the filename contains characters that confuse the library filter).
+
+        Opens the DB read-only so it never blocks or corrupts Kodi's own writes.
+        Returns a dict compatible with get_file_info(), or None on failure.
+        """
+        import glob
+        import os
+        import sqlite3
+
+        appdata = os.environ.get("APPDATA", "")
+        if not appdata:
+            return None
+        db_pattern = os.path.join(
+            appdata, "Kodi", "userdata", "Database", "MyVideos*.db"
+        )
+        # Sort descending so we always pick the newest DB version
+        dbs = sorted(glob.glob(db_pattern), reverse=True)
+        if not dbs:
+            _LOG.debug("Kodi DB fallback: no MyVideos*.db found under %s", appdata)
+            return None
+
+        db_path = dbs[0]
+        filename = os.path.basename(filepath)
+
+        _EMPTY_DB: dict[str, Any] = {
+            "artwork_url": "", "title": "", "year": 0,
+            "tv_show": "", "season": 0, "episode": 0,
+            "season_count": 0, "episode_count": 0,
+            "tvshowid": -1,
+        }
+
+        try:
+            conn = sqlite3.connect(
+                f"file:{db_path}?mode=ro", uri=True,
+                timeout=2.0, check_same_thread=False,
+            )
+            conn.row_factory = sqlite3.Row
+            try:
+                cur = conn.cursor()
+
+                # ── TV episode ────────────────────────────────────────────
+                cur.execute("""
+                    SELECT e.idEpisode,
+                           e.c00                     AS ep_title,
+                           CAST(e.c12 AS INTEGER)    AS season_num,
+                           CAST(e.c13 AS INTEGER)    AS episode_num,
+                           e.idShow,
+                           ts.c00                    AS show_title
+                    FROM   episode e
+                    JOIN   files   f  ON f.idFile  = e.idFile
+                    JOIN   tvshow  ts ON ts.idShow  = e.idShow
+                    WHERE  LOWER(f.strFilename) = LOWER(?)
+                    LIMIT  1
+                """, (filename,))
+                row = cur.fetchone()
+                if row:
+                    result: dict[str, Any] = {
+                        **_EMPTY_DB,
+                        "title":    row["ep_title"]   or "",
+                        "tv_show":  row["show_title"] or "",
+                        "season":   row["season_num"] or 0,
+                        "episode":  row["episode_num"] or 0,
+                        "tvshowid": row["idShow"],
+                    }
+                    # Prefer episode thumbnail; fall back to TV-show poster
+                    cur.execute("""
+                        SELECT url FROM art
+                        WHERE  (media_id = ? AND media_type = 'episode'
+                                AND type = 'thumb')
+                            OR (media_id = ? AND media_type = 'tvshow'
+                                AND type = 'poster')
+                        ORDER  BY CASE media_type
+                                    WHEN 'episode' THEN 1 ELSE 2 END
+                        LIMIT  1
+                    """, (row["idEpisode"], row["idShow"]))
+                    art = cur.fetchone()
+                    if art:
+                        result["artwork_url"] = self._image_url(art["url"])
+                    return result
+
+                # ── Movie ─────────────────────────────────────────────────
+                cur.execute("""
+                    SELECT m.idMovie,
+                           m.c00                   AS title,
+                           CAST(m.c07 AS INTEGER)  AS year
+                    FROM   movie m
+                    JOIN   files f ON f.idFile = m.idFile
+                    WHERE  LOWER(f.strFilename) = LOWER(?)
+                    LIMIT  1
+                """, (filename,))
+                row = cur.fetchone()
+                if row:
+                    result = {
+                        **_EMPTY_DB,
+                        "title": row["title"] or "",
+                        "year":  row["year"]  or 0,
+                    }
+                    cur.execute("""
+                        SELECT url FROM art
+                        WHERE  media_id = ? AND media_type = 'movie'
+                          AND  type IN ('poster', 'thumb')
+                        ORDER  BY CASE type WHEN 'poster' THEN 1 ELSE 2 END
+                        LIMIT  1
+                    """, (row["idMovie"],))
+                    art = cur.fetchone()
+                    if art:
+                        result["artwork_url"] = self._image_url(art["url"])
+                    return result
+
+            finally:
+                conn.close()
+
+        except Exception as exc:
+            _LOG.debug("Kodi DB fallback error: %s", exc)
+
+        return None
 
     async def play_pause(self) -> None:
         if self._active_player_id is not None:

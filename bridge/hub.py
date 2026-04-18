@@ -327,6 +327,9 @@ class Hub:
         # Last known position/duration from MPC-HC polls — used for Kodi sync on stop
         self._mpchc_last_position: float = 0.0
         self._mpchc_last_duration: float = 0.0
+        # Auto-next: True after we have triggered the next episode so we don't
+        # trigger twice for the same file.  Reset whenever the filepath changes.
+        self._autonext_triggered: bool = False
 
         cfg = config.cfg
 
@@ -459,6 +462,30 @@ class Hub:
         if updates.get("duration", 0) > 0:
             self._mpchc_last_duration = updates["duration"]
 
+        # ── Auto-advance to next episode when ≤ 5 s remain ───────────────────
+        _pos = self._mpchc_last_position
+        _dur = self._mpchc_last_duration
+        if (
+            self._mpchc_active
+            and not self._autonext_triggered
+            and _dur > 30.0          # ignore loading / very short clips
+            and _pos > 0.0
+            and (_dur - _pos) <= 5.0
+        ):
+            _eps = self._state.state.season_episodes
+            _idx = self._state.state.playlist_index
+            if _eps and 0 <= _idx < len(_eps) - 1:
+                _next_file = _eps[_idx + 1].get("file", "")
+                if _next_file:
+                    self._autonext_triggered = True
+                    _LOG.info(
+                        "Auto-next: %.1f s remaining → episode %d → %d  (%s)",
+                        _dur - _pos, _idx, _idx + 1, _next_file,
+                    )
+                    asyncio.create_task(
+                        self.external_play(_next_file, no_dialog=True)
+                    )
+
         # Capture raw track names before they are consumed
         audiotrack_name = updates.pop("audiotrack_name", None)
         subtitletrack_name = updates.pop("subtitletrack_name", None)
@@ -477,6 +504,7 @@ class Hub:
         new_filepath = updates.get("filepath")
         if new_filepath is not None and new_filepath != self._last_filepath:
             self._last_filepath = new_filepath
+            self._autonext_triggered = False  # reset for each new file
             _LOG.info("MPC-HC filepath: %s", new_filepath)
             import os as _os
             _fp_ext = _os.path.splitext(new_filepath.lower())[1] if new_filepath else ""
@@ -911,7 +939,7 @@ class Hub:
     # ------------------------------------------------------------------
     # External player / built-in resume
     # ------------------------------------------------------------------
-    async def external_play(self, filepath: str) -> None:
+    async def external_play(self, filepath: str, no_dialog: bool = False) -> None:
         """
         Called when ``kodi-bridge.exe --play <filepath>`` POSTs to
         ``/api/external_play``.
@@ -947,7 +975,7 @@ class Hub:
         # 1b. Resume dialog — ask user to continue or start from beginning.
         #     Only shown when there is a meaningful resume point (>60 s), so
         #     new films (resume=0) and finished films (resume=0) skip the dialog.
-        if resume_pos >= 60.0:
+        if resume_pos >= 60.0 and not no_dialog:
             try:
                 _rtr = self._router
 
