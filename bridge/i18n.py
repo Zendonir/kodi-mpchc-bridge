@@ -119,6 +119,16 @@ _STRINGS: dict[str, dict[str, str]] = {
         "tc_bridge_lbl":     "Bridge:",
         "tc_pillow_missing": "(Pillow not installed)",
         "tc_off":            "Off",
+
+        # MPC Proxy settings
+        "settings_proxy_section":   "MPC Proxy (Optional)",
+        "settings_proxy_enabled":   "Enable MPC Proxy",
+        "settings_proxy_path":      "Proxy Executable",
+        "btn_browse":               "Browse\u2026",
+        "settings_proxy_setup_btn": "Setup Kodi Player",
+        "settings_proxy_setup_ok":  "playercorefactory.xml written to:\n{path}",
+        "settings_proxy_setup_err": "Setup failed:\n{err}",
+        "settings_proxy_no_path":   "Please enter the path to the MPC Proxy executable first.",
     },
 
     # ── German ────────────────────────────────────────────────────────────────
@@ -186,6 +196,16 @@ _STRINGS: dict[str, dict[str, str]] = {
         "tc_bridge_lbl":     "Bridge:",
         "tc_pillow_missing": "(Pillow nicht installiert)",
         "tc_off":            "Aus",
+
+        # MPC Proxy settings
+        "settings_proxy_section":   "MPC Proxy (Optional)",
+        "settings_proxy_enabled":   "MPC Proxy aktivieren",
+        "settings_proxy_path":      "Proxy-Programm",
+        "btn_browse":               "Durchsuchen\u2026",
+        "settings_proxy_setup_btn": "Kodi-Player einrichten",
+        "settings_proxy_setup_ok":  "playercorefactory.xml wurde geschrieben nach:\n{path}",
+        "settings_proxy_setup_err": "Einrichtung fehlgeschlagen:\n{err}",
+        "settings_proxy_no_path":   "Bitte zuerst den Pfad zur MPC-Proxy-Exe angeben.",
     },
 
     # ── French ────────────────────────────────────────────────────────────────
@@ -253,6 +273,16 @@ _STRINGS: dict[str, dict[str, str]] = {
         "tc_bridge_lbl":     "Bridge\u00a0:",
         "tc_pillow_missing": "(Pillow non install\u00e9)",
         "tc_off":            "D\u00e9sactiv\u00e9",
+
+        # MPC Proxy settings
+        "settings_proxy_section":   "MPC Proxy (Optionnel)",
+        "settings_proxy_enabled":   "Activer MPC Proxy",
+        "settings_proxy_path":      "Ex\u00e9cutable Proxy",
+        "btn_browse":               "Parcourir\u2026",
+        "settings_proxy_setup_btn": "Configurer Kodi Player",
+        "settings_proxy_setup_ok":  "playercorefactory.xml \u00e9crit dans\u00a0:\n{path}",
+        "settings_proxy_setup_err": "\u00c9chec de la configuration\u00a0:\n{err}",
+        "settings_proxy_no_path":   "Veuillez d\u2019abord entrer le chemin de l\u2019ex\u00e9cutable MPC Proxy.",
     },
 
     # ── Spanish ───────────────────────────────────────────────────────────────
@@ -320,6 +350,16 @@ _STRINGS: dict[str, dict[str, str]] = {
         "tc_bridge_lbl":     "Bridge:",
         "tc_pillow_missing": "(Pillow no instalado)",
         "tc_off":            "Desactivado",
+
+        # MPC Proxy settings
+        "settings_proxy_section":   "MPC Proxy (Opcional)",
+        "settings_proxy_enabled":   "Habilitar MPC Proxy",
+        "settings_proxy_path":      "Ejecutable Proxy",
+        "btn_browse":               "Examinar\u2026",
+        "settings_proxy_setup_btn": "Configurar Kodi Player",
+        "settings_proxy_setup_ok":  "playercorefactory.xml escrito en:\n{path}",
+        "settings_proxy_setup_err": "Error en la configuraci\u00f3n:\n{err}",
+        "settings_proxy_no_path":   "Por favor, indique primero la ruta al ejecutable MPC Proxy.",
     },
 
     # ── Italian ───────────────────────────────────────────────────────────────
@@ -387,6 +427,16 @@ _STRINGS: dict[str, dict[str, str]] = {
         "tc_bridge_lbl":     "Bridge:",
         "tc_pillow_missing": "(Pillow non installato)",
         "tc_off":            "Disattivato",
+
+        # MPC Proxy settings
+        "settings_proxy_section":   "MPC Proxy (Opzionale)",
+        "settings_proxy_enabled":   "Abilita MPC Proxy",
+        "settings_proxy_path":      "Eseguibile Proxy",
+        "btn_browse":               "Sfoglia\u2026",
+        "settings_proxy_setup_btn": "Configura Kodi Player",
+        "settings_proxy_setup_ok":  "playercorefactory.xml scritto in:\n{path}",
+        "settings_proxy_setup_err": "Configurazione fallita:\n{err}",
+        "settings_proxy_no_path":   "Indicare prima il percorso dell\u2019eseguibile MPC Proxy.",
     },
 }
 

@@ -202,6 +202,7 @@ class TrayApp:
             pass
 
         vars_: dict[str, tk.StringVar] = {}
+        bool_vars_: dict[str, tk.BooleanVar] = {}
 
         def _section(title: str) -> tk.Frame:
             tk.Label(
@@ -249,6 +250,73 @@ class TrayApp:
             bg=_C_BG, fg=_C_FG_DIM, font=("Segoe UI", 8), anchor="w",
         ).pack(fill="x", padx=14, pady=(6, 0))
 
+        # ── MPC Proxy section ─────────────────────────────────────────────
+        pf = _section(T("settings_proxy_section"))
+        # Enable checkbox
+        proxy_enabled_var = tk.BooleanVar(value=cfg.mpc_proxy_enabled if cfg else False)
+        bool_vars_["mpc_proxy_enabled"] = proxy_enabled_var
+        tk.Checkbutton(
+            pf, text=T("settings_proxy_enabled"),
+            variable=proxy_enabled_var,
+            bg=_C_PANEL, fg=_C_FG, selectcolor=_C_ENTRY_BG,
+            activebackground=_C_PANEL, activeforeground=_C_FG,
+            font=("Segoe UI", 9),
+        ).grid(row=0, column=0, columnspan=2, sticky="w", padx=(10, 6), pady=(6, 2))
+        # Path row
+        _row(pf, T("settings_proxy_path"), "mpc_proxy_path",
+             cfg.mpc_proxy_path if cfg else "", row=1)
+
+        # Browse + Setup buttons
+        pbtn_row = tk.Frame(pf, bg=_C_PANEL)
+        pbtn_row.grid(row=2, column=0, columnspan=2, sticky="ew",
+                      padx=(10, 10), pady=(2, 8))
+
+        def _browse_proxy() -> None:
+            from tkinter import filedialog
+            path = filedialog.askopenfilename(
+                parent=win,
+                title="Select mpc_proxy.exe",
+                filetypes=[("Executable", "*.exe"), ("All files", "*.*")],
+            )
+            if path:
+                vars_["mpc_proxy_path"].set(path)
+
+        def _setup_proxy() -> None:
+            from bridge.hub import Hub
+            path = vars_.get("mpc_proxy_path", tk.StringVar()).get().strip()
+            if not path:
+                messagebox.showerror(T("err_title"), T("settings_proxy_no_path"), parent=win)
+                return
+            ok, result = Hub.setup_proxy(path)
+            if ok:
+                messagebox.showinfo(
+                    T("saved_title"),
+                    T("settings_proxy_setup_ok", path=result),
+                    parent=win,
+                )
+            else:
+                messagebox.showerror(
+                    T("err_title"),
+                    T("settings_proxy_setup_err", err=result),
+                    parent=win,
+                )
+
+        tk.Button(
+            pbtn_row, text=T("btn_browse"), command=_browse_proxy,
+            bg="#333355", fg="white",
+            activebackground="#4444aa", activeforeground="white",
+            relief="flat", cursor="hand2",
+            font=("Segoe UI", 9), padx=10, pady=4,
+        ).pack(side="left", padx=(0, 4))
+
+        tk.Button(
+            pbtn_row, text=T("settings_proxy_setup_btn"), command=_setup_proxy,
+            bg=_C_ACCENT, fg="white",
+            activebackground="#005a9e", activeforeground="white",
+            relief="flat", cursor="hand2",
+            font=("Segoe UI", 9), padx=10, pady=4,
+        ).pack(side="left")
+
         btn_frame = tk.Frame(win, bg=_C_BG)
         btn_frame.pack(fill="x", padx=12, pady=10)
 
@@ -271,6 +339,8 @@ class TrayApp:
                         return
                 else:
                     data[key] = val
+            for key, var in bool_vars_.items():
+                data[key] = var.get()
             cfg_mgr.update(data)
             messagebox.showinfo(
                 T("saved_title"),

@@ -207,17 +207,24 @@ class MpcHcClient:
             await asyncio.sleep(0.05)
         return True
 
-    async def send_key(self, vk_code: int, ctrl: bool = False) -> bool:
-        """Send a keyboard message directly to the MPC-HC/MPC-BE window via Windows API."""
+    async def send_key(self, vk_code: int, ctrl: bool = False, alt: bool = False) -> bool:
+        """Send a keyboard message directly to the MPC-HC/MPC-BE window via Windows API.
+
+        Use *alt=True* for Alt+key combos (e.g. Alt+Enter for fullscreen toggle).
+        Alt keys require WM_SYSKEYDOWN / WM_SYSKEYUP instead of the regular variants.
+        """
         import sys
         if sys.platform != "win32":
             _LOG.warning("send_key only supported on Windows")
             return False
         import ctypes
 
-        WM_KEYDOWN = 0x0100
-        WM_KEYUP = 0x0101
-        VK_CONTROL = 0x11
+        WM_KEYDOWN    = 0x0100
+        WM_KEYUP      = 0x0101
+        WM_SYSKEYDOWN = 0x0104
+        WM_SYSKEYUP   = 0x0105
+        VK_CONTROL    = 0x11
+        VK_MENU       = 0x12   # Alt key
 
         user32 = ctypes.windll.user32
 
@@ -237,11 +244,17 @@ class MpcHcClient:
             user32.PostMessageW(hwnd, WM_KEYDOWN, vk_code, 0)
             user32.PostMessageW(hwnd, WM_KEYUP, vk_code, 0)
             user32.PostMessageW(hwnd, WM_KEYUP, VK_CONTROL, 0)
+        elif alt:
+            # Alt combos must use WM_SYSKEYDOWN/UP
+            user32.PostMessageW(hwnd, WM_SYSKEYDOWN, VK_MENU, 0)
+            user32.PostMessageW(hwnd, WM_SYSKEYDOWN, vk_code, 0)
+            user32.PostMessageW(hwnd, WM_SYSKEYUP, vk_code, 0)
+            user32.PostMessageW(hwnd, WM_SYSKEYUP, VK_MENU, 0)
         else:
             user32.PostMessageW(hwnd, WM_KEYDOWN, vk_code, 0)
             user32.PostMessageW(hwnd, WM_KEYUP, vk_code, 0)
 
-        _LOG.info("MPC key sent: vk=0x%02X ctrl=%s", vk_code, ctrl)
+        _LOG.info("MPC key sent: vk=0x%02X ctrl=%s alt=%s", vk_code, ctrl, alt)
         return True
 
     async def close(self) -> None:

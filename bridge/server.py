@@ -50,6 +50,7 @@ class BridgeServer:
         self._app.router.add_post("/api/command", self._handle_command)
         self._app.router.add_get("/api/config", self._handle_config_get)
         self._app.router.add_post("/api/config", self._handle_config_post)
+        self._app.router.add_post("/api/proxy/setup", self._handle_proxy_setup)
         self._app.router.add_get("/api/ws", self._handle_ws)
         self._app.router.add_get("/api/artwork", self._handle_artwork)
         self._app.router.add_get("/", self._handle_root)
@@ -122,6 +123,21 @@ class BridgeServer:
             return web.json_response({"error": "invalid JSON"}, status=400)
         self._config.update(body)
         return web.json_response({"ok": True})
+
+    async def _handle_proxy_setup(self, request: web.Request) -> web.Response:
+        """POST /api/proxy/setup — write Kodi playercorefactory.xml for MPC Proxy."""
+        try:
+            body = await request.json()
+        except Exception:
+            return web.json_response({"error": "invalid JSON"}, status=400)
+        path = (body.get("path") or "").strip()
+        if not path:
+            return web.json_response({"error": "missing proxy path"}, status=400)
+        from bridge.hub import Hub
+        ok, result = Hub.setup_proxy(path)
+        if ok:
+            return web.json_response({"ok": True, "xml_path": result})
+        return web.json_response({"ok": False, "error": result}, status=500)
 
     def set_artwork(self, data: bytes, content_type: str) -> None:
         """Store artwork fetched from Kodi. Called by the hub."""
@@ -259,6 +275,12 @@ _WEB_UI = """<!DOCTYPE html>
       </div>
     </div>
     <div class="kbd-hint" data-i18n-html="kbd_hint"></div>
+
+    <div class="sep"></div>
+    <div class="btns">
+      <button onclick="cmd('fullscreen')" data-i18n="btn_fullscreen"></button>
+      <button onclick="restartConfirm()" data-i18n="btn_restart_pc" style="background:#5c1a1a;border-color:#8a2a2a;color:#f99"></button>
+    </div>
   </div>
 
   <!-- Card: Playback info -->
@@ -313,6 +335,9 @@ const _TR = {
     lbl_hdr:'HDR', lbl_video_codec:'Codec', lbl_video_bitrate_kbps:'Bitrate',
     lbl_current_audio:'Audio', lbl_current_subtitle:'Subtitle', lbl_current_chapter:'Chapter',
     val_yes:'Yes', val_no:'No', val_of:'of',
+    btn_fullscreen:'\u26F6 Fullscreen',
+    btn_restart_pc:'\u23FB Restart PC',
+    confirm_restart:'Schedule a system restart in 10 seconds?',
   },
   de:{
     status_connecting:'Verbinde\u2026',
@@ -342,6 +367,9 @@ const _TR = {
     lbl_hdr:'HDR', lbl_video_codec:'Codec', lbl_video_bitrate_kbps:'Bitrate',
     lbl_current_audio:'Audio-Spur', lbl_current_subtitle:'Untertitel', lbl_current_chapter:'Kapitel',
     val_yes:'Ja', val_no:'Nein', val_of:'von',
+    btn_fullscreen:'\u26F6 Vollbild',
+    btn_restart_pc:'\u23FB PC neu starten',
+    confirm_restart:'PC in 10 Sekunden neu starten?',
   },
   fr:{
     status_connecting:'Connexion\u2026',
@@ -371,6 +399,9 @@ const _TR = {
     lbl_hdr:'HDR', lbl_video_codec:'Codec', lbl_video_bitrate_kbps:'D\u00E9bit',
     lbl_current_audio:'Audio', lbl_current_subtitle:'Sous-titres', lbl_current_chapter:'Chapitre',
     val_yes:'Oui', val_no:'Non', val_of:'sur',
+    btn_fullscreen:'\u26F6 Plein \u00E9cran',
+    btn_restart_pc:'\u23FB Red\u00E9marrer le PC',
+    confirm_restart:'Planifier un red\u00E9marrage du syst\u00E8me dans 10 secondes\u00A0?',
   },
   es:{
     status_connecting:'Conectando\u2026',
@@ -400,6 +431,9 @@ const _TR = {
     lbl_hdr:'HDR', lbl_video_codec:'C\u00F3dec', lbl_video_bitrate_kbps:'Tasa de bits',
     lbl_current_audio:'Audio', lbl_current_subtitle:'Subt\u00EDtulos', lbl_current_chapter:'Cap\u00EDtulo',
     val_yes:'S\u00ED', val_no:'No', val_of:'de',
+    btn_fullscreen:'\u26F6 Pantalla completa',
+    btn_restart_pc:'\u23FB Reiniciar PC',
+    confirm_restart:'\u00BFProgramar un reinicio del sistema en 10 segundos?',
   },
   it:{
     status_connecting:'Connessione\u2026',
@@ -429,6 +463,9 @@ const _TR = {
     lbl_hdr:'HDR', lbl_video_codec:'Codec', lbl_video_bitrate_kbps:'Bitrate',
     lbl_current_audio:'Audio', lbl_current_subtitle:'Sottotitoli', lbl_current_chapter:'Capitolo',
     val_yes:'S\u00EC', val_no:'No', val_of:'di',
+    btn_fullscreen:'\u26F6 Schermo intero',
+    btn_restart_pc:'\u23FB Riavvia PC',
+    confirm_restart:'Pianificare il riavvio del sistema tra 10 secondi?',
   },
 };
 const _T = _TR[_LANG] || _TR.en;
@@ -539,6 +576,10 @@ function cmd(c, val) {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(body),
   }).catch(() => {});
+}
+
+function restartConfirm() {
+  if (confirm(t('confirm_restart'))) { cmd('system_restart'); }
 }
 
 document.addEventListener('keydown', function(e) {

@@ -34,6 +34,10 @@ class BridgeConfig:
     server_host: str = "0.0.0.0"
     server_port: int = 13590
 
+    # MPC Proxy (optional — https://github.com/Zendonir/MPC-Proxy-Kodi-External-Player-Resume-Overlay)
+    mpc_proxy_enabled: bool = False
+    mpc_proxy_path: str = ""
+
     def __post_init__(self) -> None:
         for f in fields(self):
             if not isinstance(f.default, dataclasses.MISSING.__class__) and getattr(self, f.name) is None:

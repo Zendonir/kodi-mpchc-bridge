@@ -383,6 +383,63 @@ class Hub:
             await self._server.push_patch(patch)
 
     # ------------------------------------------------------------------
+    # MPC Proxy integration
+    # ------------------------------------------------------------------
+    @staticmethod
+    def setup_proxy(proxy_path: str) -> tuple[bool, str]:
+        """
+        Write *playercorefactory.xml* to Kodi's userdata folder so that
+        MPC Proxy is used as the external player for all video files.
+
+        *proxy_path* is the full path to ``mpc_proxy.exe``.
+
+        Returns ``(True, xml_path)`` on success or ``(False, error_msg)`` on failure.
+        The XML instructs Kodi to launch the proxy for every video file;
+        the proxy itself reads the Kodi resume point, shows a fullscreen dialog,
+        and then spawns MPC-HC with the correct ``/startpos`` flag.
+        """
+        import os
+        import xml.sax.saxutils as _saxutils
+
+        appdata = os.environ.get("APPDATA", "")
+        if not appdata:
+            return False, "APPDATA environment variable not set"
+
+        userdata = os.path.join(appdata, "Kodi", "userdata")
+        try:
+            os.makedirs(userdata, exist_ok=True)
+        except OSError as exc:
+            return False, f"Cannot create Kodi userdata dir: {exc}"
+
+        xml_path = os.path.join(userdata, "playercorefactory.xml")
+        proxy_esc = _saxutils.escape(proxy_path, {'"': "&quot;"})
+
+        xml = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<playercorefactory>\n'
+            '  <players>\n'
+            '    <player name="MPC Proxy" type="ExternalPlayer" audio="false" video="true">\n'
+            f'      <filename>{proxy_esc}</filename>\n'
+            '      <args>"{filepath}"</args>\n'
+            '      <hidexbmc>false</hidexbmc>\n'
+            '      <hideconsole>true</hideconsole>\n'
+            '    </player>\n'
+            '  </players>\n'
+            '  <rules action="prepend">\n'
+            '    <rule video="true" player="MPC Proxy"/>\n'
+            '  </rules>\n'
+            '</playercorefactory>\n'
+        )
+        try:
+            with open(xml_path, "w", encoding="utf-8") as fh:
+                fh.write(xml)
+            _LOG.info("MPC Proxy setup: wrote %s", xml_path)
+            return True, xml_path
+        except OSError as exc:
+            _LOG.error("MPC Proxy setup failed: %s", exc)
+            return False, str(exc)
+
+    # ------------------------------------------------------------------
     # MKV parser (blocking, runs in thread pool)
     # ------------------------------------------------------------------
     def _parse_mkv_sync(self, filepath: str) -> dict[str, Any]:

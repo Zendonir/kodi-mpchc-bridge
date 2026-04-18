@@ -40,6 +40,7 @@ _VK_DOWN    = 0x28
 _VK_RETURN  = 0x0D
 _VK_J       = 0x4A
 _VK_APPS    = 0x5D  # "Menu / Applications" key — opens context menus
+_VK_F11     = 0x7A  # F11 — generic fullscreen toggle
 
 # Commands that are always routed to MPC-HC when it is active
 _MPCHC_SPECIFIC = {
@@ -120,6 +121,14 @@ class CommandRouter:
             _LOG.info("CMD %-22s → system (Kodi/Windows toggle)", cmd)
             return self._toggle_kodi_windows()
 
+        if cmd == "system_restart":
+            _LOG.info("CMD %-22s → system (PC restart in 10 s)", cmd)
+            return self._system_restart()
+
+        if cmd == "fullscreen":
+            _LOG.info("CMD %-22s → system (fullscreen, active=%s)", cmd, active)
+            return await self._fullscreen(active)
+
         # Always-Kodi navigation (OSD)
         if cmd in _KODI_ONLY:
             _LOG.info("CMD %-22s → kodi (always)", cmd)
@@ -177,6 +186,51 @@ class CommandRouter:
             user32.ShowWindow(hwnd, SW_MINIMIZE)
             _LOG.info("kodi_windows: Kodi minimized, Windows desktop visible")
 
+        return True
+
+    def _system_restart(self) -> bool:
+        """Schedule a Windows system restart in 10 seconds via shutdown.exe."""
+        if sys.platform != "win32":
+            _LOG.warning("system_restart only supported on Windows")
+            return False
+        import subprocess
+        try:
+            subprocess.Popen(
+                ["shutdown", "/r", "/t", "10"],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            _LOG.info("System restart scheduled in 10 s")
+            return True
+        except Exception as exc:
+            _LOG.error("system_restart failed: %s", exc)
+            return False
+
+    async def _fullscreen(self, active: str) -> bool:
+        """Toggle fullscreen for the active player."""
+        if active == "mpchc":
+            # Alt+Enter toggles fullscreen in MPC-HC / MPC-BE
+            return await self._mpchc.send_key(_VK_RETURN, alt=True)
+        elif active == "kodi":
+            return await self._kodi_navigate("fullscreen")
+        else:
+            # No active player — send F11 to whichever window has focus
+            return self._send_f11_to_foreground()
+
+    def _send_f11_to_foreground(self) -> bool:
+        """Send F11 to the current foreground window (generic fullscreen toggle)."""
+        if sys.platform != "win32":
+            return False
+        import ctypes
+        WM_KEYDOWN = 0x0100
+        WM_KEYUP   = 0x0101
+        user32 = ctypes.windll.user32
+        hwnd = user32.GetForegroundWindow()
+        if not hwnd:
+            _LOG.warning("fullscreen: no foreground window found")
+            return False
+        user32.PostMessageW(hwnd, WM_KEYDOWN, _VK_F11, 0)
+        user32.PostMessageW(hwnd, WM_KEYUP,   _VK_F11, 0)
+        _LOG.info("F11 sent to foreground window hwnd=%d", hwnd)
         return True
 
     # ------------------------------------------------------------------
@@ -326,6 +380,7 @@ class CommandRouter:
             "context_menu": "contextmenu",
             "show_osd": "osd",
             "show_info": "info",
+            "fullscreen": "fullscreen",
         }
         action = action_map.get(cmd)
         if action:
