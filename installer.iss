@@ -96,6 +96,23 @@ english.AutostartDesc=Start Bridge automatically when Windows starts (recommende
 english.AutostartGroup=Autostart:
 english.FirewallDesc=Configure Windows Firewall rule for Bridge port 13590 (admin prompt appears briefly)
 english.FirewallGroup=Firewall:
+; -- External player wizard page --
+english.PlayerPageTitle=Configure external player
+english.PlayerPageSubtitle=Play Kodi videos directly in MPC-HC / MPC-BE (optional)
+english.PlayerEnable=Set up Kodi to launch videos in an external player (writes playercorefactory.xml)
+english.PlayerExeLbl=Player executable:
+english.PlayerBrowseBtn=Browse...
+english.PlayerNameLbl=Player name:
+english.PlayerArgsLbl=Launch arguments:
+english.PlayerArgHint=Use {filepath} as the file-path placeholder. Surround with " " for paths with spaces.
+english.PlayerHideKodi=Minimize Kodi during playback  (hidexbmc)
+english.PlayerHideConsole=Hide console / command window  (hideconsole)
+english.PlayerApplyLbl=Apply to:
+english.PlayerVideoChk=Video files
+english.PlayerAudioChk=Audio files
+english.PlayerTypesLbl=File extensions  (pipe-separated  |  leave empty = all matching files):
+english.PlayerBackupChk=Back up existing playercorefactory.xml as .bak before overwriting
+english.ErrPlayerNoExe=Please select the player executable.
 
 ; ── German ────────────────────────────────────────────────────────────────────
 german.ConfigPageTitle=Kodi-Verbindung konfigurieren
@@ -117,6 +134,23 @@ german.AutostartDesc=Bridge beim Windows-Anmelden automatisch starten (empfohlen
 german.AutostartGroup=Autostart:
 german.FirewallDesc=Windows-Firewall-Regel für Bridge-Port 13590 einrichten (Admin-Fenster erscheint kurz)
 german.FirewallGroup=Firewall:
+; -- Externer Player --
+german.PlayerPageTitle=Externen Player konfigurieren
+german.PlayerPageSubtitle=Kodi-Videos direkt in MPC-HC / MPC-BE abspielen (optional)
+german.PlayerEnable=Kodi so einrichten, dass Videos in einem externen Player geöffnet werden (schreibt playercorefactory.xml)
+german.PlayerExeLbl=Player-Programm:
+german.PlayerBrowseBtn=Durchsuchen...
+german.PlayerNameLbl=Player-Name:
+german.PlayerArgsLbl=Startargumente:
+german.PlayerArgHint=Platzhalter {filepath} für den Dateipfad verwenden. Pfade mit Leerzeichen in " " einschließen.
+german.PlayerHideKodi=Kodi während der Wiedergabe minimieren  (hidexbmc)
+german.PlayerHideConsole=Konsolenfenster ausblenden  (hideconsole)
+german.PlayerApplyLbl=Anwenden auf:
+german.PlayerVideoChk=Videodateien
+german.PlayerAudioChk=Audiodateien
+german.PlayerTypesLbl=Dateiendungen  (mit | trennen  |  leer = alle passenden Dateien):
+german.PlayerBackupChk=Vorhandene playercorefactory.xml vor dem Überschreiben als .bak sichern
+german.ErrPlayerNoExe=Bitte das Player-Programm auswählen.
 
 ; ── French ────────────────────────────────────────────────────────────────────
 french.ConfigPageTitle=Configurer la connexion Kodi
@@ -138,6 +172,23 @@ french.AutostartDesc=Démarrer le Bridge automatiquement au démarrage de Window
 french.AutostartGroup=Démarrage automatique :
 french.FirewallDesc=Configurer la règle de pare-feu Windows pour le port 13590 (une invite admin apparaît brièvement)
 french.FirewallGroup=Pare-feu :
+; -- Lecteur externe --
+french.PlayerPageTitle=Configurer le lecteur externe
+french.PlayerPageSubtitle=Lire les vidéos Kodi directement dans MPC-HC / MPC-BE (optionnel)
+french.PlayerEnable=Configurer Kodi pour lancer les vidéos dans un lecteur externe (écrit playercorefactory.xml)
+french.PlayerExeLbl=Lecteur externe :
+french.PlayerBrowseBtn=Parcourir...
+french.PlayerNameLbl=Nom du lecteur :
+french.PlayerArgsLbl=Arguments de lancement :
+french.PlayerArgHint=Utiliser {filepath} comme espace réservé. Entourez les chemins avec espaces de " ".
+french.PlayerHideKodi=Réduire Kodi pendant la lecture  (hidexbmc)
+french.PlayerHideConsole=Masquer la fenêtre console  (hideconsole)
+french.PlayerApplyLbl=Appliquer à :
+french.PlayerVideoChk=Fichiers vidéo
+french.PlayerAudioChk=Fichiers audio
+french.PlayerTypesLbl=Extensions  (séparées par |  |  vide = tous les fichiers correspondants) :
+french.PlayerBackupChk=Sauvegarder le playercorefactory.xml existant en .bak avant l'écriture
+french.ErrPlayerNoExe=Veuillez sélectionner l'exécutable du lecteur.
 
 ; ── Spanish ───────────────────────────────────────────────────────────────────
 spanish.ConfigPageTitle=Configurar conexión de Kodi
@@ -159,6 +210,23 @@ spanish.AutostartDesc=Iniciar el Bridge automáticamente al iniciar Windows (rec
 spanish.AutostartGroup=Inicio automático:
 spanish.FirewallDesc=Configurar regla de Firewall de Windows para el puerto 13590 (aparece una ventana de administrador brevemente)
 spanish.FirewallGroup=Firewall:
+; -- Reproductor externo --
+spanish.PlayerPageTitle=Configurar reproductor externo
+spanish.PlayerPageSubtitle=Reproducir vídeos de Kodi directamente en MPC-HC / MPC-BE (opcional)
+spanish.PlayerEnable=Configurar Kodi para abrir vídeos en un reproductor externo (escribe playercorefactory.xml)
+spanish.PlayerExeLbl=Ejecutable del reproductor:
+spanish.PlayerBrowseBtn=Examinar...
+spanish.PlayerNameLbl=Nombre del reproductor:
+spanish.PlayerArgsLbl=Argumentos de inicio:
+spanish.PlayerArgHint=Use {filepath} como marcador de posición. Encierre rutas con espacios entre " ".
+spanish.PlayerHideKodi=Minimizar Kodi durante la reproducción  (hidexbmc)
+spanish.PlayerHideConsole=Ocultar ventana de consola  (hideconsole)
+spanish.PlayerApplyLbl=Aplicar a:
+spanish.PlayerVideoChk=Archivos de vídeo
+spanish.PlayerAudioChk=Archivos de audio
+spanish.PlayerTypesLbl=Extensiones  (separadas con |  |  vacío = todos los archivos coincidentes):
+spanish.PlayerBackupChk=Guardar copia de seguridad del playercorefactory.xml existente como .bak
+spanish.ErrPlayerNoExe=Por favor, seleccione el ejecutable del reproductor.
 
 ; ── Italian ───────────────────────────────────────────────────────────────────
 italian.ConfigPageTitle=Configura connessione Kodi
@@ -180,6 +248,23 @@ italian.AutostartDesc=Avvia il Bridge automaticamente all'avvio di Windows (cons
 italian.AutostartGroup=Avvio automatico:
 italian.FirewallDesc=Configura regola Windows Firewall per la porta 13590 (appare brevemente una finestra di amministratore)
 italian.FirewallGroup=Firewall:
+; -- Lettore esterno --
+italian.PlayerPageTitle=Configura lettore esterno
+italian.PlayerPageSubtitle=Riproduci i video di Kodi direttamente in MPC-HC / MPC-BE (opzionale)
+italian.PlayerEnable=Configura Kodi per aprire i video in un lettore esterno (scrive playercorefactory.xml)
+italian.PlayerExeLbl=Eseguibile lettore:
+italian.PlayerBrowseBtn=Sfoglia...
+italian.PlayerNameLbl=Nome lettore:
+italian.PlayerArgsLbl=Argomenti di avvio:
+italian.PlayerArgHint=Usa {filepath} come segnaposto. Racchiudi i percorsi con spazi tra " ".
+italian.PlayerHideKodi=Riduci a icona Kodi durante la riproduzione  (hidexbmc)
+italian.PlayerHideConsole=Nascondi finestra console  (hideconsole)
+italian.PlayerApplyLbl=Applica a:
+italian.PlayerVideoChk=File video
+italian.PlayerAudioChk=File audio
+italian.PlayerTypesLbl=Estensioni  (separate da |  |  vuoto = tutti i file corrispondenti):
+italian.PlayerBackupChk=Crea backup del playercorefactory.xml esistente come .bak
+italian.ErrPlayerNoExe=Selezionare l'eseguibile del lettore.
 
 ; ============================================================
 [Tasks]
@@ -228,7 +313,22 @@ Filename: "taskkill"; \
 [Code]
 
 var
+  // ── Kodi connection page ──────────────────────────────────────────────────
   ConfigPage: TInputQueryWizardPage;
+
+  // ── External player page ──────────────────────────────────────────────────
+  PlayerPage:      TWizardPage;
+  chkEnablePlayer: TNewCheckBox;
+  edtPlayerExe:    TNewEdit;
+  btnBrowseExe:    TNewButton;
+  cmbPlayerName:   TNewComboBox;
+  cmbArgs:         TNewComboBox;
+  chkHideKodi:     TNewCheckBox;
+  chkHideConsole:  TNewCheckBox;
+  chkVideo:        TNewCheckBox;
+  chkAudio:        TNewCheckBox;
+  edtFileTypes:    TNewEdit;
+  chkBackup:       TNewCheckBox;
 
 // --------------------------------------------------------------------------
 // Helper: config.json exists? (upgrade detection)
@@ -236,67 +336,6 @@ var
 function ConfigExists: Boolean;
 begin
   Result := FileExists(ExpandConstant('{app}\config.json'));
-end;
-
-// --------------------------------------------------------------------------
-// Wizard page: Kodi connection details
-// --------------------------------------------------------------------------
-procedure InitializeWizard;
-begin
-  ConfigPage := CreateInputQueryPage(
-    wpSelectDir,
-    CustomMessage('ConfigPageTitle'),
-    CustomMessage('ConfigPageSubtitle'),
-    CustomMessage('ConfigPageDesc')
-  );
-  ConfigPage.Add(CustomMessage('ConfigHost'),    False);
-  ConfigPage.Add(CustomMessage('ConfigHttpPort'),False);
-  ConfigPage.Add(CustomMessage('ConfigWsPort'),  False);
-  ConfigPage.Add(CustomMessage('ConfigUser'),    False);
-  ConfigPage.Add(CustomMessage('ConfigPass'),    True);
-
-  ConfigPage.Values[0] := 'localhost';
-  ConfigPage.Values[1] := '8080';
-  ConfigPage.Values[2] := '9090';
-  ConfigPage.Values[3] := '';
-  ConfigPage.Values[4] := '';
-end;
-
-// --------------------------------------------------------------------------
-// Skip config page on upgrade
-// --------------------------------------------------------------------------
-function ShouldSkipPage(PageID: Integer): Boolean;
-begin
-  Result := False;
-  if PageID = ConfigPage.ID then
-    Result := ConfigExists;
-end;
-
-// --------------------------------------------------------------------------
-// Input validation
-// --------------------------------------------------------------------------
-function NextButtonClick(CurPageID: Integer): Boolean;
-var
-  p: Integer;
-begin
-  Result := True;
-  if CurPageID <> ConfigPage.ID then Exit;
-  if ShouldSkipPage(CurPageID) then Exit;
-
-  if Trim(ConfigPage.Values[0]) = '' then begin
-    MsgBox(CustomMessage('ErrNoHost'), mbError, MB_OK);
-    Result := False; Exit;
-  end;
-  p := StrToIntDef(ConfigPage.Values[1], -1);
-  if (p < 1) or (p > 65535) then begin
-    MsgBox(CustomMessage('ErrBadHttp'), mbError, MB_OK);
-    Result := False; Exit;
-  end;
-  p := StrToIntDef(ConfigPage.Values[2], -1);
-  if (p < 1) or (p > 65535) then begin
-    MsgBox(CustomMessage('ErrBadWs'), mbError, MB_OK);
-    Result := False; Exit;
-  end;
 end;
 
 // --------------------------------------------------------------------------
@@ -315,15 +354,344 @@ begin
 end;
 
 // --------------------------------------------------------------------------
+// XML escaping — element content  (&  <  > only; " not needed in content)
+// --------------------------------------------------------------------------
+function EscapeXmlContent(const s: String): String;
+var i: Integer; c: Char;
+begin
+  Result := '';
+  for i := 1 to Length(s) do begin
+    c := s[i];
+    if      c = '&' then Result := Result + '&amp;'
+    else if c = '<' then Result := Result + '&lt;'
+    else if c = '>' then Result := Result + '&gt;'
+    else Result := Result + c;
+  end;
+end;
+
+// --------------------------------------------------------------------------
+// XML escaping — attribute values  (adds " → &quot;)
+// --------------------------------------------------------------------------
+function EscapeXmlAttr(const s: String): String;
+var i: Integer; c: Char;
+begin
+  Result := '';
+  for i := 1 to Length(s) do begin
+    c := s[i];
+    if      c = '&'  then Result := Result + '&amp;'
+    else if c = '<'  then Result := Result + '&lt;'
+    else if c = '>'  then Result := Result + '&gt;'
+    else if c = '"'  then Result := Result + '&quot;'
+    else Result := Result + c;
+  end;
+end;
+
+// --------------------------------------------------------------------------
+// Enable / disable all player-page sub-controls
+// --------------------------------------------------------------------------
+procedure TogglePlayerControls(Sender: TObject);
+var e: Boolean;
+begin
+  e := chkEnablePlayer.Checked;
+  edtPlayerExe.Enabled   := e;
+  btnBrowseExe.Enabled   := e;
+  cmbPlayerName.Enabled  := e;
+  cmbArgs.Enabled        := e;
+  chkHideKodi.Enabled    := e;
+  chkHideConsole.Enabled := e;
+  chkVideo.Enabled       := e;
+  chkAudio.Enabled       := e;
+  edtFileTypes.Enabled   := e;
+  chkBackup.Enabled      := e;
+end;
+
+// --------------------------------------------------------------------------
+// Browse for player exe — auto-fills Name + Args based on detected filename
+// --------------------------------------------------------------------------
+procedure BrowseExeClick(Sender: TObject);
+var
+  FileName: String;
+  Base: String;
+begin
+  FileName := edtPlayerExe.Text;
+  if GetOpenFileName(
+    '',
+    FileName,
+    '',
+    'Executables (*.exe)|*.exe|All files (*.*)|*.*',
+    'exe'
+  ) then begin
+    edtPlayerExe.Text := FileName;
+    Base := LowerCase(ExtractFileName(FileName));
+    if (Base = 'mpc-hc.exe') or (Base = 'mpc-hc64.exe') then begin
+      cmbPlayerName.Text := 'MPC-HC';
+      cmbArgs.Text := '"{filepath}" /fullscreen';
+    end else if (Base = 'mpc-be.exe') or (Base = 'mpc-be64.exe') then begin
+      cmbPlayerName.Text := 'MPC-BE';
+      cmbArgs.Text := '"{filepath}" /fullscreen';
+    end else if Pos('proxy', Base) > 0 then begin
+      cmbPlayerName.Text := 'MPC Proxy';
+      cmbArgs.Text := '"{filepath}"';
+    end;
+  end;
+end;
+
+// --------------------------------------------------------------------------
+// Create wizard pages
+// --------------------------------------------------------------------------
+procedure InitializeWizard;
+var
+  PW, BH: Integer;
+  lbl: TLabel;
+begin
+  // ── Page 1: Kodi connection ───────────────────────────────────────────────
+  ConfigPage := CreateInputQueryPage(
+    wpSelectDir,
+    CustomMessage('ConfigPageTitle'),
+    CustomMessage('ConfigPageSubtitle'),
+    CustomMessage('ConfigPageDesc')
+  );
+  ConfigPage.Add(CustomMessage('ConfigHost'),     False);
+  ConfigPage.Add(CustomMessage('ConfigHttpPort'), False);
+  ConfigPage.Add(CustomMessage('ConfigWsPort'),   False);
+  ConfigPage.Add(CustomMessage('ConfigUser'),     False);
+  ConfigPage.Add(CustomMessage('ConfigPass'),     True);
+
+  ConfigPage.Values[0] := 'localhost';
+  ConfigPage.Values[1] := '8080';
+  ConfigPage.Values[2] := '9090';
+  ConfigPage.Values[3] := '';
+  ConfigPage.Values[4] := '';
+
+  // ── Page 2: External player (optional) ───────────────────────────────────
+  PlayerPage := CreateCustomPage(
+    ConfigPage.ID,
+    CustomMessage('PlayerPageTitle'),
+    CustomMessage('PlayerPageSubtitle')
+  );
+
+  PW := PlayerPage.Surface.Width;  // ~428 px at 96 DPI
+  BH := 23;                        // standard control height
+
+  // ── Master enable checkbox ────────────────────────────────────────────────
+  chkEnablePlayer := TNewCheckBox.Create(WizardForm);
+  chkEnablePlayer.Parent   := PlayerPage.Surface;
+  chkEnablePlayer.Caption  := CustomMessage('PlayerEnable');
+  chkEnablePlayer.Left     := 0;
+  chkEnablePlayer.Top      := 0;
+  chkEnablePlayer.Width    := PW;
+  chkEnablePlayer.Height   := 32;
+  chkEnablePlayer.WordWrap := True;
+  chkEnablePlayer.Checked  := False;
+  chkEnablePlayer.OnClick  := @TogglePlayerControls;
+
+  // ── Executable path ───────────────────────────────────────────────────────
+  lbl := TLabel.Create(WizardForm);
+  lbl.Parent   := PlayerPage.Surface;
+  lbl.Caption  := CustomMessage('PlayerExeLbl');
+  lbl.Left := 0; lbl.Top := 40;
+  lbl.AutoSize := True;
+
+  edtPlayerExe := TNewEdit.Create(WizardForm);
+  edtPlayerExe.Parent  := PlayerPage.Surface;
+  edtPlayerExe.Left    := 0;
+  edtPlayerExe.Top     := 54;
+  edtPlayerExe.Width   := PW - 90;
+  edtPlayerExe.Height  := BH;
+  edtPlayerExe.Enabled := False;
+
+  btnBrowseExe := TNewButton.Create(WizardForm);
+  btnBrowseExe.Parent   := PlayerPage.Surface;
+  btnBrowseExe.Caption  := CustomMessage('PlayerBrowseBtn');
+  btnBrowseExe.Left     := PW - 86;
+  btnBrowseExe.Top      := 54;
+  btnBrowseExe.Width    := 86;
+  btnBrowseExe.Height   := BH;
+  btnBrowseExe.Enabled  := False;
+  btnBrowseExe.OnClick  := @BrowseExeClick;
+
+  // ── Player name (left col) + Arguments (right col) ───────────────────────
+  lbl := TLabel.Create(WizardForm);
+  lbl.Parent  := PlayerPage.Surface;
+  lbl.Caption := CustomMessage('PlayerNameLbl');
+  lbl.Left := 0; lbl.Top := 84;
+  lbl.AutoSize := True;
+
+  lbl := TLabel.Create(WizardForm);
+  lbl.Parent  := PlayerPage.Surface;
+  lbl.Caption := CustomMessage('PlayerArgsLbl');
+  lbl.Left := 188; lbl.Top := 84;
+  lbl.AutoSize := True;
+
+  cmbPlayerName := TNewComboBox.Create(WizardForm);
+  cmbPlayerName.Parent  := PlayerPage.Surface;
+  cmbPlayerName.Left    := 0;
+  cmbPlayerName.Top     := 98;
+  cmbPlayerName.Width   := 182;
+  cmbPlayerName.Height  := BH;
+  cmbPlayerName.Enabled := False;
+  cmbPlayerName.Items.Add('MPC-HC');
+  cmbPlayerName.Items.Add('MPC-BE');
+  cmbPlayerName.Items.Add('MPC Proxy');
+  cmbPlayerName.Items.Add('VLC media player');
+  cmbPlayerName.ItemIndex := 0;
+
+  cmbArgs := TNewComboBox.Create(WizardForm);
+  cmbArgs.Parent  := PlayerPage.Surface;
+  cmbArgs.Left    := 188;
+  cmbArgs.Top     := 98;
+  cmbArgs.Width   := PW - 188;
+  cmbArgs.Height  := BH;
+  cmbArgs.Enabled := False;
+  cmbArgs.Items.Add('"{filepath}"');
+  cmbArgs.Items.Add('"{filepath}" /fullscreen');
+  cmbArgs.Items.Add('"{filepath}" /fullscreen /close');
+  cmbArgs.Items.Add('/fullscreen "{filepath}"');
+  cmbArgs.Items.Add('/fullscreen /close "{filepath}"');
+  cmbArgs.ItemIndex := 0;
+
+  // ── Hint label for args ───────────────────────────────────────────────────
+  lbl := TLabel.Create(WizardForm);
+  lbl.Parent    := PlayerPage.Surface;
+  lbl.Caption   := CustomMessage('PlayerArgHint');
+  lbl.Left      := 188;
+  lbl.Top       := 124;
+  lbl.Width     := PW - 188;
+  lbl.Height    := 20;
+  lbl.AutoSize  := False;
+  lbl.WordWrap  := True;
+  lbl.Font.Size := 7;
+
+  // ── Behaviour checkboxes ──────────────────────────────────────────────────
+  chkHideKodi := TNewCheckBox.Create(WizardForm);
+  chkHideKodi.Parent   := PlayerPage.Surface;
+  chkHideKodi.Caption  := CustomMessage('PlayerHideKodi');
+  chkHideKodi.Left     := 0;
+  chkHideKodi.Top      := 128;
+  chkHideKodi.Width    := 182;
+  chkHideKodi.Height   := 18;
+  chkHideKodi.Checked  := True;
+  chkHideKodi.Enabled  := False;
+
+  chkHideConsole := TNewCheckBox.Create(WizardForm);
+  chkHideConsole.Parent   := PlayerPage.Surface;
+  chkHideConsole.Caption  := CustomMessage('PlayerHideConsole');
+  chkHideConsole.Left     := 0;
+  chkHideConsole.Top      := 148;
+  chkHideConsole.Width    := 182;
+  chkHideConsole.Height   := 18;
+  chkHideConsole.Checked  := True;
+  chkHideConsole.Enabled  := False;
+
+  // ── Apply-to checkboxes ───────────────────────────────────────────────────
+  lbl := TLabel.Create(WizardForm);
+  lbl.Parent   := PlayerPage.Surface;
+  lbl.Caption  := CustomMessage('PlayerApplyLbl');
+  lbl.Left := 0; lbl.Top := 172;
+  lbl.AutoSize := True;
+
+  chkVideo := TNewCheckBox.Create(WizardForm);
+  chkVideo.Parent   := PlayerPage.Surface;
+  chkVideo.Caption  := CustomMessage('PlayerVideoChk');
+  chkVideo.Left     := 0;
+  chkVideo.Top      := 186;
+  chkVideo.Width    := 110;
+  chkVideo.Height   := 18;
+  chkVideo.Checked  := True;
+  chkVideo.Enabled  := False;
+
+  chkAudio := TNewCheckBox.Create(WizardForm);
+  chkAudio.Parent   := PlayerPage.Surface;
+  chkAudio.Caption  := CustomMessage('PlayerAudioChk');
+  chkAudio.Left     := 116;
+  chkAudio.Top      := 186;
+  chkAudio.Width    := 110;
+  chkAudio.Height   := 18;
+  chkAudio.Checked  := False;
+  chkAudio.Enabled  := False;
+
+  // ── File-type filter ──────────────────────────────────────────────────────
+  lbl := TLabel.Create(WizardForm);
+  lbl.Parent    := PlayerPage.Surface;
+  lbl.Caption   := CustomMessage('PlayerTypesLbl');
+  lbl.Left      := 0;
+  lbl.Top       := 208;
+  lbl.Width     := PW;
+  lbl.Height    := 16;
+  lbl.AutoSize  := False;
+  lbl.WordWrap  := True;
+
+  edtFileTypes := TNewEdit.Create(WizardForm);
+  edtFileTypes.Parent  := PlayerPage.Surface;
+  edtFileTypes.Left    := 0;
+  edtFileTypes.Top     := 224;
+  edtFileTypes.Width   := PW;
+  edtFileTypes.Height  := BH;
+  edtFileTypes.Text    := '';
+  edtFileTypes.Enabled := False;
+
+  // ── Backup option ─────────────────────────────────────────────────────────
+  chkBackup := TNewCheckBox.Create(WizardForm);
+  chkBackup.Parent   := PlayerPage.Surface;
+  chkBackup.Caption  := CustomMessage('PlayerBackupChk');
+  chkBackup.Left     := 0;
+  chkBackup.Top      := 254;
+  chkBackup.Width    := PW;
+  chkBackup.Height   := 18;
+  chkBackup.Checked  := True;
+  chkBackup.Enabled  := False;
+end;
+
+// --------------------------------------------------------------------------
+// Skip config page on upgrade (player page is always shown)
+// --------------------------------------------------------------------------
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := False;
+  if PageID = ConfigPage.ID then
+    Result := ConfigExists;
+end;
+
+// --------------------------------------------------------------------------
+// Input validation
+// --------------------------------------------------------------------------
+function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  p: Integer;
+begin
+  Result := True;
+
+  // ── Kodi config page ──────────────────────────────────────────────────────
+  if (CurPageID = ConfigPage.ID) and (not ShouldSkipPage(CurPageID)) then begin
+    if Trim(ConfigPage.Values[0]) = '' then begin
+      MsgBox(CustomMessage('ErrNoHost'), mbError, MB_OK);
+      Result := False; Exit;
+    end;
+    p := StrToIntDef(ConfigPage.Values[1], -1);
+    if (p < 1) or (p > 65535) then begin
+      MsgBox(CustomMessage('ErrBadHttp'), mbError, MB_OK);
+      Result := False; Exit;
+    end;
+    p := StrToIntDef(ConfigPage.Values[2], -1);
+    if (p < 1) or (p > 65535) then begin
+      MsgBox(CustomMessage('ErrBadWs'), mbError, MB_OK);
+      Result := False; Exit;
+    end;
+  end;
+
+  // ── External player page ──────────────────────────────────────────────────
+  if CurPageID = PlayerPage.ID then begin
+    if chkEnablePlayer.Checked then begin
+      if Trim(edtPlayerExe.Text) = '' then begin
+        MsgBox(CustomMessage('ErrPlayerNoExe'), mbError, MB_OK);
+        Result := False; Exit;
+      end;
+    end;
+  end;
+end;
+
+// --------------------------------------------------------------------------
 // Create autostart Task Scheduler entry.
-//
-// Why a PowerShell script file instead of schtasks.exe?
-//   • schtasks has subtle quoting issues with paths containing spaces
-//     when the parameter string is passed via CreateProcess.
-//   • Register-ScheduledTask (PowerShell cmdlet) is more robust, has no
-//     quoting traps, and runs reliably without admin rights.
-//   • The .ps1 file bypasses all command-line escaping problems:
-//     AppPath is written directly into the script content.
 // --------------------------------------------------------------------------
 procedure CreateAutostartTask;
 var
@@ -333,8 +701,6 @@ begin
   AppPath    := ExpandConstant('{app}\{#AppExe}');
   ScriptPath := ExpandConstant('{tmp}\kodi_create_task.ps1');
 
-  // Single-quotes (char 39) for PowerShell literals —
-  // no risk of variable expansion in the path.
   Script :=
     '$act = New-ScheduledTaskAction -Execute ' + #39 + AppPath + #39 + #13#10 +
     '$tri = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME' + #13#10 +
@@ -351,7 +717,6 @@ end;
 
 // --------------------------------------------------------------------------
 // Remove Task Scheduler entry.
-// schtasks /delete is safe here — no path, just the task name.
 // --------------------------------------------------------------------------
 procedure DeleteAutostartTask;
 var
@@ -363,8 +728,7 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Add firewall rule — requires admin → UAC prompt appears briefly.
-// ewNoWait: installer does not block; UAC window appears in background.
+// Add firewall rule — requires admin → UAC prompt.
 // --------------------------------------------------------------------------
 procedure AddFirewallRule;
 var
@@ -381,7 +745,6 @@ end;
 
 // --------------------------------------------------------------------------
 // Remove firewall rule — requires admin → UAC prompt.
-// ewWaitUntilTerminated: uninstall waits until rule is actually gone.
 // --------------------------------------------------------------------------
 procedure RemoveFirewallRule;
 var
@@ -396,7 +759,78 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// After installation: write config.json + set up autostart + firewall.
+// Write playercorefactory.xml to %APPDATA%\Kodi\userdata\
+// --------------------------------------------------------------------------
+procedure WritePlayerCoreFactory;
+var
+  KodiUD, XmlPath, BakPath: String;
+  PlayerName, Exe, Args, FileTypes: String;
+  HideKodi, HideCon, AudioAttr, VideoAttr: String;
+  RuleExtra, Xml: String;
+begin
+  KodiUD  := GetEnv('APPDATA') + '\Kodi\userdata';
+  XmlPath := KodiUD + '\playercorefactory.xml';
+  BakPath := XmlPath + '.bak';
+
+  // Create Kodi userdata directory if it doesn't exist yet
+  ForceDirectories(KodiUD);
+
+  // Back up existing config once (never overwrite an existing .bak)
+  if chkBackup.Checked then
+    if FileExists(XmlPath) and (not FileExists(BakPath)) then
+      FileCopy(XmlPath, BakPath, False);
+
+  // Read field values
+  PlayerName := Trim(cmbPlayerName.Text);
+  if PlayerName = '' then PlayerName := 'MPC-HC';
+
+  Exe       := Trim(edtPlayerExe.Text);
+  Args      := Trim(cmbArgs.Text);
+  if Args = '' then Args := '"{filepath}"';
+
+  FileTypes := Trim(edtFileTypes.Text);
+
+  if chkHideKodi.Checked    then HideKodi  := 'true' else HideKodi  := 'false';
+  if chkHideConsole.Checked then HideCon   := 'true' else HideCon   := 'false';
+  if chkVideo.Checked       then VideoAttr := 'true' else VideoAttr := 'false';
+  if chkAudio.Checked       then AudioAttr := 'true' else AudioAttr := 'false';
+
+  // Optional filetypes filter on the rule
+  if FileTypes <> '' then
+    RuleExtra := ' filetypes="' + EscapeXmlAttr(FileTypes) + '"'
+  else
+    RuleExtra := '';
+
+  // Build the XML
+  Xml :=
+    '<?xml version="1.0" encoding="utf-8"?>' + #13#10 +
+    '<playercorefactory>' + #13#10 +
+    '  <players>' + #13#10 +
+    '    <player' +
+      ' name="'  + EscapeXmlAttr(PlayerName) + '"' +
+      ' type="ExternalPlayer"' +
+      ' audio="' + AudioAttr + '"' +
+      ' video="' + VideoAttr + '">' + #13#10 +
+    '      <filename>'   + EscapeXmlContent(Exe)   + '</filename>'   + #13#10 +
+    '      <args>'       + EscapeXmlContent(Args)   + '</args>'       + #13#10 +
+    '      <hidexbmc>'   + HideKodi                 + '</hidexbmc>'   + #13#10 +
+    '      <hideconsole>' + HideCon                 + '</hideconsole>' + #13#10 +
+    '    </player>' + #13#10 +
+    '  </players>' + #13#10 +
+    '  <rules action="prepend">' + #13#10 +
+    '    <rule' +
+      ' video="' + VideoAttr + '"' +
+      ' audio="' + AudioAttr + '"' +
+      RuleExtra +
+      ' player="' + EscapeXmlAttr(PlayerName) + '"/>' + #13#10 +
+    '  </rules>' + #13#10 +
+    '</playercorefactory>';
+
+  SaveStringToFile(XmlPath, Xml, False);
+end;
+
+// --------------------------------------------------------------------------
+// After installation: write config.json + player config + autostart + firewall
 // --------------------------------------------------------------------------
 procedure CurStepChanged(CurStep: TSetupStep);
 var
@@ -432,6 +866,10 @@ begin
       Lines.Free;
     end;
   end;
+
+  // --- External player config (only if user enabled it) ---
+  if chkEnablePlayer.Checked then
+    WritePlayerCoreFactory;
 
   // --- Autostart task (no admin needed) ---
   if WizardIsTaskSelected('autostart') then
