@@ -97,6 +97,9 @@ class UnifiedState:
     shuffle: bool = False
     repeat: str = "off"
 
+    # --- bridge config reflected in state (for remote UI) ---
+    external_player_enabled: bool = True
+
     # --- MPC-HC internals (not pushed to clients) ---
     filepath: str = ""
 

@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import sys
 from typing import Any
 
 from bridge.config import ConfigManager
@@ -111,6 +112,43 @@ def _match_track(tracks: list[dict], current_name: str) -> int:
     return best_pos
 
 
+def _show_resume_dialog(position_sec: float) -> bool:
+    """
+    Show a Windows MessageBox asking the user whether to resume or start from
+    the beginning.  Returns True = resume, False = start from beginning.
+
+    Runs in a thread-pool executor so it does not block the asyncio event loop.
+    Falls back to True (resume) on non-Windows or if the dialog raises.
+    """
+    if sys.platform != "win32":
+        return True
+    import ctypes
+
+    h = int(position_sec // 3600)
+    m = int((position_sec % 3600) // 60)
+    s = int(position_sec % 60)
+    time_str = f"{h}:{m:02d}:{s:02d}" if h > 0 else f"{m}:{s:02d}"
+
+    msg = (
+        f"Möchten Sie den Film fortsetzen?\n\n"
+        f"  ▶  Fortsetzen ab {time_str}\n"
+        f"  ↩  Von Anfang starten"
+    )
+    title = "Kodi · MPC-HC Bridge"
+
+    MB_YESNO        = 0x0004
+    MB_ICONQUESTION = 0x0020
+    MB_TOPMOST      = 0x40000
+    MB_SETFOREGROUND = 0x10000
+    IDYES = 6
+
+    result = ctypes.windll.user32.MessageBoxW(
+        0, msg, title,
+        MB_YESNO | MB_ICONQUESTION | MB_TOPMOST | MB_SETFOREGROUND,
+    )
+    return result == IDYES
+
+
 class Hub:
     def __init__(self, config: ConfigManager) -> None:
         self._config = config
@@ -144,6 +182,7 @@ class Hub:
         self._router = CommandRouter(
             self._state, self._kodi, self._mpchc,
             on_mpchc_stop=self._signal_mpchc_stopped,
+            on_toggle_ext_player=self._toggle_external_player,
         )
 
         self._server = BridgeServer(
@@ -167,15 +206,20 @@ class Hub:
         if cfg.mpchc_enabled:
             self._mpchc.start()
         _LOG.info("Hub started")
-        if cfg.mpchc_exe_path:
-            _LOG.info("External player: exe=%r  resume=%s", cfg.mpchc_exe_path, cfg.resume_enabled)
+        # Push initial external_player_enabled so remote UIs get correct state
+        await self._push({"external_player_enabled": cfg.external_player_enabled})
+        if cfg.external_player_enabled:
+            if cfg.mpchc_exe_path:
+                _LOG.info("External player: exe=%r  resume=%s", cfg.mpchc_exe_path, cfg.resume_enabled)
+            else:
+                _LOG.warning(
+                    "External player NOT configured (mpchc_exe_path is empty). "
+                    "Open the Bridge web UI at http://localhost:%d and use "
+                    "'External Player Setup' to configure it.",
+                    cfg.server_port,
+                )
         else:
-            _LOG.warning(
-                "External player NOT configured (mpchc_exe_path is empty). "
-                "Open the Bridge web UI at http://localhost:%d and use "
-                "'External Player Setup' to configure it.",
-                cfg.server_port,
-            )
+            _LOG.info("External player DISABLED — Kodi will handle playback itself")
 
     async def stop(self) -> None:
         await self._kodi.stop()
@@ -552,6 +596,17 @@ class Hub:
         return True, "already_inactive"
 
     # ------------------------------------------------------------------
+    # Toggle external player on / off
+    # ------------------------------------------------------------------
+    async def _toggle_external_player(self) -> bool:
+        """Flip external_player_enabled in config and broadcast to all clients."""
+        new_val = not self._config.cfg.external_player_enabled
+        self._config.update({"external_player_enabled": new_val})
+        _LOG.info("External player %s via remote command", "ENABLED" if new_val else "DISABLED")
+        await self._push({"external_player_enabled": new_val})
+        return True
+
+    # ------------------------------------------------------------------
     # Immediate MPC-HC stop signal (called by router on explicit stop/back)
     # ------------------------------------------------------------------
     async def _signal_mpchc_stopped(self) -> None:
@@ -686,6 +741,22 @@ class Hub:
             except Exception as exc:
                 _LOG.warning("external_play: could not read resume position: %s", exc)
 
+        # 1b. Resume dialog — ask user to continue or start from beginning.
+        #     Only shown when there is a meaningful resume point (>60 s), so
+        #     new films (resume=0) and finished films (resume=0) skip the dialog.
+        if resume_pos >= 60.0:
+            try:
+                should_resume = await asyncio.get_running_loop().run_in_executor(
+                    None, _show_resume_dialog, resume_pos
+                )
+                if not should_resume:
+                    _LOG.info("external_play: user chose 'play from beginning'")
+                    resume_pos = 0.0
+                else:
+                    _LOG.info("external_play: user chose 'resume'")
+            except Exception as exc:
+                _LOG.warning("external_play: resume dialog failed: %s — defaulting to resume", exc)
+
         # 2. Launch MPC-HC ────────────────────────────────────────────────────
         try:
             kwargs: dict = {}
@@ -757,7 +828,7 @@ class Hub:
 
         _WATCH_THRESHOLD = 0.90   # fraction of duration considered "done"
         _MIN_RESUME_SECS = 60.0   # don't save resume for <1 min watched
-        _AUTO_MARK_WAIT  = 4.0    # seconds to wait for Kodi's auto-mark to land
+        _AUTO_MARK_WAIT  = 2.0    # seconds to wait for Kodi's auto-mark to land
 
         try:
             found = await self._kodi.find_library_item(filepath)

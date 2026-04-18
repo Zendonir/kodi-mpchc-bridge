@@ -35,8 +35,9 @@ class BridgeConfig:
     server_port: int = 13590
 
     # External player / resume feature (built-in, replaces standalone MPC Proxy)
-    mpchc_exe_path: str = ""       # full path to mpc-hc64.exe / mpc-be64.exe
-    resume_enabled: bool = False   # seek to Kodi resume position on external launch
+    mpchc_exe_path: str = ""              # full path to mpc-hc64.exe / mpc-be64.exe
+    resume_enabled: bool = False          # seek to Kodi resume position on external launch
+    external_player_enabled: bool = True  # False → --play exits immediately, Kodi uses own player
 
     # Legacy fields (kept for config compatibility, no longer used)
     mpc_proxy_enabled: bool = False

@@ -159,7 +159,12 @@ def main() -> None:
                 headers={"Content-Type": "application/json"},
             )
             with _urq.urlopen(req, timeout=5) as resp:
-                _LOG.info("--play: bridge accepted (HTTP %d)", resp.status)
+                body = _json.loads(resp.read())
+                status = body.get("status", "launching")
+                _LOG.info("--play: bridge accepted (HTTP %d, status=%s)", resp.status, status)
+                if status == "disabled":
+                    _LOG.info("--play: external player disabled — exiting immediately")
+                    sys.exit(0)
         except Exception as exc:
             _LOG.error("--play: cannot reach bridge at %s — %s", base, exc)
             sys.exit(1)

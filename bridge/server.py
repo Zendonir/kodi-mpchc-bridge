@@ -165,6 +165,13 @@ class BridgeServer:
         """POST /api/external_play — launch MPC-HC for a filepath (resume if configured)."""
         if self._on_external_play is None:
             return web.json_response({"error": "external play not configured"}, status=501)
+
+        # If external player is disabled, tell --play to exit immediately so
+        # Kodi falls back to its own internal player without any timeout wait.
+        if not self._config.cfg.external_player_enabled:
+            _LOG.info("external_play: external player disabled — rejecting launch request")
+            return web.json_response({"ok": True, "status": "disabled"})
+
         try:
             body = await request.json()
         except Exception:
@@ -173,7 +180,7 @@ class BridgeServer:
         if not filepath:
             return web.json_response({"error": "missing filepath"}, status=400)
         asyncio.create_task(self._on_external_play(filepath))
-        return web.json_response({"ok": True})
+        return web.json_response({"ok": True, "status": "launching"})
 
     async def _handle_ext_player_get(self, request: web.Request) -> web.Response:
         """GET /api/external_player — current external player config."""
@@ -184,6 +191,7 @@ class BridgeServer:
         return web.json_response({
             "mpchc_exe_path": cfg.mpchc_exe_path,
             "resume_enabled": cfg.resume_enabled,
+            "external_player_enabled": cfg.external_player_enabled,
             "xml_exists": os.path.exists(xml_path),
             "xml_path": xml_path,
         })
@@ -347,6 +355,9 @@ _WEB_UI = """<!DOCTYPE html>
       <button onclick="cmd('fullscreen')" data-i18n="btn_fullscreen"></button>
       <button onclick="restartConfirm()" data-i18n="btn_restart_pc" style="background:#5c1a1a;border-color:#8a2a2a;color:#f99"></button>
     </div>
+    <div class="btns" style="margin-top:4px">
+      <button id="btn-ext-toggle" onclick="cmd('toggle_external_player')"></button>
+    </div>
   </div>
 
   <!-- Card: Playback info -->
@@ -429,6 +440,8 @@ const _TR = {
     btn_setup_player:'\u2699 Configure',
     ext_not_configured:'\u26A0 Not configured \u2014 enter the MPC-HC path and click Configure.',
     ext_configured:'\u2713 Configured',
+    btn_ext_player_on:'\u25B6 Ext. Player: ON',
+    btn_ext_player_off:'\u23F8 Ext. Player: OFF',
   },
   de:{
     status_connecting:'Verbinde\u2026',
@@ -466,6 +479,8 @@ const _TR = {
     btn_setup_player:'\u2699 Einrichten',
     ext_not_configured:'\u26A0 Nicht konfiguriert \u2014 MPC-HC Pfad eingeben und Einrichten klicken.',
     ext_configured:'\u2713 Konfiguriert',
+    btn_ext_player_on:'\u25B6 Ext. Player: AN',
+    btn_ext_player_off:'\u23F8 Ext. Player: AUS',
   },
   fr:{
     status_connecting:'Connexion\u2026',
@@ -662,6 +677,16 @@ function renderAll() {
     artEl.style.display = 'none';
     artEl.src = '';
   }
+
+  // Update external player toggle button
+  const extBtn = document.getElementById('btn-ext-toggle');
+  if (extBtn) {
+    const on = state.external_player_enabled !== false;
+    extBtn.textContent = t(on ? 'btn_ext_player_on' : 'btn_ext_player_off');
+    extBtn.style.background   = on ? '#1a3d1a' : '#3d1a1a';
+    extBtn.style.borderColor  = on ? '#2a6a2a' : '#8a2a2a';
+    extBtn.style.color        = on ? '#6f6'    : '#f99';
+  }
 }
 
 function cmd(c, val) {
@@ -696,17 +721,29 @@ async function loadExtPlayerStatus() {
     const el = document.getElementById('ext-status');
     const inp = document.getElementById('mpc-exe');
     const chk = document.getElementById('resume-chk');
+    const on  = d.external_player_enabled !== false;
+    const enabledBadge = on
+      ? ' &nbsp;<span style="color:#6f6;font-size:.75rem">&#x25B6; ' + t('btn_ext_player_on') + '</span>'
+      : ' &nbsp;<span style="color:#f99;font-size:.75rem">&#x23F8; ' + t('btn_ext_player_off') + '</span>';
     if (d.mpchc_exe_path) {
       const xmlOk = d.xml_exists
         ? ' &nbsp;<span style="color:#6af;font-size:.75rem">&#x2713; playercorefactory.xml</span>'
         : ' &nbsp;<span style="color:#f96;font-size:.75rem">&#x26A0; playercorefactory.xml fehlt!</span>';
       el.innerHTML = '<span style="color:#6f6">' + t('ext_configured') + '</span>: '
-        + d.mpchc_exe_path + xmlOk;
+        + d.mpchc_exe_path + xmlOk + enabledBadge;
       inp.value = d.mpchc_exe_path;
     } else {
-      el.innerHTML = '<span style="color:#f96">' + t('ext_not_configured') + '</span>';
+      el.innerHTML = '<span style="color:#f96">' + t('ext_not_configured') + '</span>' + enabledBadge;
     }
     if (chk) chk.checked = d.resume_enabled !== false;
+    // Sync toggle button in case WS hasn't delivered state yet
+    const extBtn = document.getElementById('btn-ext-toggle');
+    if (extBtn) {
+      extBtn.textContent    = t(on ? 'btn_ext_player_on' : 'btn_ext_player_off');
+      extBtn.style.background  = on ? '#1a3d1a' : '#3d1a1a';
+      extBtn.style.borderColor = on ? '#2a6a2a' : '#8a2a2a';
+      extBtn.style.color       = on ? '#6f6'    : '#f99';
+    }
   } catch(e) {}
 }
 

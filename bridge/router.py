@@ -100,6 +100,7 @@ class CommandRouter:
         kodi: "KodiClient",
         mpchc: "MpcHcClient",
         on_mpchc_stop: "Callable | None" = None,
+        on_toggle_ext_player: "Callable | None" = None,
     ) -> None:
         self._state = state
         self._kodi = kodi
@@ -107,6 +108,8 @@ class CommandRouter:
         # Optional async callback — called before MPC-HC is closed so the hub
         # can immediately signal active_player=none (speeds up Kodi return).
         self._on_mpchc_stop = on_mpchc_stop
+        # Optional async callback — toggles external_player_enabled in config.
+        self._on_toggle_ext_player = on_toggle_ext_player
 
     @property
     def _active(self) -> str:
@@ -121,6 +124,12 @@ class CommandRouter:
         active = self._active
 
         # System-level commands (player-independent)
+        if cmd == "toggle_external_player":
+            _LOG.info("CMD %-22s → system (toggle external player)", cmd)
+            if self._on_toggle_ext_player:
+                return await self._on_toggle_ext_player()
+            return False
+
         if cmd == "kodi_windows":
             _LOG.info("CMD %-22s → system (Kodi/Windows toggle)", cmd)
             return self._toggle_kodi_windows()
