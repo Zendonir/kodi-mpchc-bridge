@@ -250,11 +250,26 @@ class KodiClient:
                               m.get("season"), m.get("season_count"),
                               m.get("episode"), m.get("episode_count"))
                     return m
-                # File names differ — still usable if caller is same file
+                # File doesn't match (Kodi still on the previous episode).
+                # We still have the tvshow poster + tvshowid in the response —
+                # use them for artwork and season-episode-list fetching.
+                # Do NOT use episode-specific fields (title/season/episode)
+                # since they belong to a different episode.
                 thumb = _pick_art(item)
-                if thumb and not active_file:
-                    m = _meta(item, is_episode=bool(item.get("showtitle")))
-                    return m
+                if thumb:
+                    is_ep2 = item.get("type", "") == "episode" or bool(item.get("showtitle"))
+                    tvshow_id2 = item.get("tvshowid", -1) if is_ep2 else -1
+                    _LOG.info(
+                        "FileInfo [1/4] file mismatch (Kodi on %r) "
+                        "— using tvshow art  tvshowid=%d",
+                        os.path.basename(active_file), tvshow_id2,
+                    )
+                    return {
+                        **_EMPTY,
+                        "artwork_url": self._image_url(thumb),
+                        "tvshowid":    tvshow_id2,
+                        "tv_show":     item.get("showtitle", "") or "" if is_ep2 else "",
+                    }
 
         # 2) Movie library by filename
         result = await self._call("VideoLibrary.GetMovies", {
