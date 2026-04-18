@@ -578,137 +578,6 @@ class Hub:
             await self._server.push_patch(patch)
 
     # ------------------------------------------------------------------
-    # MPC Proxy integration
-    # ------------------------------------------------------------------
-    @staticmethod
-    def _proxy_xml_path() -> str:
-        """Return the full path to Kodi's playercorefactory.xml."""
-        import os
-        return os.path.join(
-            os.environ.get("APPDATA", ""),
-            "Kodi", "userdata", "playercorefactory.xml",
-        )
-
-    @staticmethod
-    def proxy_status() -> str:
-        """
-        Check whether MPC Proxy is currently active in Kodi's
-        ``playercorefactory.xml``.
-
-        Returns ``"active"`` if the file exists and references MPC Proxy,
-        ``"inactive"`` otherwise (file missing, empty, or different player).
-        """
-        import os
-        xml_path = Hub._proxy_xml_path()
-        if not os.path.exists(xml_path):
-            return "inactive"
-        try:
-            with open(xml_path, "r", encoding="utf-8", errors="replace") as fh:
-                return "active" if "MPC Proxy" in fh.read() else "inactive"
-        except Exception:
-            return "inactive"
-
-    @staticmethod
-    def setup_proxy(proxy_path: str) -> tuple[bool, str]:
-        """
-        Write *playercorefactory.xml* to Kodi's userdata folder so that
-        MPC Proxy is used as the external player for all video files.
-
-        If a ``playercorefactory.xml`` already exists and no ``.bak`` backup
-        has been taken yet, a backup is created first so the original can be
-        restored later via :meth:`disable_proxy`.
-
-        Returns ``(True, xml_path)`` on success or ``(False, error_msg)`` on failure.
-        """
-        import os
-        import shutil
-        import xml.sax.saxutils as _saxutils
-
-        appdata = os.environ.get("APPDATA", "")
-        if not appdata:
-            return False, "APPDATA environment variable not set"
-
-        userdata = os.path.join(appdata, "Kodi", "userdata")
-        try:
-            os.makedirs(userdata, exist_ok=True)
-        except OSError as exc:
-            return False, f"Cannot create Kodi userdata dir: {exc}"
-
-        xml_path = os.path.join(userdata, "playercorefactory.xml")
-        bak_path = xml_path + ".bak"
-
-        # Back up the existing file exactly once (don't overwrite an earlier backup)
-        if os.path.exists(xml_path) and not os.path.exists(bak_path):
-            try:
-                shutil.copy2(xml_path, bak_path)
-                _LOG.info("MPC Proxy setup: backed up original → %s", bak_path)
-            except OSError as exc:
-                _LOG.warning("MPC Proxy setup: backup skipped — %s", exc)
-
-        proxy_esc = _saxutils.escape(proxy_path, {'"': "&quot;"})
-        xml = (
-            '<?xml version="1.0" encoding="utf-8"?>\n'
-            '<playercorefactory>\n'
-            '  <players>\n'
-            '    <player name="MPC Proxy" type="ExternalPlayer" audio="false" video="true">\n'
-            f'      <filename>{proxy_esc}</filename>\n'
-            '      <args>"{filepath}"</args>\n'
-            '      <hidexbmc>false</hidexbmc>\n'
-            '      <hideconsole>true</hideconsole>\n'
-            '    </player>\n'
-            '  </players>\n'
-            '  <rules action="prepend">\n'
-            '    <rule video="true" player="MPC Proxy"/>\n'
-            '  </rules>\n'
-            '</playercorefactory>\n'
-        )
-        try:
-            with open(xml_path, "w", encoding="utf-8") as fh:
-                fh.write(xml)
-            _LOG.info("MPC Proxy setup: wrote %s", xml_path)
-            return True, xml_path
-        except OSError as exc:
-            _LOG.error("MPC Proxy setup failed: %s", exc)
-            return False, str(exc)
-
-    @staticmethod
-    def disable_proxy() -> tuple[bool, str]:
-        """
-        Deactivate MPC Proxy as Kodi's external player.
-
-        * If a ``.bak`` backup exists → restore it (the user's original config).
-        * Otherwise → delete ``playercorefactory.xml`` entirely.
-
-        Returns ``(True, detail_msg)`` on success or ``(False, error_msg)`` on failure.
-        ``detail_msg`` is one of ``"restored"``, ``"removed"``, or ``"already_inactive"``.
-        """
-        import os
-        import shutil
-
-        xml_path = Hub._proxy_xml_path()
-        bak_path = xml_path + ".bak"
-
-        if os.path.exists(bak_path):
-            try:
-                shutil.copy2(bak_path, xml_path)
-                _LOG.info("MPC Proxy disabled: original config restored from %s", bak_path)
-                return True, "restored"
-            except OSError as exc:
-                _LOG.error("MPC Proxy disable (restore) failed: %s", exc)
-                return False, str(exc)
-
-        if os.path.exists(xml_path):
-            try:
-                os.remove(xml_path)
-                _LOG.info("MPC Proxy disabled: removed %s (no backup existed)", xml_path)
-                return True, "removed"
-            except OSError as exc:
-                _LOG.error("MPC Proxy disable (remove) failed: %s", exc)
-                return False, str(exc)
-
-        return True, "already_inactive"
-
-    # ------------------------------------------------------------------
     # Toggle external player on / off
     # ------------------------------------------------------------------
     async def _toggle_external_player(self) -> bool:
@@ -738,7 +607,9 @@ class Hub:
         so Kodi falls back to its internal player immediately.
         """
         import os
-        xml_path = self._proxy_xml_path()
+        xml_path = os.path.join(
+            os.environ.get("APPDATA", ""), "Kodi", "userdata", "playercorefactory.xml"
+        )
         if not xml_path or not os.path.exists(xml_path):
             _LOG.info("_disable_ext_player_xml: XML not found — nothing to rename")
             return
@@ -755,7 +626,9 @@ class Hub:
         or re-write it from config if the disabled backup does not exist.
         """
         import os
-        xml_path = self._proxy_xml_path()
+        xml_path = os.path.join(
+            os.environ.get("APPDATA", ""), "Kodi", "userdata", "playercorefactory.xml"
+        )
         if not xml_path:
             return
         disabled_path = xml_path + ".bridge_disabled"

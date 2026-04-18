@@ -336,18 +336,36 @@ class MpcHcClient:
     async def _poll_loop(self) -> None:
         _LOG.info("MPC-HC polling started at %s", self._base)
         _was_reachable = False
+        _miss_streak = 0
+        # Fire active_player=none only after this many consecutive failed polls.
+        # Prevents HDR / track-info flicker caused by brief HTTP unavailability
+        # during resume seeks or file-open transitions (typ. 0.5–1 s).
+        # 4 × 0.5 s = 2 s grace window before we declare MPC-HC gone.
+        _GONE_AFTER = 4
         while self._running:
             fields = await self._fetch_status()
             if fields is None:
+                _miss_streak += 1
                 if _was_reachable:
-                    _LOG.info("MPC-HC unreachable at %s", self._base)
-                    _was_reachable = False
-                if self._last:
-                    # Was connected, now lost
-                    self._last = {}
-                    await self._on_state({"active_player": "none", "state": "idle", "filepath": ""})
+                    if _miss_streak < _GONE_AFTER:
+                        _LOG.debug(
+                            "MPC-HC miss #%d/%d at %s — waiting before reset",
+                            _miss_streak, _GONE_AFTER, self._base,
+                        )
+                    else:
+                        _LOG.info(
+                            "MPC-HC unreachable at %s (after %d misses)",
+                            self._base, _miss_streak,
+                        )
+                        _was_reachable = False
+                        if self._last:
+                            self._last = {}
+                            await self._on_state(
+                                {"active_player": "none", "state": "idle", "filepath": ""}
+                            )
                 await asyncio.sleep(RECONNECT_DELAY)
                 continue
+            _miss_streak = 0  # successful poll — reset streak
 
             if not _was_reachable:
                 _LOG.info(

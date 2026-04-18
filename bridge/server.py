@@ -54,9 +54,6 @@ class BridgeServer:
         self._app.router.add_post("/api/command", self._handle_command)
         self._app.router.add_get("/api/config", self._handle_config_get)
         self._app.router.add_post("/api/config", self._handle_config_post)
-        self._app.router.add_get("/api/proxy/status", self._handle_proxy_status)
-        self._app.router.add_post("/api/proxy/setup", self._handle_proxy_setup)
-        self._app.router.add_post("/api/proxy/disable", self._handle_proxy_disable)
         self._app.router.add_post("/api/external_play", self._handle_external_play)
         self._app.router.add_get("/api/external_player", self._handle_ext_player_get)
         self._app.router.add_post("/api/external_player/setup", self._handle_ext_player_setup)
@@ -132,34 +129,6 @@ class BridgeServer:
             return web.json_response({"error": "invalid JSON"}, status=400)
         self._config.update(body)
         return web.json_response({"ok": True})
-
-    async def _handle_proxy_status(self, request: web.Request) -> web.Response:
-        """GET /api/proxy/status — returns "active" or "inactive"."""
-        from bridge.hub import Hub
-        return web.json_response({"status": Hub.proxy_status()})
-
-    async def _handle_proxy_setup(self, request: web.Request) -> web.Response:
-        """POST /api/proxy/setup — write Kodi playercorefactory.xml for MPC Proxy."""
-        try:
-            body = await request.json()
-        except Exception:
-            return web.json_response({"error": "invalid JSON"}, status=400)
-        path = (body.get("path") or "").strip()
-        if not path:
-            return web.json_response({"error": "missing proxy path"}, status=400)
-        from bridge.hub import Hub
-        ok, result = Hub.setup_proxy(path)
-        if ok:
-            return web.json_response({"ok": True, "xml_path": result})
-        return web.json_response({"ok": False, "error": result}, status=500)
-
-    async def _handle_proxy_disable(self, request: web.Request) -> web.Response:
-        """POST /api/proxy/disable — restore original playercorefactory.xml."""
-        from bridge.hub import Hub
-        ok, detail = Hub.disable_proxy()
-        if ok:
-            return web.json_response({"ok": True, "detail": detail})
-        return web.json_response({"ok": False, "error": detail}, status=500)
 
     async def _handle_external_play(self, request: web.Request) -> web.Response:
         """POST /api/external_play — launch MPC-HC for a filepath (resume if configured)."""
