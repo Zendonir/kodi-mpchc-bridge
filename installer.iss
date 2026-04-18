@@ -422,6 +422,7 @@ begin
   edtPlayerExe := TNewEdit.Create(PlayerPage.Surface);
   edtPlayerExe.Parent  := PlayerPage.Surface;
   edtPlayerExe.SetBounds(0, ScaleY(59), PW - ScaleX(90), ScaleY(23));
+  edtPlayerExe.Text    := 'C:\Program Files\MPC-HC\mpc-hc64.exe';
   edtPlayerExe.Enabled := False;
 
   btnBrowseExe := TNewButton.Create(PlayerPage.Surface);

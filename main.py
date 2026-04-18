@@ -189,7 +189,7 @@ def main() -> None:
             ap = _active_player()
             if ap is not None and ap != "mpchc":
                 break
-            _time.sleep(2)
+            _time.sleep(0.5)
 
         _LOG.info("--play: MPC-HC closed — releasing Kodi")
         sys.exit(0)

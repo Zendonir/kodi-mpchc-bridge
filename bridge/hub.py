@@ -226,10 +226,13 @@ class Hub:
                     if not t.cancelled() and t.exception() else None
                 )
 
-        # Track position and duration from every MPC-HC poll (used for Kodi sync on stop)
-        if "position" in updates:
+        # Track position and duration from every MPC-HC poll (used for Kodi sync on stop).
+        # Only update when the value is non-zero: MPC-HC reports position=0 when it
+        # transitions to idle/stopped, which would overwrite the last playing position
+        # and cause the wrong resume point / watched-state to be synced to Kodi.
+        if updates.get("position", 0) > 0:
             self._mpchc_last_position = updates["position"]
-        if "duration" in updates:
+        if updates.get("duration", 0) > 0:
             self._mpchc_last_duration = updates["duration"]
 
         # Capture raw track names before they are consumed
@@ -642,6 +645,7 @@ class Hub:
         4. After a 1 s settling pause, seek to the resume position.
         """
         import subprocess
+        import sys
 
         cfg = self._config.cfg
         mpc_exe = (cfg.mpchc_exe_path or "").strip()
@@ -663,7 +667,10 @@ class Hub:
 
         # 2. Launch MPC-HC ────────────────────────────────────────────────────
         try:
-            subprocess.Popen([mpc_exe, filepath])
+            kwargs: dict = {}
+            if sys.platform == "win32":
+                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+            subprocess.Popen([mpc_exe, filepath], **kwargs)
             _LOG.info("external_play: launched %r with %r", mpc_exe, filepath)
         except Exception as exc:
             _LOG.error("external_play: launch failed: %s", exc)
