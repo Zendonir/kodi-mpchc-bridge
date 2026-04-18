@@ -607,7 +607,7 @@ class Hub:
             '    <player name="Kodi-MPC-HC Bridge"'
             ' type="ExternalPlayer" audio="false" video="true">\n'
             f'      <filename>{exe_esc}</filename>\n'
-            '      <args>--play "{filepath}"</args>\n'
+            '      <args>--play "{1}"</args>\n'
             '      <hidexbmc>true</hidexbmc>\n'
             '      <hideconsole>true</hideconsole>\n'
             '    </player>\n'

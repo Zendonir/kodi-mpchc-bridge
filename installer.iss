@@ -587,11 +587,11 @@ begin
     // ── Resume mode: Bridge is the external player ─────────────────────────
     PlayerName := 'Kodi-MPC-HC Bridge';
     Exe        := ExpandConstant('{app}\{#AppExe}');
-    Args       := '--play "{filepath}"';
+    Args       := '--play "{1}"';
   end else begin
     // ── Direct mode: MPC-HC launched directly ─────────────────────────────
     Exe     := Trim(edtPlayerExe.Text);
-    Args    := '"{filepath}" /fullscreen';
+    Args    := '"{1}" /fullscreen';
     MpcBase := LowerCase(ExtractFileName(Exe));
     if Pos('mpc-be', MpcBase) > 0 then
       PlayerName := 'MPC-BE'
