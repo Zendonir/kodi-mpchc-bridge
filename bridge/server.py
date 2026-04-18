@@ -819,6 +819,7 @@ function renderSeasonEpisodes() {
 
   const idx = state.playlist_index != null ? state.playlist_index : -1;
 
+  // Build rows — file path stored in data-epfile attribute (no JS quoting needed)
   list.innerHTML = eps.map((ep, i) => {
     const isCur     = i === idx;
     const isWatched = ep.playcount > 0 && !isCur;
@@ -828,37 +829,46 @@ function renderSeasonEpisodes() {
     if (isCur)     cls += ' ep-current';
     if (isWatched) cls += ' ep-watched';
 
-    // File path escaped for onclick attribute
-    const fileEsc = (ep.file || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    // Encode file path as a safe HTML attribute value
+    const fileAttr = (ep.file || '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;');
 
-    const numStr   = 'E' + String(ep.episode).padStart(2,'0');
-    const title    = ep.title || ('Episode ' + ep.episode);
-    const runtime  = fmtRuntime(ep.runtime);
+    const numStr  = 'E' + String(ep.episode).padStart(2, '0');
+    const title   = (ep.title || ('Episode ' + ep.episode))
+                      .replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    const runtime = fmtRuntime(ep.runtime);
 
     let badges = '';
     if (isCur) {
-      badges += '<span class="ep-badge ep-seen">\u25B6</span>';
+      badges += '<span class="ep-badge ep-seen">&#x25B6;</span>';
     } else if (isWatched) {
-      badges += '<span class="ep-badge ep-seen">\u2713</span>';
+      badges += '<span class="ep-badge ep-seen">&#x2713;</span>';
     }
     if (hasResume) {
-      badges += '<span class="ep-badge ep-resume">\u23F5 ' + fmtResumeTime(ep.resume_pos) + '</span>';
+      badges += '<span class="ep-badge ep-resume">&#x23F5; ' + fmtResumeTime(ep.resume_pos) + '</span>';
     }
 
     return (
-      '<div class="' + cls + '" onclick="playEpisode(\'' + fileEsc + '\')">' +
-        '<span class="ep-num">' + numStr + '</span>' +
-        '<span class="ep-title">' + title.replace(/</g,'&lt;') + '</span>' +
+      '<div class="' + cls + '" data-epfile="' + fileAttr + '">' +
+        '<span class="ep-num">'     + numStr  + '</span>' +
+        '<span class="ep-title">'   + title   + '</span>' +
         badges +
         '<span class="ep-runtime">' + runtime + '</span>' +
       '</div>'
     );
   }).join('');
 
+  // Event delegation — one handler on the container, reads data-epfile
+  list.onclick = function(e) {
+    const row = e.target.closest('.ep-row');
+    if (row && row.dataset.epfile) playEpisode(row.dataset.epfile);
+  };
+
   // Scroll current episode into view
   if (idx >= 0) {
     const rows = list.querySelectorAll('.ep-row');
-    if (rows[idx]) rows[idx].scrollIntoView({block:'nearest'});
+    if (rows[idx]) rows[idx].scrollIntoView({block: 'nearest'});
   }
 }
 
@@ -867,7 +877,7 @@ function playEpisode(filepath) {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({filepath: filepath}),
-  }).catch(() => {});
+  }).catch(function() {});
 }
 
 function connect() {
