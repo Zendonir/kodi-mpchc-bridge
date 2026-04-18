@@ -110,6 +110,17 @@ class CommandRouter:
         self._on_mpchc_stop = on_mpchc_stop
         # Optional async callback — toggles external_player_enabled in config.
         self._on_toggle_ext_player = on_toggle_ext_player
+        # While the resume dialog is visible this is set to the dialog's
+        # inject-key function.  All nav/stop commands are redirected there.
+        self._dialog_handler: "Callable[[str], None] | None" = None
+
+    def set_dialog_handler(self, handler: "Callable[[str], None] | None") -> None:
+        """Register / unregister the active resume-dialog key-inject function.
+
+        Thread-safe: may be called from the dialog thread (thread-pool executor).
+        The handler itself schedules work via tkinter's ``root.after()``.
+        """
+        self._dialog_handler = handler
 
     @property
     def _active(self) -> str:
@@ -121,6 +132,26 @@ class CommandRouter:
 
         Returns True if the command was handled.
         """
+        # Resume-dialog intercept — while the dialog is on screen all
+        # navigation and stop/back commands are forwarded directly to it.
+        if self._dialog_handler is not None:
+            _DIALOG_MAP: dict[str, str] = {
+                "navigate_left":   "Left",
+                "navigate_up":     "Left",
+                "navigate_right":  "Right",
+                "navigate_down":   "Right",
+                "navigate_select": "Return",
+                # Back / Home / Stop → cancel the dialog entirely (no launch)
+                "navigate_back":   "Cancel",
+                "navigate_home":   "Cancel",
+                "stop":            "Cancel",
+            }
+            keysym = _DIALOG_MAP.get(cmd)
+            if keysym is not None:
+                _LOG.info("CMD %-22s → resume-dialog (%s)", cmd, keysym)
+                self._dialog_handler(keysym)
+                return True
+
         active = self._active
 
         # System-level commands (player-independent)

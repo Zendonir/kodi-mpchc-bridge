@@ -112,15 +112,32 @@ def _match_track(tracks: list[dict], current_name: str) -> int:
     return best_pos
 
 
-def _show_resume_dialog(position_sec: float) -> bool:
+def _show_resume_dialog(
+    position_sec: float,
+    on_ready: "Any | None" = None,
+    on_done:  "Any | None" = None,
+) -> "bool | None":
     """
     Show a full-screen dark overlay asking the user to resume or restart.
-    Returns True = resume (Ja), False = from beginning (Nein).
 
-    Keyboard navigation:
-      ←  /  →  /  Tab     — switch between Ja and Nein
-      Enter / Space        — confirm focused button
-      Esc / Backspace      — choose Nein (start from beginning)
+    Returns:
+      True   — resume from saved position ("Ja")
+      False  — play from beginning ("Nein")
+      None   — cancelled (stop/back pressed → do not launch MPC-HC at all)
+
+    Keyboard navigation (physical keyboard):
+      ← / →  /  Tab     — switch between Ja and Nein
+      Enter / Space      — confirm focused button
+      Esc / Backspace    — choose Nein (start from beginning)
+
+    Remote / bridge navigation (via on_ready callback):
+      Left / Right       — switch buttons
+      Return             — confirm focused button
+      Cancel             — abort dialog, don't launch player
+
+    on_ready(inject_fn) is called once the dialog is ready; the bridge router
+    stores inject_fn and uses it to forward remote key commands into the dialog.
+    on_done() is called when the dialog closes.
 
     Runs in a thread-pool executor (blocking), so it never blocks the asyncio
     event loop.  Falls back to True (resume) if tkinter is unavailable.
@@ -149,7 +166,7 @@ def _show_resume_dialog(position_sec: float) -> bool:
     root.overrideredirect(True)   # remove OS title bar for clean overlay
     root.configure(bg="#111111")
 
-    def _choose(val: bool) -> None:
+    def _choose(val: "bool | None") -> None:
         result[0] = val
         root.quit()
 
@@ -164,8 +181,9 @@ def _show_resume_dialog(position_sec: float) -> bool:
         frame_yes.config(bg="#ffffff" if idx == 0 else "#111111")
         frame_no.config( bg="#ffffff" if idx == 1 else "#111111")
 
-    def _on_key(event) -> str:
-        ks = event.keysym
+    def _on_key_sym(ks: str) -> None:
+        """Handle a key by name (keysym).  Called both from tkinter events and
+        from the remote-inject path (router → inject_fn → root.after)."""
         if ks in ("Right", "Tab"):
             _set_focus(1)
         elif ks == "Left":
@@ -173,7 +191,12 @@ def _show_resume_dialog(position_sec: float) -> bool:
         elif ks in ("Return", "KP_Enter", "space"):
             _choose(focused[0] == 0)   # confirm whichever button is active
         elif ks in ("Escape", "BackSpace"):
-            _choose(False)
+            _choose(False)             # Nein — play from beginning
+        elif ks == "Cancel":
+            _choose(None)              # abort — don't launch player at all
+
+    def _on_key(event) -> str:
+        _on_key_sym(event.keysym)
         return "break"  # prevent tkinter's own Tab / arrow handling
 
     root.bind("<Key>", _on_key)
@@ -239,10 +262,27 @@ def _show_resume_dialog(position_sec: float) -> bool:
         fg="#3a3a3a", bg="#111111",
     ).place(relx=0.5, rely=0.91, anchor="center")
 
+    # ── Remote-control bridge: allow the router to inject key events ────────
+    def _inject_key(keysym: str) -> None:
+        """Thread-safe: schedule a key-sym into this dialog's tkinter loop."""
+        try:
+            root.after(0, lambda: _on_key_sym(keysym))
+        except Exception:
+            pass
+
+    if on_ready is not None:
+        # Called from this thread (thread-pool executor) — the router simply
+        # stores the function reference; Python GIL makes the assignment safe.
+        on_ready(_inject_key)
+
     # Give keyboard focus to the root window so all key events are caught
     root.focus_force()
     root.update()
     root.mainloop()
+
+    if on_done is not None:
+        on_done()
+
     try:
         root.destroy()
     except Exception:
@@ -790,10 +830,22 @@ class Hub:
         #     new films (resume=0) and finished films (resume=0) skip the dialog.
         if resume_pos >= 60.0:
             try:
+                _rtr = self._router
+
+                def _register(inject_fn: "Any") -> None:
+                    _rtr.set_dialog_handler(inject_fn)
+
+                def _unregister() -> None:
+                    _rtr.set_dialog_handler(None)
+
                 should_resume = await asyncio.get_running_loop().run_in_executor(
-                    None, _show_resume_dialog, resume_pos
+                    None,
+                    lambda: _show_resume_dialog(resume_pos, _register, _unregister),
                 )
-                if not should_resume:
+                if should_resume is None:
+                    _LOG.info("external_play: user cancelled dialog — aborting launch")
+                    return
+                elif not should_resume:
                     _LOG.info("external_play: user chose 'play from beginning'")
                     resume_pos = 0.0
                 else:
