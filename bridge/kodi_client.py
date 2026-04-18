@@ -446,41 +446,121 @@ class KodiClient:
                 {"playerid": self._active_player_id, "value": "bigbackward"},
             )
 
-    async def get_resume_position(self, filepath: str) -> float:
+    async def find_library_item(self, filepath: str) -> tuple[str, dict] | None:
         """
-        Query the Kodi library for the stored resume position of *filepath*.
+        Look up *filepath* in Kodi's video library.
 
-        Tries movies first, then episodes.  Matching is done by basename
-        (fast, one API call per media type) then confirmed by full path
-        comparison (normalised slashes).
+        Tries movies first, then TV episodes.  Matching uses the basename
+        for the API filter (one call per media type) and confirms the full
+        path with normalised slashes.
 
-        Returns the resume position in **seconds**, or ``0.0`` if no resume
-        point is stored or the file is not in the library.
+        Returns *(media_type, item_dict)* where *media_type* is ``"movie"``
+        or ``"episode"`` and *item_dict* is the raw Kodi item (contains
+        ``movieid``/``episodeid``, ``file``, ``resume``), or ``None`` if
+        not found.
         """
         import os
         filename = os.path.basename(filepath)
         norm = filepath.replace("\\", "/")
 
-        for method, list_key in (
-            ("VideoLibrary.GetMovies",   "movies"),
-            ("VideoLibrary.GetEpisodes", "episodes"),
+        for method, list_key, media_type in (
+            ("VideoLibrary.GetMovies",   "movies",   "movie"),
+            ("VideoLibrary.GetEpisodes", "episodes", "episode"),
         ):
             result = await self._call(method, {
                 "properties": ["file", "resume"],
                 "filter": {"field": "filename", "operator": "is", "value": filename},
             })
-            items = (result or {}).get(list_key, [])
-            for item in items:
+            for item in (result or {}).get(list_key, []):
                 if item.get("file", "").replace("\\", "/") == norm:
-                    pos = float((item.get("resume") or {}).get("position", 0))
-                    _LOG.info(
-                        "get_resume_position: %s → %.1f s (from %s)",
-                        filename, pos, list_key,
-                    )
-                    return pos
+                    _LOG.debug("find_library_item: %s → %s id=%s",
+                               filename, media_type,
+                               item.get("movieid") or item.get("episodeid"))
+                    return media_type, item
 
-        _LOG.debug("get_resume_position: %s not found in library", filename)
-        return 0.0
+        _LOG.debug("find_library_item: %s not in Kodi library", filename)
+        return None
+
+    async def get_resume_position(self, filepath: str) -> float:
+        """
+        Return the stored Kodi resume position for *filepath* in seconds,
+        or ``0.0`` if no resume point is stored or the file is not in the
+        library.
+        """
+        found = await self.find_library_item(filepath)
+        if found is None:
+            return 0.0
+        _, item = found
+        pos = float((item.get("resume") or {}).get("position", 0))
+        _LOG.info("get_resume_position: %s → %.1f s",
+                  filepath.split("\\")[-1].split("/")[-1], pos)
+        return pos
+
+    async def set_resume_position(
+        self,
+        media_type: str,
+        media_id: int,
+        position: float,
+        total: float,
+    ) -> bool:
+        """
+        Store *position* as Kodi's resume point for a movie or episode.
+
+        Parameters
+        ----------
+        media_type : ``"movie"`` or ``"episode"``
+        media_id   : Kodi library item ID
+        position   : Current playback position in seconds
+        total      : Total duration in seconds (shown in Kodi's resume UI)
+        """
+        if media_type == "movie":
+            method = "VideoLibrary.SetMovieDetails"
+            params: dict = {"movieid": media_id,
+                            "resume": {"position": position, "total": total}}
+        else:
+            method = "VideoLibrary.SetEpisodeDetails"
+            params = {"episodeid": media_id,
+                      "resume": {"position": position, "total": total}}
+        result = await self._call(method, params)
+        if result is not None:
+            _LOG.info("set_resume_position: %s id=%d → %.1f s / %.1f s",
+                      media_type, media_id, position, total)
+            return True
+        _LOG.warning("set_resume_position: %s id=%d failed", media_type, media_id)
+        return False
+
+    async def set_watched(self, media_type: str, media_id: int) -> bool:
+        """
+        Mark a movie or episode as watched in Kodi.
+
+        Sets ``playcount = 1``, ``lastplayed = now``, and clears the resume
+        point so Kodi's "resume / play from start" dialog no longer appears.
+        """
+        import datetime
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if media_type == "movie":
+            method = "VideoLibrary.SetMovieDetails"
+            params: dict = {
+                "movieid":    media_id,
+                "playcount":  1,
+                "lastplayed": now,
+                "resume":     {"position": 0.0, "total": 0.0},
+            }
+        else:
+            method = "VideoLibrary.SetEpisodeDetails"
+            params = {
+                "episodeid":  media_id,
+                "playcount":  1,
+                "lastplayed": now,
+                "resume":     {"position": 0.0, "total": 0.0},
+            }
+        result = await self._call(method, params)
+        if result is not None:
+            _LOG.info("set_watched: %s id=%d → playcount=1 lastplayed=%s",
+                      media_type, media_id, now)
+            return True
+        _LOG.warning("set_watched: %s id=%d failed", media_type, media_id)
+        return False
 
     # ------------------------------------------------------------------
     # Connection loop

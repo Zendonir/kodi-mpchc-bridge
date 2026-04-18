@@ -119,6 +119,9 @@ class Hub:
         self._mpchc_active = False  # True while MPC-HC has a file loaded
         self._last_audiotrack_name: str = ""
         self._last_subtitletrack_name: str = ""
+        # Last known position/duration from MPC-HC polls — used for Kodi sync on stop
+        self._mpchc_last_position: float = 0.0
+        self._mpchc_last_duration: float = 0.0
 
         cfg = config.cfg
 
@@ -200,6 +203,24 @@ class Hub:
             updates.setdefault("video_codec", "")
             updates.setdefault("video_fps", 0.0)
             _LOG.info("ACTIVE PLAYER → none   (mpchc idle, kodi may take over)")
+            # Sync playback state to Kodi library in the background
+            _fp  = self._last_filepath
+            _pos = self._mpchc_last_position
+            _dur = self._mpchc_last_duration
+            if _fp:
+                _sync_task = asyncio.get_running_loop().create_task(
+                    self._sync_to_kodi(_fp, _pos, _dur)
+                )
+                _sync_task.add_done_callback(
+                    lambda t: _LOG.warning("Kodi sync task raised: %s", t.exception())
+                    if not t.cancelled() and t.exception() else None
+                )
+
+        # Track position and duration from every MPC-HC poll (used for Kodi sync on stop)
+        if "position" in updates:
+            self._mpchc_last_position = updates["position"]
+        if "duration" in updates:
+            self._mpchc_last_duration = updates["duration"]
 
         # Capture raw track names before they are consumed
         audiotrack_name = updates.pop("audiotrack_name", None)
@@ -591,6 +612,64 @@ class Hub:
         seek_ms = int(resume_pos * 1000)
         _LOG.info("external_play: seeking to %d ms (%.1f s)", seek_ms, resume_pos)
         await self._mpchc.seek(seek_ms)
+
+    async def _sync_to_kodi(
+        self, filepath: str, position: float, duration: float
+    ) -> None:
+        """
+        Sync MPC-HC playback end state to Kodi's video library.
+
+        Decision logic
+        --------------
+        * position ≥ 90 % of duration  →  mark watched
+          (playcount = 1, lastplayed = now, resume cleared)
+        * position ≥ 60 s              →  save resume point
+        * otherwise                    →  no-op  (too short to bother)
+        """
+        if not filepath:
+            return
+
+        _WATCH_THRESHOLD = 0.90   # fraction of duration considered "done"
+        _MIN_RESUME_SECS = 60.0   # don't save resume for <1 min watched
+
+        try:
+            found = await self._kodi.find_library_item(filepath)
+        except Exception as exc:
+            _LOG.warning("kodi sync: library lookup failed for %r: %s", filepath, exc)
+            return
+
+        if found is None:
+            _LOG.info("kodi sync: %r not in Kodi library — nothing to update", filepath)
+            return
+
+        media_type, item = found
+        media_id: int = item.get("movieid") or item.get("episodeid") or 0
+        if not media_id:
+            _LOG.warning("kodi sync: could not determine media id for %r", filepath)
+            return
+
+        if duration > 0 and position >= duration * _WATCH_THRESHOLD:
+            _LOG.info(
+                "kodi sync: position %.1f s / %.1f s (%.0f %%) → marking watched"
+                "  [%s id=%d]",
+                position, duration, 100 * position / duration,
+                media_type, media_id,
+            )
+            await self._kodi.set_watched(media_type, media_id)
+
+        elif position >= _MIN_RESUME_SECS:
+            _LOG.info(
+                "kodi sync: position %.1f s / %.1f s → saving resume point"
+                "  [%s id=%d]",
+                position, duration, media_type, media_id,
+            )
+            await self._kodi.set_resume_position(media_type, media_id, position, duration)
+
+        else:
+            _LOG.debug(
+                "kodi sync: position %.1f s is too short to save  [%s id=%d]",
+                position, media_type, media_id,
+            )
 
     # ------------------------------------------------------------------
     # MKV parser (blocking, runs in thread pool)
