@@ -959,7 +959,11 @@ begin
     // Remove autostart task (no admin)
     DeleteAutostartTask;
 
-    // Clean up any leftover watchdog files from previous installs
+    // Clean up legacy watchdog scheduled task + script files from <= v1.0.65
+    Exec(ExpandConstant('{sys}\schtasks.exe'),
+         '/delete /f /tn KodiMpcHcBridgeWatchdog',
+         '', SW_HIDE, ewWaitUntilTerminated, rc);
+    Exec('taskkill', '/f /im wscript.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
     DeleteFile(ExpandConstant('{app}\watchdog.vbs'));
     DeleteFile(ExpandConstant('{app}\watchdog.ps1'));
 
@@ -1024,6 +1028,17 @@ begin
     end;
   end;
   Exec('taskkill', '/f /im {#AppExe}', '', SW_HIDE, ewWaitUntilTerminated, rc);
+
+  // Kill any leftover wscript.exe instance running the legacy watchdog
+  // (so the .vbs file can be deleted and the task removed cleanly).
+  Exec('taskkill', '/f /im wscript.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
+
+  // Remove the legacy watchdog scheduled task from <= v1.0.65 installs.
+  // The watchdog is no longer used; Windows Winlogon auto-restarts the
+  // shell process on its own.  Safe no-op if the task doesn't exist.
+  Exec(ExpandConstant('{sys}\schtasks.exe'),
+       '/delete /f /tn KodiMpcHcBridgeWatchdog',
+       '', SW_HIDE, ewWaitUntilTerminated, rc);
 
   // Clean up legacy onefile runtime-tmpdir (only present on systems that
   // ran the old onefile build; safe no-op otherwise).
