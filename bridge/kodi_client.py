@@ -75,6 +75,11 @@ class KodiClient:
         self._pending: dict[int, asyncio.Future] = {}
         self._active_player_id: int | None = None
         self._last: dict[str, Any] = {}
+        # Per-episode art caches — populated by prefetch_season_art().
+        # _episode_art_cache : filename → resolved art URL
+        # _episode_bytes_cache: art_url  → (bytes, content_type)
+        self._episode_art_cache:   dict[str, str]                 = {}
+        self._episode_bytes_cache: dict[str, tuple[bytes, str]]   = {}
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -390,19 +395,27 @@ class KodiClient:
                           m.get("episode"), m.get("episode_count"))
                 return m
 
-        # 3b) Episode lookup via tvshowid+season (MySQL-backed Kodi libraries do
-        #     not support VideoLibrary.GetEpisodes with a filename filter — the
-        #     call returns None instead of an empty list).  When we landed on the
-        #     mismatch path in step 1 we already know the tvshowid and season, so
-        #     we can fetch all episodes for that season and match by filename in
-        #     Python — reliable on both SQLite and MySQL setups.
+        # 3b) Episode lookup via tvshowid+season.
+        #
+        #     KEY: "art" is intentionally omitted from properties.
+        #     On MySQL-backed Kodi libraries, requesting "art" in a bulk
+        #     GetEpisodes call silently returns 0 results (the DB join that
+        #     maps art rows to every episode in the result set fails on MySQL).
+        #     "thumbnail" is safe — it maps to a single column in the episode
+        #     table and works on both SQLite and MySQL backends.
+        #
+        #     After finding the episode we try (in order):
+        #       1. _episode_art_cache — pre-fetched by prefetch_season_art()
+        #       2. "thumbnail" field from GetEpisodes — works on all backends
+        #       3. GetEpisodeDetails for a single episodeid — one-row lookup,
+        #          safe on MySQL; gives the full art dict including tvshow.poster
         if _mismatch_tvshowid >= 0 and _mismatch_season > 0:
             result3b = await self._call("VideoLibrary.GetEpisodes", {
                 "tvshowid": _mismatch_tvshowid,
                 "season":   _mismatch_season,
                 "properties": [
-                    "thumbnail", "art", "title", "year", "showtitle",
-                    "season", "episode", "tvshowid", "file",
+                    "file", "thumbnail",   # "art" omitted: causes MySQL failure
+                    "title", "year", "showtitle", "season", "episode", "tvshowid",
                 ],
             })
             eps3b = (result3b or {}).get("episodes", [])
@@ -412,7 +425,24 @@ class KodiClient:
             )
             for ep in eps3b:
                 if os.path.basename(ep.get("file", "")) == filename:
+                    # _meta() picks thumbnail via _pick_art's fallback to tn
+                    # (art={} → falls back to ep["thumbnail"]).
                     m = _meta(ep, is_episode=True)
+
+                    # Try to improve art quality (order of preference):
+                    episodeid = ep.get("episodeid", -1)
+                    cached_url = self._episode_art_cache.get(filename, "")
+                    if cached_url:
+                        m["artwork_url"] = cached_url
+                        _LOG.debug("FileInfo [3b] art from pre-fetch cache: %s", cached_url[:60])
+                    elif not m["artwork_url"] and episodeid >= 0:
+                        # thumbnail field was empty → try GetEpisodeDetails
+                        detail_url = await self._get_episode_art_url(episodeid, episode_art_mode)
+                        if detail_url:
+                            m["artwork_url"] = detail_url
+                            self._episode_art_cache[filename] = detail_url
+                            _LOG.debug("FileInfo [3b] art from GetEpisodeDetails: %s", detail_url[:60])
+
                     tvshowid_ep   = ep.get("tvshowid", _mismatch_tvshowid)
                     cur_season_ep = ep.get("season",   _mismatch_season)
                     if tvshowid_ep >= 0 and cur_season_ep > 0:
@@ -420,8 +450,8 @@ class KodiClient:
                         m["season_count"] = sc
                         m["episode_count"] = ec
                     _LOG.info(
-                        "FileInfo [3b] matched: title=%r s%s/%s e%s/%s",
-                        m["title"],
+                        "FileInfo [3b] matched: title=%r art=%r s%s/%s e%s/%s",
+                        m["title"], (m.get("artwork_url") or "")[:55],
                         m.get("season"), m.get("season_count"),
                         m.get("episode"), m.get("episode_count"),
                     )
@@ -491,6 +521,99 @@ class KodiClient:
             0,
         )
         return total_seasons, ep_count
+
+    async def _get_episode_art_url(
+        self, episodeid: int, episode_art_mode: str
+    ) -> str:
+        """
+        Fetch the best art URL for a single episode using GetEpisodeDetails.
+
+        Safe on MySQL-backed Kodi libraries — one-row lookup, no bulk join.
+        Returns an already-resolved URL (HTTPS direct or Kodi proxy), or "".
+        """
+        result = await self._call("VideoLibrary.GetEpisodeDetails", {
+            "episodeid": episodeid,
+            "properties": ["art", "thumbnail"],
+        })
+        if not result or not isinstance(result, dict):
+            return ""
+        item = result.get("episodedetails", {})
+        art = item.get("art") or {}
+        tn  = item.get("thumbnail", "") or ""
+
+        if episode_art_mode == "thumb":
+            url = (art.get("thumb",          "") or art.get("season.poster",  "")
+                   or art.get("tvshow.poster","") or art.get("poster",        "")
+                   or art.get("fanart",       "") or tn or "")
+        elif episode_art_mode == "season.poster":
+            url = (art.get("season.poster",  "") or art.get("tvshow.poster",  "")
+                   or art.get("thumb",        "") or art.get("poster",        "")
+                   or art.get("fanart",       "") or tn or "")
+        elif episode_art_mode == "fanart":
+            url = (art.get("fanart",         "") or art.get("tvshow.poster",  "")
+                   or art.get("season.poster","") or art.get("thumb",         "")
+                   or art.get("poster",       "") or tn or "")
+        else:  # "poster" — tvshow poster first
+            url = (art.get("tvshow.poster",  "") or art.get("season.poster",  "")
+                   or art.get("poster",       "") or art.get("thumb",         "")
+                   or art.get("fanart",       "") or tn or "")
+
+        return self._image_url(url) if url else ""
+
+    async def prefetch_season_art(
+        self, episodes: list[dict], episode_art_mode: str
+    ) -> None:
+        """
+        Background task: pre-fetch art URLs **and** image bytes for every
+        episode in the season list.
+
+        Loading priority for each episode:
+        1. _episode_art_cache hit (already fetched this session) → skip
+        2. GetEpisodeDetails (single-row, MySQL-safe) → art URL
+        3. fetch_artwork_bytes: Textures13.db local file first, then HTTP
+
+        Results go into:
+        * _episode_art_cache  : filename → resolved art URL
+        * _episode_bytes_cache: art_url  → (bytes, content_type)
+
+        These caches mean that step 3b in get_file_info and hub._fetch_artwork
+        can produce the correct thumbnail immediately on the next episode switch
+        without any extra API round-trips.
+        """
+        import os
+        _LOG.info(
+            "Season art pre-fetch: %d episodes  mode=%s",
+            len(episodes), episode_art_mode,
+        )
+        fetched = 0
+        for ep in episodes:
+            episodeid = ep.get("episodeid", -1)
+            filename  = os.path.basename(ep.get("file", ""))
+            if not filename or episodeid < 0:
+                continue
+
+            # Art URL — check cache first
+            art_url = self._episode_art_cache.get(filename, "")
+            if not art_url:
+                art_url = await self._get_episode_art_url(episodeid, episode_art_mode)
+                if art_url:
+                    self._episode_art_cache[filename] = art_url
+
+            if not art_url:
+                _LOG.debug("Season pre-fetch: no art URL for %s", filename)
+                continue
+
+            # Bytes — skip if already in cache
+            if art_url in self._episode_bytes_cache:
+                continue
+
+            result = await self.fetch_artwork_bytes(art_url)
+            if result:
+                self._episode_bytes_cache[art_url] = result
+                fetched += 1
+                _LOG.debug("Season pre-fetch: cached %s (%d bytes)", filename, len(result[0]))
+
+        _LOG.info("Season art pre-fetch done: %d/%d thumbnails loaded", fetched, len(episodes))
 
     async def get_season_episodes(self, tvshowid: int, season: int) -> list[dict]:
         """
@@ -620,17 +743,27 @@ class KodiClient:
         """
         Fetch artwork bytes for *art_url*.
 
-        Strategy
-        --------
-        1. Look up the URL in Kodi's local ``Textures13.db`` texture cache.
-           If found, read the file directly from ``Thumbnails\\`` — no HTTP
-           round-trip needed, works even when the original source is offline.
-        2. Fall back to an HTTP fetch (Kodi proxy for local thumbnails,
-           direct download for remote HTTPS URLs).
+        Strategy (local-first)
+        ----------------------
+        0. In-memory pre-fetch cache (populated by prefetch_season_art) —
+           instant, zero I/O, populated in the background on episode start.
+        1. Kodi's local Textures13.db texture cache — read directly from
+           ``Thumbnails\\``, no HTTP round-trip.
+        2. HTTP fetch — Kodi proxy for local thumbnails, direct HTTPS for
+           remote URLs (TMDB etc.).
 
         Returns ``(data, content_type)`` or ``None`` on failure.
         """
         import os
+
+        # 0. In-memory pre-fetch cache
+        cached = self._episode_bytes_cache.get(art_url)
+        if cached:
+            _LOG.info(
+                "Artwork from pre-fetch cache (%d bytes): %s",
+                len(cached[0]), art_url[:60],
+            )
+            return cached
 
         # 1. Local Textures cache
         path = await asyncio.get_running_loop().run_in_executor(

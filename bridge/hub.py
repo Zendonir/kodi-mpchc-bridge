@@ -717,6 +717,19 @@ class Hub:
                                 "Season S%02d: %d episodes fetched, current index=%d",
                                 cur_season, len(eps), idx,
                             )
+                            # Pre-fetch art + image bytes for all season episodes in
+                            # the background so the next episode switch is instant.
+                            # Priority: _episode_bytes_cache → Textures13.db → HTTP
+                            _ep_art_mode = self._config.cfg.episode_art_mode
+                            _pf_task = asyncio.get_running_loop().create_task(
+                                self._kodi.prefetch_season_art(eps, _ep_art_mode),
+                                name="season-art-prefetch",
+                            )
+                            _pf_task.add_done_callback(
+                                lambda t: _LOG.warning(
+                                    "Season art pre-fetch raised: %s", t.exception()
+                                ) if not t.cancelled() and t.exception() else None
+                            )
                     except Exception as exc:
                         _LOG.warning("Season episode fetch failed: %s", exc)
 
