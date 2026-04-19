@@ -471,8 +471,10 @@ class Hub:
             self._mpchc.start()
         _LOG.info("Hub started")
 
-        # Kiosk mode: hide Explorer shell + launch Kodi if configured
-        if cfg.hide_explorer:
+        # Kiosk mode: hide Explorer shell + launch Kodi if configured.
+        # shell_mode alone is sufficient — it implies hide_explorer behaviour
+        # so config.json and the registry Shell key can never get out of sync.
+        if cfg.hide_explorer or cfg.shell_mode:
             if cfg.kodi_exe_path:
                 if cfg.shell_mode:
                     # Bridge IS the Windows shell — Explorer never started on this
@@ -492,7 +494,7 @@ class Hub:
                 _launch_kodi(cfg.kodi_exe_path)
             else:
                 _LOG.warning(
-                    "hide_explorer is True but kodi_exe_path is empty — "
+                    "hide_explorer / shell_mode is True but kodi_exe_path is empty — "
                     "kiosk mode skipped (configure kodi_exe_path in settings)"
                 )
 

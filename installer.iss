@@ -494,6 +494,43 @@ begin
 end;
 
 // --------------------------------------------------------------------------
+// Update kiosk-related fields in an existing config.json.
+// Runs on every install (including upgrades) so that the registry Shell key
+// and config.json always stay in sync.
+// Uses PowerShell ConvertFrom-Json / ConvertTo-Json to patch only the three
+// kiosk fields without touching any other user settings.
+// --------------------------------------------------------------------------
+procedure UpdateKioskConfig;
+var
+  ConfigFile, ScriptPath, Script: String;
+  HideVal, ShellVal, ExeVal: String;
+  rc: Integer;
+begin
+  ConfigFile := ExpandConstant('{app}\config.json');
+  if not FileExists(ConfigFile) then Exit;
+
+  ScriptPath := ExpandConstant('{tmp}\update_kiosk_cfg.ps1');
+
+  if chkHideExplorer.Checked then HideVal  := '$true'  else HideVal  := '$false';
+  if chkShellMode.Checked    then ShellVal := '$true'  else ShellVal := '$false';
+  // PS single-quoted string — backslashes are literal, only ' needs doubling
+  ExeVal := Trim(edtKodiExe.Text);
+
+  Script :=
+    '$f = ' + #39 + ConfigFile + #39 + #13#10 +
+    '$c = Get-Content $f -Raw | ConvertFrom-Json' + #13#10 +
+    '$c | Add-Member -Force -NotePropertyName hide_explorer -NotePropertyValue ' + HideVal  + #13#10 +
+    '$c | Add-Member -Force -NotePropertyName shell_mode    -NotePropertyValue ' + ShellVal + #13#10 +
+    '$c | Add-Member -Force -NotePropertyName kodi_exe_path -NotePropertyValue ' + #39 + ExeVal + #39 + #13#10 +
+    '($c | ConvertTo-Json -Depth 10) | Set-Content $f -Encoding UTF8';
+
+  if SaveStringToFile(ScriptPath, Script, False) then
+    Exec('powershell.exe',
+         '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '"',
+         '', SW_HIDE, ewWaitUntilTerminated, rc);
+end;
+
+// --------------------------------------------------------------------------
 // Remove the watchdog scheduled task (and its script file).
 // --------------------------------------------------------------------------
 procedure DeleteWatchdogTask;
@@ -929,6 +966,9 @@ begin
   // --- External player config (only if user enabled it) ---
   if chkEnablePlayer.Checked then
     WritePlayerCoreFactory;
+
+  // --- Always sync kiosk fields in config.json (handles upgrades too) ---
+  UpdateKioskConfig;
 
   // --- Shell-mode registry key ---
   // HKCU\...\Winlogon\Shell → bridge path  (shell-mode ON)
