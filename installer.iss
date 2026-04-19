@@ -1039,6 +1039,9 @@ begin
     DeleteFile(ExpandConstant('{app}\watchdog.vbs'));
     DeleteFile(ExpandConstant('{app}\watchdog.ps1'));  // legacy cleanup
 
+    // Remove PyInstaller runtime extraction directory
+    DelTree(ExpandConstant('{localappdata}\kodi-mpchc-bridge-rt'), True, True, True);
+
     // If bridge was registered as Windows shell, Explorer is not running → start it.
     if RegQueryStringValue(HKCU,
         'Software\Microsoft\Windows NT\CurrentVersion\Winlogon',
@@ -1084,7 +1087,7 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   rc: Integer;
-  ShellVal: String;
+  ShellVal, RtDir: String;
 begin
   // If bridge is registered as the Windows shell, start Explorer before
   // killing the bridge so the user keeps a usable desktop during the upgrade.
@@ -1097,5 +1100,15 @@ begin
     end;
   end;
   Exec('taskkill', '/f /im {#AppExe}', '', SW_HIDE, ewWaitUntilTerminated, rc);
+
+  // Clean up stale PyInstaller extraction folder.
+  // PyInstaller (onefile) extracts to a fixed _MEI* subfolder inside this dir.
+  // On upgrades or after a Python version change the old _MEI* folder may be
+  // incomplete or contain the wrong DLLs → "Failed to load Python DLL" error.
+  // Deleting the whole directory forces a clean re-extraction on first launch.
+  RtDir := ExpandConstant('{localappdata}\kodi-mpchc-bridge-rt');
+  if DirExists(RtDir) then
+    DelTree(RtDir, True, True, True);
+
   Result := '';
 end;
