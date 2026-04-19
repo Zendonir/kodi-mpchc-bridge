@@ -526,7 +526,7 @@ class KodiClient:
         Fetch the best art URL for a single episode using GetEpisodeDetails.
 
         Safe on MySQL-backed Kodi libraries — one-row lookup, no bulk join.
-        Returns an already-resolved URL (HTTPS direct or Kodi proxy), or "".
+        Returns a Kodi proxy URL (http://HOST:PORT/image/...), or "".
         """
         result = await self._call("VideoLibrary.GetEpisodeDetails", {
             "episodeid": episodeid,
@@ -653,33 +653,27 @@ class KodiClient:
 
     def _image_url(self, kodi_url: str) -> str:
         """
-        Convert a Kodi image:// URL to a fetchable HTTP(S) URL.
+        Convert any Kodi art URL to a fetchable URL via Kodi's image proxy.
 
-        Kodi stores artwork in two forms:
-          image://https%3a%2f%2fassets.fanart.tv%2f...  → remote image (Fanart.tv/TMDB)
-          image://video@Y%3a%5cFilme%5c...              → local video thumbnail
+        ALL images — remote (TMDB, Fanart.tv) and local (video thumbnail,
+        NFO poster) — are served through Kodi's own HTTP image endpoint:
 
-        For remote images the inner HTTP URL is extracted and used directly.
-        For local thumbnails Kodi's image proxy is used.
+            http://HOST:PORT/image/{percent-encoded original URL}
+
+        This guarantees the bridge always downloads bytes through Kodi and
+        never forwards a bare link to a remote CDN to the client.
+        Identical approach to the reference build_image_url() implementation.
         """
         if not kodi_url:
             return ""
-        if not kodi_url.startswith("image://"):
+        # Already a Kodi proxy URL — return as-is.
+        if kodi_url.startswith(self._http_base + "/image/"):
             return kodi_url
-
-        # Decode once so we always work with the unescaped form
-        normalized = urllib.parse.unquote(kodi_url)   # image://https://...  or  image://video@...
-        inner = normalized[len("image://"):].rstrip("/")
-
-        # Remote image wrapped in image:// → use the URL directly
-        if inner.startswith("https://") or inner.startswith("http://"):
-            _LOG.debug("_image_url: direct remote URL %s", inner)
-            return inner
-
-        # Local / Kodi-internal → route through Kodi's image proxy
-        encoded = urllib.parse.quote(normalized, safe="")
+        # Percent-encode the raw Kodi URL (image://... or plain https://...)
+        # as the proxy path component.
+        encoded = urllib.parse.quote(kodi_url, safe="")
         proxy = f"{self._http_base}/image/{encoded}"
-        _LOG.debug("_image_url: Kodi proxy %s", proxy)
+        _LOG.debug("_image_url: Kodi proxy %s", proxy[:80])
         return proxy
 
     # ------------------------------------------------------------------
@@ -709,11 +703,28 @@ class KodiClient:
             return None
         root = os.path.join(appdata, "Kodi", "userdata", "Thumbnails")
 
-        # Try both the URL as-is and with a trailing slash stripped,
-        # because Kodi sometimes adds a trailing "/" to video thumbnails.
-        candidates = [art_url]
-        if art_url.endswith("/"):
-            candidates.append(art_url.rstrip("/"))
+        # art_url is now always a Kodi proxy URL of the form
+        #   http://HOST:PORT/image/{percent-encoded kodi URL}
+        #
+        # Textures13.db stores the *original* URL — either the raw HTTPS
+        # URL for remote images (e.g. https://image.tmdb.org/...) or the
+        # image:// URL for local thumbnails (e.g. image://video@Y:\...).
+        # We must decode the proxy URL back to its inner forms before lookup.
+        prefix = self._http_base + "/image/"
+        if art_url.startswith(prefix):
+            kodi_url_dec = urllib.parse.unquote(art_url[len(prefix):])
+            # kodi_url_dec is e.g. "image://https://..." or "image://video@..."
+            candidates: list[str] = [kodi_url_dec]
+            if kodi_url_dec.startswith("image://"):
+                inner = urllib.parse.unquote(kodi_url_dec[len("image://"):].rstrip("/"))
+                if inner and inner != kodi_url_dec:
+                    candidates.append(inner)   # raw https:// or video@... form
+        else:
+            # Fallback: not a proxy URL (shouldn't happen after the fix, but be safe)
+            candidates = [art_url]
+        # Kodi sometimes appends a trailing "/" to video thumbnails
+        extras = [c.rstrip("/") for c in candidates if c.endswith("/")]
+        candidates = candidates + extras
 
         try:
             conn = sqlite3.connect(
@@ -746,8 +757,7 @@ class KodiClient:
            instant, zero I/O, populated in the background on episode start.
         1. Kodi's local Textures13.db texture cache — read directly from
            ``Thumbnails\\``, no HTTP round-trip.
-        2. HTTP fetch — Kodi proxy for local thumbnails, direct HTTPS for
-           remote URLs (TMDB etc.).
+        2. HTTP fetch — always via Kodi's image proxy (never a bare CDN URL).
 
         Returns ``(data, content_type)`` or ``None`` on failure.
         """
@@ -1415,9 +1425,9 @@ class KodiClient:
         # because _build_state_update is synchronous.
         updates["rating"] = round(media.get("rating", 0.0) or 0.0, 1)
 
-        # Artwork
+        # Artwork — always route through Kodi's image proxy (never bare CDN link)
         thumb = media.get("thumbnail", "") or ""
-        updates["artwork_url"] = thumb
+        updates["artwork_url"] = self._image_url(thumb) if thumb else ""
 
         # Audio streams
         audio_streams = props.get("audiostreams", [])
