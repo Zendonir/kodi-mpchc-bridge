@@ -79,42 +79,65 @@ def _detect_media_type(filepath: str) -> str:
 
 def _set_explorer_visible(visible: bool) -> None:
     """
-    Show or hide the Windows Explorer shell (taskbar + desktop icons).
+    Kill or restart the Windows Explorer shell (taskbar + desktop icons).
 
-    Hides / shows three window classes:
-    * ``Shell_TrayWnd``  — the taskbar
-    * ``Progman``        — the desktop / wallpaper host
-    * ``WorkerW``        — secondary desktop-icon overlay windows
+    * Hide (visible=False): ``taskkill /f /im explorer.exe``
+      Terminates the entire Explorer process — removes taskbar, Start menu,
+      desktop icons and any open File Explorer windows.
+    * Show (visible=True): ``explorer.exe``
+      Windows automatically restarts the shell when the executable is invoked
+      and no instance is already running.
+
+    This is more reliable than ShowWindow on Shell_TrayWnd / Progman / WorkerW
+    which can silently fail on Windows 10/11 due to DWM compositing and the
+    new Win11 taskbar architecture.
+    """
+    if sys.platform != "win32":
+        return
+    import subprocess
+    if visible:
+        try:
+            subprocess.Popen(
+                ["explorer.exe"],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            _LOG.info("Kiosk: Explorer.exe restarted")
+        except Exception as exc:
+            _LOG.error("Kiosk: failed to restart Explorer: %s", exc)
+    else:
+        try:
+            subprocess.run(
+                ["taskkill", "/f", "/im", "explorer.exe"],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                capture_output=True,
+            )
+            _LOG.info("Kiosk: Explorer.exe killed")
+        except Exception as exc:
+            _LOG.error("Kiosk: failed to kill Explorer: %s", exc)
+
+
+def _focus_kodi_window() -> None:
+    """
+    Bring the Kodi window to the foreground and maximise it.
+
+    Uses FindWindowW to locate the top-level window with title "Kodi", then
+    calls ShowWindow(SW_MAXIMIZE) + SetForegroundWindow.  A short sleep is
+    given first so Kodi has time to create its window after being launched.
+    Safe to call even when no Kodi window exists yet — it will simply do
+    nothing.
     """
     if sys.platform != "win32":
         return
     import ctypes
-    import ctypes.wintypes
-
-    SW_SHOW = 5
-    SW_HIDE = 0
-    user32  = ctypes.windll.user32
-    cmd     = SW_SHOW if visible else SW_HIDE
-
-    for cls_name in ("Shell_TrayWnd", "Progman"):
-        hwnd = user32.FindWindowW(cls_name, None)
-        if hwnd:
-            user32.ShowWindow(hwnd, cmd)
-
-    # WorkerW windows host the desktop-icon layer — enumerate all
-    EnumWindowsProc = ctypes.WINFUNCTYPE(
-        ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM
-    )
-
-    def _cb(hwnd: int, _: int) -> bool:
-        buf = ctypes.create_unicode_buffer(64)
-        user32.GetClassNameW(hwnd, buf, 64)
-        if buf.value == "WorkerW":
-            user32.ShowWindow(hwnd, cmd)
-        return True
-
-    user32.EnumWindows(EnumWindowsProc(_cb), 0)
-    _LOG.info("Explorer %s", "shown" if visible else "hidden")
+    user32 = ctypes.windll.user32
+    SW_MAXIMIZE = 3
+    hwnd = user32.FindWindowW(None, "Kodi")
+    if hwnd:
+        user32.ShowWindow(hwnd, SW_MAXIMIZE)
+        user32.SetForegroundWindow(hwnd)
+        _LOG.info("Kiosk: Kodi window focused and maximised")
+    else:
+        _LOG.debug("Kiosk: Kodi window not found (may still be starting)")
 
 
 def _launch_kodi(exe_path: str) -> None:
@@ -898,7 +921,13 @@ class Hub:
             self._explorer_hidden = True
             if cfg.kodi_exe_path:
                 _launch_kodi(cfg.kodi_exe_path)
-            _LOG.info("Kiosk toggle: Explorer hidden, Kodi launched")
+                # Give Kodi ~3 s to create its window, then bring it to front
+                await asyncio.sleep(3.0)
+                _focus_kodi_window()
+            else:
+                # Kodi already running — just bring it to front immediately
+                _focus_kodi_window()
+            _LOG.info("Kiosk toggle: Explorer hidden, Kodi focused")
         return True
 
     # ------------------------------------------------------------------
