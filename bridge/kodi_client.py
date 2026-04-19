@@ -397,25 +397,36 @@ class KodiClient:
 
         # 3b) Episode lookup via tvshowid+season.
         #
-        #     On MySQL-backed Kodi libraries, BOTH "art" AND "thumbnail" in a
-        #     bulk GetEpisodes call return 0 results.  In Kodi 20+ "thumbnail"
-        #     is no longer a plain column — it is resolved from the art table
-        #     JOIN (type='thumb'), the same JOIN that breaks on MySQL for bulk
-        #     queries.  Only properties that don't touch the art table are safe:
-        #     file, title, year, showtitle, season, episode, tvshowid, runtime,
-        #     playcount, resume — matching exactly what get_season_episodes uses.
+        #     On MySQL-backed Kodi, ANY property that requires a JOIN beyond the
+        #     episode + files tables causes GetEpisodes to silently return 0 rows:
+        #       • "art", "thumbnail" → art table JOIN
+        #       • "year", "showtitle" → tvshow table JOIN
+        #       • "tvshowid"          → tvshow table JOIN (Kodi 20+)
         #
-        #     Art for the matched episode is fetched via GetEpisodeDetails
-        #     (single-row lookup) which is always MySQL-safe, or returned from
-        #     _episode_art_cache if pre-fetch has already populated it.
+        #     The ONLY safe set is the same set get_season_episodes uses, which
+        #     has been proven to work on both SQLite and MySQL backends:
+        #       title, episode, season, file, resume, playcount, runtime
+        #
+        #     Because the safe set omits tv_show / tvshowid / year, those are
+        #     patched in afterwards from the step-1 mismatch variables.
+        #
+        #     Art is resolved via (in order):
+        #       1. _episode_art_cache — populated by prefetch_season_art()
+        #       2. GetEpisodeDetails  — single-row, always MySQL-safe
+        #
+        #     If the loop finds no match (eps=0 or filename absent), we still
+        #     check _episode_art_cache directly as a fast-path art fallback
+        #     before falling through to the mismatch series-poster.
         if _mismatch_tvshowid >= 0 and _mismatch_season > 0:
             result3b = await self._call("VideoLibrary.GetEpisodes", {
                 "tvshowid": _mismatch_tvshowid,
                 "season":   _mismatch_season,
                 "properties": [
-                    # NO "art", NO "thumbnail" — both break MySQL bulk queries.
-                    # Identical property set to get_season_episodes (known working).
-                    "file", "title", "year", "showtitle", "season", "episode", "tvshowid",
+                    # EXACT same set as get_season_episodes — proven MySQL-safe.
+                    # NO art/thumbnail (art JOIN), NO year/showtitle/tvshowid
+                    # (tvshow JOIN) — all of those cause 0 results on MySQL.
+                    "title", "episode", "season", "file",
+                    "resume", "playcount", "runtime",
                 ],
             })
             eps3b = (result3b or {}).get("episodes", [])
@@ -426,6 +437,12 @@ class KodiClient:
             for ep in eps3b:
                 if os.path.basename(ep.get("file", "")) == filename:
                     m = _meta(ep, is_episode=True)   # artwork_url="" (no art props)
+
+                    # Patch fields the safe property set doesn't include
+                    if not m.get("tv_show"):
+                        m["tv_show"] = _mismatch_tv_show
+                    if m.get("tvshowid", -1) < 0:
+                        m["tvshowid"] = _mismatch_tvshowid
 
                     # Art — pre-fetch cache first, then GetEpisodeDetails (single row)
                     episodeid  = ep.get("episodeid", -1)
@@ -440,10 +457,9 @@ class KodiClient:
                             self._episode_art_cache[filename] = detail_url
                             _LOG.debug("FileInfo [3b] art from GetEpisodeDetails: %s", detail_url[:60])
 
-                    tvshowid_ep   = ep.get("tvshowid", _mismatch_tvshowid)
-                    cur_season_ep = ep.get("season",   _mismatch_season)
-                    if tvshowid_ep >= 0 and cur_season_ep > 0:
-                        sc, ec = await self._fetch_season_counts(tvshowid_ep, cur_season_ep)
+                    cur_season_ep = ep.get("season", _mismatch_season)
+                    if _mismatch_tvshowid >= 0 and cur_season_ep > 0:
+                        sc, ec = await self._fetch_season_counts(_mismatch_tvshowid, cur_season_ep)
                         m["season_count"] = sc
                         m["episode_count"] = ec
                     _LOG.info(
@@ -453,6 +469,26 @@ class KodiClient:
                         m.get("episode"), m.get("episode_count"),
                     )
                     return m
+
+            # Loop found nothing (0 eps or filename absent).
+            # The pre-fetch cache may still have the correct thumbnail from
+            # when the season was first loaded — use it directly.
+            cached_url = self._episode_art_cache.get(filename, "")
+            if cached_url:
+                sc, ec = await self._fetch_season_counts(_mismatch_tvshowid, _mismatch_season)
+                _LOG.info(
+                    "FileInfo [3b] art-cache fallback (API returned 0 eps): "
+                    "art=%r s%s/%s", cached_url[:55], _mismatch_season, sc,
+                )
+                return {
+                    **_EMPTY,
+                    "artwork_url":  cached_url,
+                    "tvshowid":     _mismatch_tvshowid,
+                    "tv_show":      _mismatch_tv_show,
+                    "season":       _mismatch_season,
+                    "season_count": sc,
+                    "episode_count": ec,
+                }
 
         # 4) Files.GetFileDetails (exact path, last resort)
         result = await self._call("Files.GetFileDetails", {
