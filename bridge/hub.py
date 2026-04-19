@@ -474,13 +474,22 @@ class Hub:
         # Kiosk mode: hide Explorer shell + launch Kodi if configured
         if cfg.hide_explorer:
             if cfg.kodi_exe_path:
-                _set_explorer_visible(False)
+                if cfg.shell_mode:
+                    # Bridge IS the Windows shell — Explorer never started on this
+                    # login, nothing to kill.  Just launch Kodi directly.
+                    _LOG.info(
+                        "Kiosk shell-mode: Bridge is shell, launching Kodi (%s)",
+                        cfg.kodi_exe_path,
+                    )
+                else:
+                    # Normal kiosk: Explorer is running, kill it first.
+                    _set_explorer_visible(False)
+                    _LOG.info(
+                        "Kiosk mode: Explorer hidden, launching Kodi (%s)",
+                        cfg.kodi_exe_path,
+                    )
                 self._explorer_hidden = True
                 _launch_kodi(cfg.kodi_exe_path)
-                _LOG.info(
-                    "Kiosk mode: Explorer hidden, Kodi launched (%s)",
-                    cfg.kodi_exe_path,
-                )
             else:
                 _LOG.warning(
                     "hide_explorer is True but kodi_exe_path is empty — "
@@ -503,8 +512,12 @@ class Hub:
             _LOG.info("External player DISABLED — Kodi will handle playback itself")
 
     async def stop(self) -> None:
-        # Restore Explorer before exiting if we hid it
-        if self._explorer_hidden:
+        cfg = self._config.cfg
+        # Restore Explorer before exiting:
+        # - shell_mode: bridge IS the shell — always start Explorer on exit so
+        #   the user gets a desktop back (graceful shutdown or restart).
+        # - hide_explorer: we killed Explorer on startup — restore it if still hidden.
+        if cfg.shell_mode or self._explorer_hidden:
             _set_explorer_visible(True)
             self._explorer_hidden = False
         await self._kodi.stop()

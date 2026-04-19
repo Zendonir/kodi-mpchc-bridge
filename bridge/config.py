@@ -45,6 +45,7 @@ class BridgeConfig:
     # Kiosk mode
     kodi_exe_path: str = ""               # full path to Kodi.exe (for kiosk mode)
     hide_explorer: bool = False           # hide Explorer shell on bridge start + launch Kodi
+    shell_mode: bool = False              # bridge is the Windows shell (replaces explorer.exe on login)
 
     def __post_init__(self) -> None:
         for f in fields(self):

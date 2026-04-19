@@ -19,7 +19,8 @@
 #define AppPublisher "kodi-mpchc-bridge"
 #define AppURL       "https://github.com/Zendonir/kodi-mpchc-bridge"
 #define AppExe       "kodi-bridge.exe"
-#define AppTaskName  "KodiMpcHcBridge"
+#define AppTaskName          "KodiMpcHcBridge"
+#define AppWatchdogTaskName  "KodiMpcHcBridgeWatchdog"
 #define FwRuleName   "Kodi-MPC-HC Bridge"
 #define AppGUID      "{{B7A3C2D1-E4F5-4890-BCDE-F01234567890}"
 
@@ -107,6 +108,7 @@ english.PlayerBackupChk=Backup existing playercorefactory.xml as .bak
 english.ErrPlayerNoExe=Please select the MPC-HC / MPC-BE executable.
 english.KioskHideExplorer=Hide Explorer on startup (kiosk mode)
 english.KioskKodiExeLbl=Kodi executable (for kiosk mode):
+english.KioskShellMode=Start Bridge as Windows shell – replaces Explorer on login (dedicated media PC)
 
 ; ── German ────────────────────────────────────────────────────────────────────
 german.ConfigPageTitle=Kodi-Verbindung konfigurieren
@@ -139,6 +141,7 @@ german.PlayerBackupChk=Bestehende playercorefactory.xml als .bak sichern
 german.ErrPlayerNoExe=Bitte die MPC-HC / MPC-BE Programmdatei auswählen.
 german.KioskHideExplorer=Explorer beim Start verstecken (Kiosk-Modus)
 german.KioskKodiExeLbl=Kodi-Programmdatei (für Kiosk-Modus):
+german.KioskShellMode=Bridge als Windows-Shell starten – ersetzt Explorer beim Anmelden (dedizierter Medien-PC)
 
 ; ── French ────────────────────────────────────────────────────────────────────
 french.ConfigPageTitle=Configurer la connexion Kodi
@@ -171,6 +174,7 @@ french.PlayerBackupChk=Sauvegarder playercorefactory.xml existant en .bak
 french.ErrPlayerNoExe=Veuillez sélectionner l'exécutable MPC-HC / MPC-BE.
 french.KioskHideExplorer=Masquer l'Explorateur au démarrage (mode kiosque)
 french.KioskKodiExeLbl=Exécutable Kodi (mode kiosque) :
+french.KioskShellMode=Démarrer le Bridge comme shell Windows – remplace l'Explorateur à la connexion
 
 ; ── Spanish ───────────────────────────────────────────────────────────────────
 spanish.ConfigPageTitle=Configurar conexión de Kodi
@@ -203,6 +207,7 @@ spanish.PlayerBackupChk=Copia de seguridad de playercorefactory.xml existente co
 spanish.ErrPlayerNoExe=Por favor, seleccione el ejecutable MPC-HC / MPC-BE.
 spanish.KioskHideExplorer=Ocultar el Explorador al inicio (modo quiosco)
 spanish.KioskKodiExeLbl=Ejecutable de Kodi (modo quiosco):
+spanish.KioskShellMode=Iniciar Bridge como shell de Windows – reemplaza al Explorador al iniciar sesión
 
 ; ── Italian ───────────────────────────────────────────────────────────────────
 italian.ConfigPageTitle=Configura connessione Kodi
@@ -235,6 +240,7 @@ italian.PlayerBackupChk=Backup del playercorefactory.xml esistente come .bak
 italian.ErrPlayerNoExe=Selezionare l'eseguibile MPC-HC / MPC-BE.
 italian.KioskHideExplorer=Nascondi Explorer all'avvio (modalità chiosco)
 italian.KioskKodiExeLbl=Eseguibile Kodi (modalità chiosco):
+italian.KioskShellMode=Avvia il Bridge come shell Windows – sostituisce Esplora risorse all'accesso
 
 ; ============================================================
 [Tasks]
@@ -299,6 +305,7 @@ var
   lblKodiExe:      TLabel;
   edtKodiExe:      TNewEdit;
   btnBrowseKodi:   TNewButton;
+  chkShellMode:    TNewCheckBox;
 
 // --------------------------------------------------------------------------
 // Get the previously-installed directory from the uninstall registry key.
@@ -430,6 +437,71 @@ begin
     else if c = '"'  then Result := Result + '&quot;'
     else Result := Result + c;
   end;
+end;
+
+// --------------------------------------------------------------------------
+// Enable/disable shell-mode checkbox based on hide-explorer checkbox
+// --------------------------------------------------------------------------
+procedure ToggleKioskControls(Sender: TObject);
+begin
+  chkShellMode.Enabled := chkHideExplorer.Checked;
+  if not chkHideExplorer.Checked then
+    chkShellMode.Checked := False;
+end;
+
+// --------------------------------------------------------------------------
+// Create the watchdog scheduled task + write watchdog.ps1
+// The watchdog runs at logon and restarts Explorer if the bridge crashes
+// while acting as the Windows shell.
+// --------------------------------------------------------------------------
+procedure CreateWatchdogTask;
+var
+  AppDir, WdPath, TaskScriptPath, WdScript, TaskScript: String;
+  rc: Integer;
+begin
+  AppDir         := ExpandConstant('{app}');
+  WdPath         := AppDir + '\watchdog.ps1';
+  TaskScriptPath := ExpandConstant('{tmp}\kodi_watchdog_task.ps1');
+
+  // Write the watchdog PowerShell loop script to the install directory
+  WdScript :=
+    '# Kodi-MPC-HC Bridge - Shell Mode Watchdog' + #13#10 +
+    '# Restores Explorer.exe when Bridge has crashed and no shell is running.' + #13#10 +
+    'while ($true) {' + #13#10 +
+    '    Start-Sleep -Seconds 30' + #13#10 +
+    '    $bridge   = Get-Process ''kodi-bridge'' -ErrorAction SilentlyContinue' + #13#10 +
+    '    $explorer = Get-Process ''explorer''    -ErrorAction SilentlyContinue' + #13#10 +
+    '    if (-not $bridge -and -not $explorer) {' + #13#10 +
+    '        Start-Process explorer.exe' + #13#10 +
+    '        exit' + #13#10 +
+    '    }' + #13#10 +
+    '}';
+  SaveStringToFile(WdPath, WdScript, False);
+
+  // Register a Task Scheduler task: run watchdog at logon, hidden
+  TaskScript :=
+    '$act = New-ScheduledTaskAction -Execute ''powershell.exe''' + #13#10 +
+    '    -Argument ''-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + WdPath + '"''' + #13#10 +
+    '$tri = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME' + #13#10 +
+    '$pri = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited' + #13#10 +
+    '$set = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew' + #13#10 +
+    'Register-ScheduledTask -TaskName ''{#AppWatchdogTaskName}'' -Action $act -Trigger $tri -Principal $pri -Settings $set -Force -ErrorAction Stop';
+
+  if SaveStringToFile(TaskScriptPath, TaskScript, False) then
+    Exec('powershell.exe',
+         '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + TaskScriptPath + '"',
+         '', SW_HIDE, ewWaitUntilTerminated, rc);
+end;
+
+// --------------------------------------------------------------------------
+// Remove the watchdog scheduled task (and its script file).
+// --------------------------------------------------------------------------
+procedure DeleteWatchdogTask;
+var rc: Integer;
+begin
+  Exec(ExpandConstant('{sys}\schtasks.exe'),
+       '/delete /f /tn {#AppWatchdogTaskName}',
+       '', SW_HIDE, ewWaitUntilTerminated, rc);
 end;
 
 // --------------------------------------------------------------------------
@@ -578,6 +650,17 @@ begin
   btnBrowseKodi.Caption  := CustomMessage('PlayerBrowseBtn');
   btnBrowseKodi.OnClick  := @BrowseKodiExeClick;
 
+  // ── Row F hook: toggling hide-explorer enables/disables shell-mode ────────
+  chkHideExplorer.OnClick := @ToggleKioskControls;
+
+  // ── Row I (Y≈262): shell-mode checkbox (sub-option of hide-explorer) ──────
+  chkShellMode := TNewCheckBox.Create(PlayerPage.Surface);
+  chkShellMode.Parent   := PlayerPage.Surface;
+  chkShellMode.SetBounds(ScaleX(20), ScaleY(262), PW - ScaleX(20), ScaleY(20));
+  chkShellMode.Caption  := CustomMessage('KioskShellMode');
+  chkShellMode.Checked  := False;
+  chkShellMode.Enabled  := False;   // only active when chkHideExplorer is checked
+
   // ── Pre-fill from existing config.json on upgrade ─────────────────────────
   if ConfigExists then begin
     ExistingExe := ReadConfigString('mpchc_exe_path');
@@ -587,8 +670,12 @@ begin
       chkUseResume.Checked    := ReadConfigBool('resume_enabled');
       TogglePlayerControls(nil);
     end;
-    if ReadConfigBool('hide_explorer') then
+    if ReadConfigBool('hide_explorer') then begin
       chkHideExplorer.Checked := True;
+      ToggleKioskControls(nil);     // enable chkShellMode
+    end;
+    if ReadConfigBool('shell_mode') then
+      chkShellMode.Checked := True;
     ExistingExe := ReadConfigString('kodi_exe_path');
     if Trim(ExistingExe) <> '' then
       edtKodiExe.Text := ExistingExe;
@@ -778,17 +865,17 @@ var
   ConfigFile: String;
   Lines: TStringList;
   Json: String;
-  ResumeStr: String;
-  HideExplorerStr: String;
+  ResumeStr, HideExplorerStr, ShellModeStr: String;
 begin
   if CurStep <> ssPostInstall then Exit;
 
   // --- config.json (first installation only) ---
   ConfigFile := ExpandConstant('{app}\config.json');
   if not FileExists(ConfigFile) then begin
-    // Include player settings only when the player page was filled in
-    if chkUseResume.Checked      then ResumeStr      := 'true' else ResumeStr      := 'false';
-    if chkHideExplorer.Checked   then HideExplorerStr := 'true' else HideExplorerStr := 'false';
+    if chkUseResume.Checked    then ResumeStr      := 'true' else ResumeStr      := 'false';
+    if chkHideExplorer.Checked then HideExplorerStr := 'true' else HideExplorerStr := 'false';
+    if chkShellMode.Checked    then ShellModeStr    := 'true' else ShellModeStr    := 'false';
+
     if chkEnablePlayer.Checked then begin
       Json :=
         '{' + #13#10 +
@@ -807,7 +894,8 @@ begin
         '  "mpchc_exe_path": "' + EscapeJson(Trim(edtPlayerExe.Text)) + '",' + #13#10 +
         '  "resume_enabled": ' + ResumeStr + ',' + #13#10 +
         '  "kodi_exe_path": "' + EscapeJson(Trim(edtKodiExe.Text)) + '",' + #13#10 +
-        '  "hide_explorer": ' + HideExplorerStr + #13#10 +
+        '  "hide_explorer": ' + HideExplorerStr + ',' + #13#10 +
+        '  "shell_mode": ' + ShellModeStr + #13#10 +
         '}';
     end else begin
       Json :=
@@ -825,7 +913,8 @@ begin
         '  "server_host": "0.0.0.0",' + #13#10 +
         '  "server_port": 13590,' + #13#10 +
         '  "kodi_exe_path": "' + EscapeJson(Trim(edtKodiExe.Text)) + '",' + #13#10 +
-        '  "hide_explorer": ' + HideExplorerStr + #13#10 +
+        '  "hide_explorer": ' + HideExplorerStr + ',' + #13#10 +
+        '  "shell_mode": ' + ShellModeStr + #13#10 +
         '}';
     end;
     Lines := TStringList.Create;
@@ -841,9 +930,34 @@ begin
   if chkEnablePlayer.Checked then
     WritePlayerCoreFactory;
 
-  // --- Autostart task (no admin needed) ---
-  if WizardIsTaskSelected('autostart') then
-    CreateAutostartTask;
+  // --- Shell-mode registry key ---
+  // HKCU\...\Winlogon\Shell → bridge path  (shell-mode ON)
+  //                         → deleted       (shell-mode OFF → Windows uses HKLM default = explorer.exe)
+  if chkShellMode.Checked then
+    RegWriteStringValue(HKCU,
+      'Software\Microsoft\Windows NT\CurrentVersion\Winlogon',
+      'Shell', ExpandConstant('{app}\{#AppExe}'))
+  else
+    RegDeleteValue(HKCU,
+      'Software\Microsoft\Windows NT\CurrentVersion\Winlogon',
+      'Shell');
+
+  // --- Watchdog task (shell-mode only) ---
+  // Creates watchdog.ps1 in {app} and registers the task.
+  // Always delete first to remove a stale task from a previous install.
+  DeleteWatchdogTask;
+  if chkShellMode.Checked then
+    CreateWatchdogTask;
+
+  // --- Autostart task ---
+  // In shell-mode the registry Shell key starts the bridge on login automatically;
+  // a separate task is not needed (and a second instance would fail to bind the port).
+  if chkShellMode.Checked then
+    DeleteAutostartTask
+  else if WizardIsTaskSelected('autostart') then
+    CreateAutostartTask
+  else
+    DeleteAutostartTask;
 
   // --- Firewall rule (admin needed → UAC prompt) ---
   if WizardIsTaskSelected('firewall') then
@@ -865,6 +979,16 @@ begin
     // Remove autostart task (no admin)
     DeleteAutostartTask;
 
+    // Remove watchdog task + script
+    DeleteWatchdogTask;
+    DeleteFile(ExpandConstant('{app}\watchdog.ps1'));
+
+    // Restore Windows shell: remove HKCU override so Windows falls back
+    // to the HKLM default (explorer.exe).  Safe no-op if never set.
+    RegDeleteValue(HKCU,
+      'Software\Microsoft\Windows NT\CurrentVersion\Winlogon',
+      'Shell');
+
     // config.json: ask user
     ConfigFile := ExpandConstant('{app}\config.json');
     if FileExists(ConfigFile) then begin
@@ -882,7 +1006,18 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   rc: Integer;
+  ShellVal: String;
 begin
+  // If bridge is registered as the Windows shell, start Explorer before
+  // killing the bridge so the user keeps a usable desktop during the upgrade.
+  if RegQueryStringValue(HKCU,
+      'Software\Microsoft\Windows NT\CurrentVersion\Winlogon',
+      'Shell', ShellVal) then begin
+    if Pos(LowerCase('{#AppExe}'), LowerCase(ShellVal)) > 0 then begin
+      Exec('explorer.exe', '', '', SW_SHOW, ewNoWait, rc);
+      Sleep(2000);  // give Explorer time to draw the desktop
+    end;
+  end;
   Exec('taskkill', '/f /im {#AppExe}', '', SW_HIDE, ewWaitUntilTerminated, rc);
   Result := '';
 end;
