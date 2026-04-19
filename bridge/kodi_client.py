@@ -264,6 +264,13 @@ class KodiClient:
 
         filename = os.path.basename(filepath)
 
+        # Saved from the mismatch path (step 1): show-level info that applies
+        # to any episode of the same series — used as a last-resort fallback
+        # when the episode itself can't be found via steps 2-5.
+        _mismatch_tvshowid: int = -1
+        _mismatch_tv_show:  str = ""
+        _mismatch_art:      str = ""
+
         # 1) Active Kodi player → fastest, most complete metadata
         players = await self._call("Player.GetActivePlayers") or []
         for player in players:
@@ -298,14 +305,28 @@ class KodiClient:
                               m.get("episode"), m.get("episode_count"))
                     return m
                 # File doesn't match (Kodi still on the previous episode).
-                # We still have the tvshow poster + tvshowid in the response —
-                # use them for artwork and season-episode-list fetching.
-                # Do NOT use episode-specific fields (title/season/episode)
-                # since they belong to a different episode.
-                thumb = _pick_art(item)
-                if thumb:
-                    is_ep2 = item.get("type", "") == "episode" or bool(item.get("showtitle"))
-                    tvshow_id2 = item.get("tvshowid", -1) if is_ep2 else -1
+                # Extract show-level info that is valid for any episode of the
+                # series (tvshowid, tv_show, tvshow.poster/season.poster).
+                # Episode-specific fields (title/season/episode/thumb) belong
+                # to the wrong episode and must NOT be used.
+                is_ep2     = item.get("type", "") == "episode" or bool(item.get("showtitle"))
+                tvshow_id2 = item.get("tvshowid", -1) if is_ep2 else -1
+                # Show-safe art: only poster / season poster / fanart — never thumb
+                _sa = item.get("art") or {}
+                safe_art = (
+                    _sa.get("tvshow.poster", "")
+                    or _sa.get("season.poster", "")
+                    or _sa.get("poster", "")
+                    or _sa.get("fanart", "")
+                    or ""
+                )
+                _mismatch_tvshowid = tvshow_id2
+                _mismatch_tv_show  = item.get("showtitle", "") or "" if is_ep2 else ""
+                _mismatch_art      = self._image_url(safe_art) if safe_art else ""
+
+                if episode_art_mode != "thumb":
+                    # Poster / season-poster / fanart are identical for all
+                    # episodes of this show → safe to return immediately.
                     _LOG.info(
                         "FileInfo [1/4] file mismatch (Kodi on %r) "
                         "— using tvshow art  tvshowid=%d",
@@ -313,10 +334,17 @@ class KodiClient:
                     )
                     return {
                         **_EMPTY,
-                        "artwork_url": self._image_url(thumb),
-                        "tvshowid":    tvshow_id2,
-                        "tv_show":     item.get("showtitle", "") or "" if is_ep2 else "",
+                        "artwork_url": _mismatch_art,
+                        "tvshowid":    _mismatch_tvshowid,
+                        "tv_show":     _mismatch_tv_show,
                     }
+                # thumb mode: each episode has its own scene thumbnail →
+                # fall through to GetEpisodes (step 3) to find the correct one.
+                _LOG.info(
+                    "FileInfo [1/4] file mismatch (Kodi on %r) tvshowid=%d "
+                    "— thumb mode, falling through to episode lookup",
+                    os.path.basename(active_file), tvshow_id2,
+                )
 
         # 2) Movie library by filename
         result = await self._call("VideoLibrary.GetMovies", {
@@ -384,6 +412,22 @@ class KodiClient:
             _LOG.info("FileInfo [5/5] DB fallback: title=%r art=%r",
                       db_result.get("title"), db_result.get("artwork_url", "")[:60])
             return db_result
+
+        # All steps failed — if we captured show info from a step-1 mismatch,
+        # return that as a last-resort fallback so the season episode list is
+        # still available and we at least show the series poster.
+        if _mismatch_tvshowid >= 0:
+            _LOG.info(
+                "FileInfo: no exact match; using mismatch show info "
+                "tvshowid=%d  art=%r",
+                _mismatch_tvshowid, _mismatch_art[:60],
+            )
+            return {
+                **_EMPTY,
+                "artwork_url": _mismatch_art,
+                "tvshowid":    _mismatch_tvshowid,
+                "tv_show":     _mismatch_tv_show,
+            }
 
         _LOG.info("FileInfo: nothing found in Kodi library for %r", filepath)
         return dict(_EMPTY)
