@@ -676,6 +676,11 @@ class Hub:
         Also fetches the full season episode list when an episode is detected,
         storing it in state so the web UI can display it.
         """
+        if not filepath:
+            # MPC-HC briefly idle between episodes — nothing to fetch.
+            _LOG.debug("_fetch_artwork: empty filepath, skipping")
+            return
+
         try:
             data: bytes | None = None
             ct = "image/jpeg"

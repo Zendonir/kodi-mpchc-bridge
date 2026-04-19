@@ -533,6 +533,20 @@ class KodiClient:
                 "tv_show":     _mismatch_tv_show,
             }
 
+        # Final art-cache fallback: the pre-fetch task populated this cache
+        # for every episode in the current season when the first episode started.
+        # This covers the case where Kodi has no active player (MPC-HC is playing,
+        # Kodi is idle) so step 1 never runs and _mismatch_tvshowid stays -1,
+        # and the filename filter in steps 2-3 returns None on MySQL backends.
+        if filename:
+            cached_url = self._episode_art_cache.get(filename, "")
+            if cached_url:
+                _LOG.info(
+                    "FileInfo: art-cache fallback (all API steps failed): "
+                    "art=%r", cached_url[:60],
+                )
+                return {**_EMPTY, "artwork_url": cached_url}
+
         _LOG.info("FileInfo: nothing found in Kodi library for %r", filepath)
         return dict(_EMPTY)
 
