@@ -31,13 +31,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install aiohttp yarl Pillow pystray pyinstaller
 
-      # ── Build one-file exe ───────────────────────────────────────────────────
-      - name: Build kodi-bridge.exe
+      # ── Build onedir dist\kodi-bridge\ ──────────────────────────────────────
+      - name: Build kodi-bridge
         run: pyinstaller bridge.spec
 
       # ── Smoke-test: exe starts and prints help ────────────────────────────
       - name: Smoke-test exe
-        run: dist\kodi-bridge.exe --help
+        run: dist\kodi-bridge\kodi-bridge.exe --help
         shell: cmd
 
       # ── Determine version ───────────────────────────────────────────────────
