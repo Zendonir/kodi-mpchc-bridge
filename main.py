@@ -4,7 +4,6 @@ kodi-mpchc-bridge — entry point.
 Usage:
     bridge.exe                    → Bridge starten + Tray-Icon (Standardmodus)
     bridge.exe --headless         → Nur Bridge, kein Tray (Server/Dienst)
-    bridge.exe --test-client      → Test-Client-Fenster öffnen
     bridge.exe --config-dir PATH  → Anderes Verzeichnis für config.json
     bridge.exe --log-level LEVEL  → DEBUG / INFO / WARNING / ERROR
 """
@@ -123,10 +122,6 @@ def main() -> None:
         help="Nur Bridge ohne Tray-Icon (für Servernutzung)",
     )
     parser.add_argument(
-        "--test-client", action="store_true",
-        help="Test-Client-Fenster öffnen",
-    )
-    parser.add_argument(
         "--play",
         metavar="FILEPATH",
         default=None,
@@ -205,16 +200,6 @@ def main() -> None:
 
         _LOG.info("--play: MPC-HC closed — releasing Kodi")
         sys.exit(0)
-
-    # Test-Client bekommt kein Datei-Logging (nur kurzlebiges Debug-Fenster)
-    if args.test_client:
-        _setup_logging(args.log_level)
-        try:
-            import test_client
-            test_client.main()
-        except Exception as exc:
-            _LOG.error("Test-Client konnte nicht geöffnet werden: %s", exc)
-        return
 
     # Alle anderen Modi schreiben Logs in den Installationspfad
     _setup_logging(args.log_level, log_dir=args.config_dir)

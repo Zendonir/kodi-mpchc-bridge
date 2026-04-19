@@ -50,7 +50,6 @@ a = Analysis(
         # GUI modules
         "gui",
         "service",
-        "test_client",
         # tkinter (may need explicit inclusion on some systems)
         "tkinter",
         "tkinter.ttk",

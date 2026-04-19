@@ -3,8 +3,7 @@ Kodi ↔ MPC-HC Bridge — Tray Icon
 
 Runs in the background without a visible window.
 All actions via the right-click tray menu:
-  • Open test interface  (double-click)
-  • Settings…
+  • Settings…  (double-click)
   • Quit
 
 Language is detected from the OS UI locale automatically.
@@ -12,8 +11,6 @@ Language is detected from the OS UI locale automatically.
 from __future__ import annotations
 
 import logging
-import os
-import subprocess
 import sys
 import threading
 import tkinter as tk
@@ -74,13 +71,7 @@ class TrayApp:
 
     def _create_tray(self) -> pystray.Icon:
         menu = pystray.Menu(
-            pystray.MenuItem(
-                T("tray_open_test"),
-                self._on_open_test,
-                default=True,
-            ),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem(T("tray_settings"), self._on_settings),
+            pystray.MenuItem(T("tray_settings"), self._on_settings, default=True),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(T("tray_quit"), self._on_quit),
         )
@@ -131,9 +122,6 @@ class TrayApp:
 
     # ── Tray callbacks ────────────────────────────────────────────────────────
 
-    def _on_open_test(self, icon=None, item=None) -> None:
-        self._root.after(0, self._launch_test_client)
-
     def _on_settings(self, icon=None, item=None) -> None:
         self._root.after(0, self._show_settings)
 
@@ -149,29 +137,6 @@ class TrayApp:
             self._root.destroy()
         except Exception:
             pass
-
-    # ── Test client ───────────────────────────────────────────────────────────
-
-    def _launch_test_client(self) -> None:
-        try:
-            if getattr(sys, "frozen", False):
-                cmd = [sys.executable, "--test-client"]
-            else:
-                script = os.path.join(
-                    os.path.dirname(os.path.abspath(__file__)), "main.py"
-                )
-                cmd = [sys.executable, script, "--test-client"]
-            subprocess.Popen(
-                cmd,
-                creationflags=(
-                    subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-                ),
-            )
-        except Exception as exc:
-            messagebox.showerror(
-                T("err_title"),
-                T("err_test_client", exc=exc),
-            )
 
     # ── Settings dialog ───────────────────────────────────────────────────────
 

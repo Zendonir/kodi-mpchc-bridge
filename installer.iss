@@ -20,7 +20,6 @@
 #define AppURL       "https://github.com/Zendonir/kodi-mpchc-bridge"
 #define AppExe       "kodi-bridge.exe"
 #define AppTaskName          "KodiMpcHcBridge"
-#define AppWatchdogTaskName  "KodiMpcHcBridgeWatchdog"
 #define FwRuleName   "Kodi-MPC-HC Bridge"
 #define AppGUID      "{{B7A3C2D1-E4F5-4890-BCDE-F01234567890}"
 
@@ -451,64 +450,6 @@ begin
 end;
 
 // --------------------------------------------------------------------------
-// Create the watchdog scheduled task + write watchdog.vbs
-// The watchdog runs at logon via wscript.exe //B //NoLogo (truly windowless)
-// and restarts Explorer if the bridge crashes while acting as the shell.
-// Using VBScript instead of PowerShell avoids the brief console-window flash
-// that Windows PowerShell 5.1 causes even with -WindowStyle Hidden.
-// --------------------------------------------------------------------------
-procedure CreateWatchdogTask;
-var
-  AppDir, WdPath, TaskScriptPath, WdScript, TaskScript: String;
-  rc: Integer;
-begin
-  AppDir         := ExpandConstant('{app}');
-  WdPath         := AppDir + '\watchdog.vbs';
-  TaskScriptPath := ExpandConstant('{tmp}\kodi_watchdog_task.ps1');
-
-  // Write the watchdog VBScript loop to the install directory.
-  // wscript.exe //B //NoLogo runs this with no window whatsoever.
-  WdScript :=
-    ''' Kodi-MPC-HC Bridge - Shell Mode Watchdog' + #13#10 +
-    ''' Restores Explorer.exe when Bridge has crashed and no shell is running.' + #13#10 +
-    'Dim wsh : Set wsh = CreateObject("WScript.Shell")' + #13#10 +
-    'Do' + #13#10 +
-    '    WScript.Sleep 30000' + #13#10 +
-    '    Dim bridgeOk, explorerOk' + #13#10 +
-    '    bridgeOk   = False' + #13#10 +
-    '    explorerOk = False' + #13#10 +
-    '    Dim p' + #13#10 +
-    '    For Each p In GetObject("winmgmts:").ExecQuery(' + #13#10 +
-    '            "SELECT Name FROM Win32_Process WHERE Name = ''kodi-bridge.exe''")' + #13#10 +
-    '        bridgeOk = True' + #13#10 +
-    '    Next' + #13#10 +
-    '    For Each p In GetObject("winmgmts:").ExecQuery(' + #13#10 +
-    '            "SELECT Name FROM Win32_Process WHERE Name = ''explorer.exe''")' + #13#10 +
-    '        explorerOk = True' + #13#10 +
-    '    Next' + #13#10 +
-    '    If Not bridgeOk And Not explorerOk Then' + #13#10 +
-    '        wsh.Run "explorer.exe", 1, False' + #13#10 +
-    '        WScript.Quit' + #13#10 +
-    '    End If' + #13#10 +
-    'Loop';
-  SaveStringToFile(WdPath, WdScript, False);
-
-  // Register the task: wscript.exe //B //NoLogo = truly silent, zero window flash
-  TaskScript :=
-    '$act = New-ScheduledTaskAction -Execute ''wscript.exe''' + #13#10 +
-    '    -Argument (''//B //NoLogo "' + WdPath + '"'')' + #13#10 +
-    '$tri = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME' + #13#10 +
-    '$pri = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited' + #13#10 +
-    '$set = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew' + #13#10 +
-    'Register-ScheduledTask -TaskName ''{#AppWatchdogTaskName}'' -Action $act -Trigger $tri -Principal $pri -Settings $set -Force -ErrorAction Stop';
-
-  if SaveStringToFile(TaskScriptPath, TaskScript, False) then
-    Exec('powershell.exe',
-         '-WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + TaskScriptPath + '"',
-         '', SW_HIDE, ewWaitUntilTerminated, rc);
-end;
-
-// --------------------------------------------------------------------------
 // Update kiosk-related fields in an existing config.json.
 // Runs on every install (including upgrades) so that the registry Shell key
 // and config.json always stay in sync.
@@ -543,17 +484,6 @@ begin
     Exec('powershell.exe',
          '-WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '"',
          '', SW_HIDE, ewWaitUntilTerminated, rc);
-end;
-
-// --------------------------------------------------------------------------
-// Remove the watchdog scheduled task (and its script file).
-// --------------------------------------------------------------------------
-procedure DeleteWatchdogTask;
-var rc: Integer;
-begin
-  Exec(ExpandConstant('{sys}\schtasks.exe'),
-       '/delete /f /tn {#AppWatchdogTaskName}',
-       '', SW_HIDE, ewWaitUntilTerminated, rc);
 end;
 
 // --------------------------------------------------------------------------
@@ -997,16 +927,10 @@ begin
       'Software\Microsoft\Windows NT\CurrentVersion\Winlogon',
       'Shell');
 
-  // --- Watchdog task (shell-mode only) ---
-  // Creates watchdog.vbs in {app} and registers the task.
-  // Always delete first to remove a stale task from a previous install.
-  DeleteWatchdogTask;
-  if chkShellMode.Checked then
-    CreateWatchdogTask;
-
   // --- Autostart task ---
-  // In shell-mode the registry Shell key starts the bridge on login automatically;
-  // a separate task is not needed (and a second instance would fail to bind the port).
+  // In shell-mode Windows Winlogon starts the bridge automatically via the
+  // HKCU Shell registry key — a separate scheduled task is not needed
+  // (and a second instance would fail to bind the port).
   if chkShellMode.Checked then
     DeleteAutostartTask
   else if WizardIsTaskSelected('autostart') then
@@ -1035,10 +959,9 @@ begin
     // Remove autostart task (no admin)
     DeleteAutostartTask;
 
-    // Remove watchdog task + script
-    DeleteWatchdogTask;
+    // Clean up any leftover watchdog files from previous installs
     DeleteFile(ExpandConstant('{app}\watchdog.vbs'));
-    DeleteFile(ExpandConstant('{app}\watchdog.ps1'));  // legacy cleanup
+    DeleteFile(ExpandConstant('{app}\watchdog.ps1'));
 
     // Remove legacy onefile runtime-tmpdir if still present
     DelTree(ExpandConstant('{localappdata}\kodi-mpchc-bridge-rt'), True, True, True);
