@@ -317,15 +317,33 @@ class KodiClient:
                 # to the wrong episode and must NOT be used.
                 is_ep2     = item.get("type", "") == "episode" or bool(item.get("showtitle"))
                 tvshow_id2 = item.get("tvshowid", -1) if is_ep2 else -1
-                # Show-safe art: only poster / season poster / fanart — never thumb
+                # Show-safe art: pick the art type that matches episode_art_mode,
+                # using only per-show/per-season fields (never episode thumb).
+                # Priority mirrors _pick_art() so the mismatch image is the
+                # same as what would be shown for any episode in this series.
                 _sa = item.get("art") or {}
-                safe_art = (
-                    _sa.get("tvshow.poster", "")
-                    or _sa.get("season.poster", "")
-                    or _sa.get("poster", "")
-                    or _sa.get("fanart", "")
-                    or ""
-                )
+                if episode_art_mode == "season.poster":
+                    safe_art = (
+                        _sa.get("season.poster", "")
+                        or _sa.get("tvshow.poster", "")
+                        or _sa.get("tvshow.fanart", "")
+                        or ""
+                    )
+                elif episode_art_mode == "fanart":
+                    safe_art = (
+                        _sa.get("tvshow.fanart", "")
+                        or _sa.get("fanart", "")
+                        or _sa.get("tvshow.poster", "")
+                        or _sa.get("season.poster", "")
+                        or ""
+                    )
+                else:  # "poster" (default) — or any unknown mode
+                    safe_art = (
+                        _sa.get("tvshow.poster", "")
+                        or _sa.get("season.poster", "")
+                        or _sa.get("tvshow.fanart", "")
+                        or ""
+                    )
                 _mismatch_tvshowid = tvshow_id2
                 _mismatch_tv_show  = item.get("showtitle", "") or "" if is_ep2 else ""
                 _mismatch_art      = self._image_url(safe_art) if safe_art else ""
@@ -608,29 +626,36 @@ class KodiClient:
         return self._image_url(url) if url else ""
 
     async def prefetch_season_art(
-        self, episodes: list[dict], episode_art_mode: str
+        self,
+        episodes:         list[dict],
+        episode_art_mode: str,
+        current_art_url:  str = "",
     ) -> None:
         """
         Background task: pre-fetch art URLs **and** image bytes for every
         episode in the season list.
 
-        Loading priority for each episode:
-        1. _episode_art_cache hit (already fetched this session) → skip
-        2. GetEpisodeDetails (single-row, MySQL-safe) → art URL
-        3. fetch_artwork_bytes: Textures13.db local file first, then HTTP
+        ``current_art_url`` is the already-resolved art URL of the episode
+        that is currently playing (set by hub before kicking off this task).
+        For non-thumb modes (poster / season.poster / fanart) all episodes in
+        the same season share the same art, so we propagate *current_art_url*
+        directly rather than calling GetEpisodeDetails for each episode.
+        GetEpisodeDetails only returns episode-level art (thumb, episode.fanart)
+        and does NOT include season.poster or tvshow.poster — so calling it per
+        episode in those modes would always return the wrong art or nothing.
+
+        For thumb mode each episode has its own scene thumbnail, so
+        GetEpisodeDetails is still called individually.
 
         Results go into:
         * _episode_art_cache  : filename → resolved art URL
         * _episode_bytes_cache: art_url  → (bytes, content_type)
-
-        These caches mean that step 3b in get_file_info and hub._fetch_artwork
-        can produce the correct thumbnail immediately on the next episode switch
-        without any extra API round-trips.
         """
         import os
         _LOG.info(
-            "Season art pre-fetch: %d episodes  mode=%s",
+            "Season art pre-fetch: %d episodes  mode=%s  shared_url=%s",
             len(episodes), episode_art_mode,
+            "yes" if (episode_art_mode != "thumb" and current_art_url) else "no",
         )
         fetched = 0
         for ep in episodes:
@@ -639,10 +664,17 @@ class KodiClient:
             if not filename or episodeid < 0:
                 continue
 
-            # Art URL — check cache first
+            # Art URL — resolve per priority:
             art_url = self._episode_art_cache.get(filename, "")
             if not art_url:
-                art_url = await self._get_episode_art_url(episodeid, episode_art_mode)
+                if episode_art_mode != "thumb" and current_art_url:
+                    # poster / season.poster / fanart: same art for every episode.
+                    # Use the caller-supplied URL — GetEpisodeDetails won't have
+                    # season.poster / tvshow.poster anyway (episode-level art only).
+                    art_url = current_art_url
+                else:
+                    # thumb mode (or no shared URL): fetch per-episode art.
+                    art_url = await self._get_episode_art_url(episodeid, episode_art_mode)
                 if art_url:
                     self._episode_art_cache[filename] = art_url
 
@@ -650,7 +682,7 @@ class KodiClient:
                 _LOG.debug("Season pre-fetch: no art URL for %s", filename)
                 continue
 
-            # Bytes — skip if already in cache
+            # Bytes — skip if already in cache (same URL = same bytes, no re-fetch)
             if art_url in self._episode_bytes_cache:
                 continue
 

@@ -725,9 +725,17 @@ class Hub:
                             # Pre-fetch art + image bytes for all season episodes in
                             # the background so the next episode switch is instant.
                             # Priority: _episode_bytes_cache → Textures13.db → HTTP
-                            _ep_art_mode = self._config.cfg.episode_art_mode
+                            # Pass the current episode's already-known art URL so
+                            # non-thumb modes (poster/season.poster/fanart) can
+                            # propagate it directly — GetEpisodeDetails only returns
+                            # episode-level art and won't have season/tvshow posters.
+                            _ep_art_mode   = self._config.cfg.episode_art_mode
+                            _cur_art_url   = info.get("artwork_url", "")
                             _pf_task = asyncio.get_running_loop().create_task(
-                                self._kodi.prefetch_season_art(eps, _ep_art_mode),
+                                self._kodi.prefetch_season_art(
+                                    eps, _ep_art_mode,
+                                    current_art_url=_cur_art_url,
+                                ),
                                 name="season-art-prefetch",
                             )
                             _pf_task.add_done_callback(
