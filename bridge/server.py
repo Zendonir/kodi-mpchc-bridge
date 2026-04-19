@@ -551,15 +551,14 @@ _WEB_UI = """<!DOCTYPE html>
       </div>
     </div>
 
-    <!-- Kiosk -->
+    <!-- Kiosk / Boot-Ziel -->
     <div class="settings-section">
-      <div class="settings-section-title" data-i18n="lbl_kiosk"></div>
-      <div style="margin-bottom:6px">
-        <label style="display:flex;align-items:center;gap:8px;font-size:.84rem;cursor:pointer">
-          <input type="checkbox" id="chk_hide_explorer"
-            onchange="saveKioskSetting('hide_explorer',this.checked)">
-          <span data-i18n="opt_hide_explorer"></span>
-        </label>
+      <div class="settings-section-title" data-i18n="lbl_boot_target"></div>
+      <div class="radio-group" style="margin-bottom:10px">
+        <label><input type="radio" name="boot_target" value="kodi"
+          onchange="saveBootTarget(this)"><span data-i18n="opt_boot_kodi"></span></label>
+        <label><input type="radio" name="boot_target" value="windows"
+          onchange="saveBootTarget(this)"><span data-i18n="opt_boot_windows"></span></label>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <label style="font-size:.84rem;white-space:nowrap" data-i18n="lbl_kodi_exe"></label>
@@ -634,6 +633,9 @@ const _TR = {
     btn_kiosk_kodi:'Kodi',
     btn_kiosk_windows:'Windows',
     btn_kiosk_restart:'Restart Kodi',
+    lbl_boot_target:'Boot target',
+    opt_boot_kodi:'Kodi \u2014 hide Explorer on startup',
+    opt_boot_windows:'Windows \u2014 normal desktop',
   },
   de:{
     status_connecting:'Verbinde\u2026',
@@ -692,6 +694,9 @@ const _TR = {
     btn_kiosk_kodi:'Kodi',
     btn_kiosk_windows:'Windows',
     btn_kiosk_restart:'Kodi neustarten',
+    lbl_boot_target:'Boot-Ziel',
+    opt_boot_kodi:'Kodi \u2014 Explorer beim Start verstecken',
+    opt_boot_windows:'Windows \u2014 normaler Desktop',
   },
   fr:{
     status_connecting:'Connexion\u2026',
@@ -727,6 +732,9 @@ const _TR = {
     lbl_kiosk:'Kiosque',
     opt_hide_explorer:'Masquer l\u2019Explorateur au d\u00E9marrage (mode kiosque)',
     lbl_kodi_exe:'Chemin Kodi\u00A0:',
+    lbl_boot_target:'Cible de d\u00E9marrage',
+    opt_boot_kodi:'Kodi \u2014 masquer l\u2019Explorateur au d\u00E9marrage',
+    opt_boot_windows:'Windows \u2014 bureau normal',
   },
   es:{
     status_connecting:'Conectando\u2026',
@@ -762,6 +770,9 @@ const _TR = {
     lbl_kiosk:'Quiosco',
     opt_hide_explorer:'Ocultar el Explorador al inicio (modo quiosco)',
     lbl_kodi_exe:'Ruta de Kodi:',
+    lbl_boot_target:'Destino de arranque',
+    opt_boot_kodi:'Kodi \u2014 ocultar Explorador al inicio',
+    opt_boot_windows:'Windows \u2014 escritorio normal',
   },
   it:{
     status_connecting:'Connessione\u2026',
@@ -797,6 +808,9 @@ const _TR = {
     lbl_kiosk:'Chiosco',
     opt_hide_explorer:'Nascondi Explorer all\u2019avvio (modalit\u00E0 chiosco)',
     lbl_kodi_exe:'Percorso Kodi:',
+    lbl_boot_target:'Destinazione avvio',
+    opt_boot_kodi:'Kodi \u2014 nascondi Explorer all\u2019avvio',
+    opt_boot_windows:'Windows \u2014 desktop normale',
   },
 };
 const _T = _TR[_LANG] || _TR.en;
@@ -988,11 +1002,17 @@ function syncSettingsUI(cfg) {
       r.checked = r.value === modeMap[name];
     });
   });
-  // Kiosk
-  var chkHide = document.getElementById('chk_hide_explorer');
-  if (chkHide) chkHide.checked = !!cfg.hide_explorer;
+  // Boot target
+  var bootVal = cfg.hide_explorer ? 'kodi' : 'windows';
+  document.querySelectorAll('input[name="boot_target"]').forEach(function(r) {
+    r.checked = r.value === bootVal;
+  });
   var inpKodi = document.getElementById('inp_kodi_exe');
   if (inpKodi) inpKodi.value = cfg.kodi_exe_path || '';
+}
+
+function saveBootTarget(radio) {
+  saveKioskSetting('hide_explorer', radio.value === 'kodi');
 }
 
 function saveKioskSetting(key, val) {
