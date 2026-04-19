@@ -592,7 +592,9 @@ class Hub:
             # Kodi library lookup — returns artwork URL + metadata
             info = await self._kodi.get_file_info(
                 filepath,
+                movie_art_mode=self._config.cfg.movie_art_mode,
                 episode_art_mode=self._config.cfg.episode_art_mode,
+                music_art_mode=self._config.cfg.music_art_mode,
             )
             if info:
                 # Extract tvshowid before pushing (not a UnifiedState field)

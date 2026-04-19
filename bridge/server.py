@@ -310,11 +310,21 @@ _WEB_UI = """<!DOCTYPE html>
   .log-WARNING{color:#c80}
   .log-ERROR{color:#e44}
   /* Settings card */
-  .settings-row{display:flex;align-items:center;gap:12px;padding:6px 0;flex-wrap:wrap}
-  .settings-row>span:first-child{color:#888;min-width:130px;font-size:.84rem}
-  .radio-group{display:flex;gap:16px}
-  .radio-group label{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.84rem}
-  .radio-group input[type=radio]{cursor:pointer;accent-color:#4a9;width:15px;height:15px}
+  .settings-section{margin-bottom:12px}
+  .settings-section:last-child{margin-bottom:0}
+  .settings-section-title{font-size:.73rem;color:#888;text-transform:uppercase;
+    letter-spacing:.06em;margin-bottom:5px;padding-bottom:3px;border-bottom:1px solid #252525}
+  .radio-group{display:flex;gap:14px;flex-wrap:wrap}
+  .radio-group label{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.84rem;
+    padding:3px 8px;border-radius:5px;border:1px solid transparent;transition:border-color .12s}
+  .radio-group label:hover{border-color:#444}
+  .radio-group input[type=radio]{cursor:pointer;accent-color:#4a9;width:14px;height:14px}
+  /* Custom seek row */
+  .seek-row{display:flex;align-items:center;gap:5px}
+  .seek-row input[type=number]{width:58px;background:#1e1e1e;border:1px solid #444;color:#ddd;
+    border-radius:4px;padding:3px 6px;font-size:.84rem;text-align:center;-moz-appearance:textfield}
+  .seek-row input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+  .seek-row .seek-unit{font-size:.75rem;color:#555}
 </style>
 </head>
 <body>
@@ -337,6 +347,14 @@ _WEB_UI = """<!DOCTYPE html>
       <button onclick="cmd('skip_forward')"  data-i18n="btn_skip_fwd"></button>
       <button onclick="cmd('seek_backward_small')" data-i18n="btn_seek_back"></button>
       <button onclick="cmd('seek_forward_small')"  data-i18n="btn_seek_fwd"></button>
+    </div>
+    <div class="btns">
+      <div class="seek-row">
+        <button onclick="seekCustom(-1)" data-i18n="btn_seek_minus"></button>
+        <input id="seek-secs" type="number" value="30" min="1" max="7200">
+        <span class="seek-unit">s</span>
+        <button onclick="seekCustom(1)" data-i18n="btn_seek_plus"></button>
+      </div>
     </div>
     <div class="btns">
       <button onclick="cmd('volume_down')">&#x1F509;</button>
@@ -437,17 +455,43 @@ _WEB_UI = """<!DOCTYPE html>
   <!-- Card: Settings (full width, hidden by default) -->
   <div class="card" id="card-settings" style="grid-column:1/-1;display:none">
     <h2 data-i18n="card_settings"></h2>
-    <div class="settings-row">
-      <span data-i18n="lbl_art_mode"></span>
+
+    <!-- Film -->
+    <div class="settings-section">
+      <div class="settings-section-title" data-i18n="lbl_art_movie"></div>
       <div class="radio-group">
-        <label>
-          <input type="radio" name="art_mode" value="poster" onchange="saveArtMode(this)">
-          <span data-i18n="opt_art_poster"></span>
-        </label>
-        <label>
-          <input type="radio" name="art_mode" value="thumb" onchange="saveArtMode(this)">
-          <span data-i18n="opt_art_thumb"></span>
-        </label>
+        <label><input type="radio" name="art_movie" value="poster"
+          onchange="saveArtMode('movie_art_mode',this)"><span data-i18n="opt_art_poster"></span></label>
+        <label><input type="radio" name="art_movie" value="fanart"
+          onchange="saveArtMode('movie_art_mode',this)"><span data-i18n="opt_art_fanart"></span></label>
+        <label><input type="radio" name="art_movie" value="thumb"
+          onchange="saveArtMode('movie_art_mode',this)"><span data-i18n="opt_art_thumb"></span></label>
+      </div>
+    </div>
+
+    <!-- Serien -->
+    <div class="settings-section">
+      <div class="settings-section-title" data-i18n="lbl_art_episode"></div>
+      <div class="radio-group">
+        <label><input type="radio" name="art_episode" value="poster"
+          onchange="saveArtMode('episode_art_mode',this)"><span data-i18n="opt_art_tvposter"></span></label>
+        <label><input type="radio" name="art_episode" value="season.poster"
+          onchange="saveArtMode('episode_art_mode',this)"><span data-i18n="opt_art_seasonposter"></span></label>
+        <label><input type="radio" name="art_episode" value="thumb"
+          onchange="saveArtMode('episode_art_mode',this)"><span data-i18n="opt_art_thumb"></span></label>
+        <label><input type="radio" name="art_episode" value="fanart"
+          onchange="saveArtMode('episode_art_mode',this)"><span data-i18n="opt_art_fanart"></span></label>
+      </div>
+    </div>
+
+    <!-- Musik -->
+    <div class="settings-section">
+      <div class="settings-section-title" data-i18n="lbl_art_music"></div>
+      <div class="radio-group">
+        <label><input type="radio" name="art_music" value="thumb"
+          onchange="saveArtMode('music_art_mode',this)"><span data-i18n="opt_art_thumb"></span></label>
+        <label><input type="radio" name="art_music" value="fanart"
+          onchange="saveArtMode('music_art_mode',this)"><span data-i18n="opt_art_fanart"></span></label>
       </div>
     </div>
   </div>
@@ -497,11 +541,18 @@ const _TR = {
     btn_logs:'\U0001F4CB Log',
     card_logs:'Bridge Log',
     btn_log_refresh:'\u21BB',
+    btn_seek_minus:'\u23EA s',
+    btn_seek_plus:'s \u23E9',
     btn_settings:'\u2699 Settings',
     card_settings:'Settings',
-    lbl_art_mode:'Artwork mode',
-    opt_art_poster:'Series cover (poster)',
-    opt_art_thumb:'Thumbnail (scene)',
+    lbl_art_movie:'Movie',
+    lbl_art_episode:'TV Series',
+    lbl_art_music:'Music',
+    opt_art_poster:'Poster',
+    opt_art_fanart:'Fanart\u202F/\u202FBackdrop',
+    opt_art_thumb:'Thumbnail',
+    opt_art_tvposter:'Series poster',
+    opt_art_seasonposter:'Season poster',
   },
   de:{
     status_connecting:'Verbinde\u2026',
@@ -542,11 +593,18 @@ const _TR = {
     btn_logs:'\U0001F4CB Log',
     card_logs:'Bridge Log',
     btn_log_refresh:'\u21BB',
+    btn_seek_minus:'\u23EA s',
+    btn_seek_plus:'s \u23E9',
     btn_settings:'\u2699 Einstellungen',
     card_settings:'Einstellungen',
-    lbl_art_mode:'Artwork-Modus',
-    opt_art_poster:'Seriencover (Poster)',
-    opt_art_thumb:'Thumbnail (Szene)',
+    lbl_art_movie:'Film',
+    lbl_art_episode:'Serien',
+    lbl_art_music:'Musik',
+    opt_art_poster:'Poster',
+    opt_art_fanart:'Fanart\u202F/\u202FHintergrund',
+    opt_art_thumb:'Thumbnail',
+    opt_art_tvposter:'Seriencover',
+    opt_art_seasonposter:'Staffelcover',
   },
   fr:{
     status_connecting:'Connexion\u2026',
@@ -763,6 +821,8 @@ function restartConfirm() {
 
 document.addEventListener('keydown', function(e) {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === '[') { e.preventDefault(); seekCustom(-1); return; }
+  if (e.key === ']') { e.preventDefault(); seekCustom(1);  return; }
   const map = {
     ArrowUp:'navigate_up', ArrowDown:'navigate_down',
     ArrowLeft:'navigate_left', ArrowRight:'navigate_right',
@@ -800,18 +860,35 @@ async function loadSettings() {
 }
 
 function syncSettingsUI(cfg) {
-  const mode = (cfg && cfg.episode_art_mode) || 'poster';
-  document.querySelectorAll('input[name=art_mode]').forEach(function(r) {
-    r.checked = r.value === mode;
+  if (!cfg) return;
+  var modeMap = {
+    art_movie:   cfg.movie_art_mode   || 'poster',
+    art_episode: cfg.episode_art_mode || 'poster',
+    art_music:   cfg.music_art_mode   || 'thumb',
+  };
+  Object.keys(modeMap).forEach(function(name) {
+    document.querySelectorAll('input[name="' + name + '"]').forEach(function(r) {
+      r.checked = r.value === modeMap[name];
+    });
   });
 }
 
-function saveArtMode(radio) {
+function saveArtMode(configKey, radio) {
+  var body = {};
+  body[configKey] = radio.value;
   fetch('/api/config', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({episode_art_mode: radio.value}),
+    body: JSON.stringify(body),
   }).catch(function() {});
+}
+
+// ── Custom seek ───────────────────────────────────────────────────────────────
+function seekCustom(sign) {
+  var secs = parseFloat((document.getElementById('seek-secs') || {}).value || '30');
+  if (!isNaN(secs) && secs > 0) {
+    cmd('seek_relative', sign * secs);
+  }
 }
 
 async function fetchLogs() {

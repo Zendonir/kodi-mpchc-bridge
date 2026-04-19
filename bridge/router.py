@@ -324,6 +324,10 @@ class CommandRouter:
         elif cmd == "seek" and value is not None:
             pos_ms = int(float(value) * 1000)
             return await self._mpchc.seek(pos_ms)
+        elif cmd == "seek_relative" and value is not None:
+            cur_pos = self._state.state.position  # seconds (float)
+            target  = max(0.0, cur_pos + float(value))
+            return await self._mpchc.seek(int(target * 1000))
         elif cmd == "volume_up":
             return await self._mpchc.send_command(CMD_VOLUME_UP)
         elif cmd == "volume_down":
@@ -405,6 +409,10 @@ class CommandRouter:
             await self._kodi.skip_backward()
         elif cmd == "seek" and value is not None:
             await self._kodi.seek(float(value))
+        elif cmd == "seek_relative" and value is not None:
+            cur_pos = self._state.state.position
+            target  = max(0.0, cur_pos + float(value))
+            await self._kodi.seek(target)
         elif cmd == "set_volume" and value is not None:
             await self._kodi.set_volume(int(value))
         elif cmd == "volume_up":

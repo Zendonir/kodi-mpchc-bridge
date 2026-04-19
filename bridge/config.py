@@ -38,7 +38,9 @@ class BridgeConfig:
     mpchc_exe_path: str = ""              # full path to mpc-hc64.exe / mpc-be64.exe
     resume_enabled: bool = False          # seek to Kodi resume position on external launch
     external_player_enabled: bool = True  # False → --play exits immediately, Kodi uses own player
-    episode_art_mode: str = "poster"      # "poster" = tvshow poster, "thumb" = episode thumbnail
+    movie_art_mode: str = "poster"        # movie artwork: "poster" | "fanart" | "thumb"
+    episode_art_mode: str = "poster"      # episode artwork: "poster"(=tvshow) | "season.poster" | "thumb" | "fanart"
+    music_art_mode: str = "thumb"         # music artwork: "thumb"(=album cover) | "fanart"
 
     def __post_init__(self) -> None:
         for f in fields(self):

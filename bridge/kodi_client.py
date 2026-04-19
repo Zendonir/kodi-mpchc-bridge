@@ -169,7 +169,13 @@ class KodiClient:
             data = await resp.read()
             return data, resp.content_type or "image/jpeg"
 
-    async def get_file_info(self, filepath: str, episode_art_mode: str = "poster") -> dict[str, Any]:
+    async def get_file_info(
+        self,
+        filepath: str,
+        movie_art_mode: str = "poster",
+        episode_art_mode: str = "poster",
+        music_art_mode: str = "thumb",
+    ) -> dict[str, Any]:
         """
         Look up *filepath* in the Kodi library.
 
@@ -190,31 +196,61 @@ class KodiClient:
             "season_count": 0, "episode_count": 0,
         }
 
-        def _pick_art(item: dict) -> str:
+        def _pick_art(item: dict, media_type: str = "") -> str:
             art = item.get("art") or {}
-            if episode_art_mode == "thumb":
-                return (
-                    art.get("thumb", "")           # Episode thumbnail (scene capture) — preferred
-                    or art.get("season.poster", "") # Season poster
-                    or art.get("tvshow.poster", "") # TV-show poster fallback
-                    or art.get("poster", "")        # Movie poster
-                    or art.get("fanart", "")
-                    or item.get("thumbnail", "")
-                    or ""
-                )
-            # "poster" mode (default) — show/series poster first
-            return (
-                art.get("tvshow.poster", "")   # TV-show poster (best for episodes)
-                or art.get("season.poster", "") # Season poster
-                or art.get("poster", "")        # Movie poster
-                or art.get("thumb", "")         # Episode thumbnail (scene capture)
-                or art.get("fanart", "")
-                or item.get("thumbnail", "")
-                or ""
-            )
+            tn  = item.get("thumbnail", "") or ""
 
-        def _meta(item: dict, *, is_episode: bool = False) -> dict[str, Any]:
-            thumb = _pick_art(item)
+            # Auto-detect when caller doesn't know
+            if not media_type:
+                if art.get("tvshow.poster") or art.get("season.poster") or item.get("showtitle"):
+                    media_type = "episode"
+                elif item.get("type") in ("song", "album", "artist", "music"):
+                    media_type = "music"
+                else:
+                    media_type = "movie"
+
+            if media_type == "episode":
+                if episode_art_mode == "thumb":
+                    return (art.get("thumb","") or art.get("season.poster","")
+                            or art.get("tvshow.poster","") or art.get("poster","")
+                            or art.get("fanart","") or tn or "")
+                if episode_art_mode == "season.poster":
+                    return (art.get("season.poster","") or art.get("tvshow.poster","")
+                            or art.get("thumb","") or art.get("poster","")
+                            or art.get("fanart","") or tn or "")
+                if episode_art_mode == "fanart":
+                    return (art.get("fanart","") or art.get("tvshow.poster","")
+                            or art.get("season.poster","") or art.get("thumb","")
+                            or art.get("poster","") or tn or "")
+                # "poster" (default) → tvshow.poster first
+                return (art.get("tvshow.poster","") or art.get("season.poster","")
+                        or art.get("poster","") or art.get("thumb","")
+                        or art.get("fanart","") or tn or "")
+
+            if media_type == "music":
+                if music_art_mode == "fanart":
+                    return (art.get("fanart","") or art.get("thumb","") or tn or "")
+                return (art.get("thumb","") or tn or art.get("fanart","") or "")
+
+            # movie
+            if movie_art_mode == "fanart":
+                return (art.get("fanart","") or art.get("poster","")
+                        or art.get("thumb","") or tn or "")
+            if movie_art_mode == "thumb":
+                return (art.get("thumb","") or art.get("poster","")
+                        or art.get("fanart","") or tn or "")
+            # "poster" (default)
+            return (art.get("poster","") or art.get("thumb","")
+                    or art.get("fanart","") or tn or "")
+
+        def _meta(item: dict, *, is_episode: bool = False, is_music: bool = False) -> dict[str, Any]:
+            if is_episode:
+                mt = "episode"
+            elif is_music:
+                mt = "music"
+            else:
+                mt = "movie"
+            thumb = _pick_art(item, mt)
             return {
                 "artwork_url": self._image_url(thumb) if thumb else "",
                 "title":    item.get("title", "")     or item.get("label", "") or "",
@@ -340,7 +376,9 @@ class KodiClient:
         #    (e.g. MPC-HC is the active player so Kodi has no active player object,
         #    or the episode filename has characters that confuse the filter).
         db_result = await asyncio.get_running_loop().run_in_executor(
-            None, lambda: self._get_file_info_from_db_sync(filepath, episode_art_mode)
+            None, lambda: self._get_file_info_from_db_sync(
+                filepath, movie_art_mode, episode_art_mode, music_art_mode
+            )
         )
         if db_result:
             _LOG.info("FileInfo [5/5] DB fallback: title=%r art=%r",
@@ -561,7 +599,13 @@ class KodiClient:
         )
         return self._image_url(url) if url else ""
 
-    def _get_file_info_from_db_sync(self, filepath: str, episode_art_mode: str = "poster") -> "dict[str, Any] | None":
+    def _get_file_info_from_db_sync(
+        self,
+        filepath: str,
+        movie_art_mode: str = "poster",
+        episode_art_mode: str = "poster",
+        music_art_mode: str = "thumb",
+    ) -> "dict[str, Any] | None":
         """
         Read file info + artwork directly from Kodi's SQLite database.
 
@@ -631,26 +675,29 @@ class KodiClient:
                         "episode":  row["episode_num"] or 0,
                         "tvshowid": row["idShow"],
                     }
-                    # Fetch episode thumbnail and TV-show poster separately,
-                    # then pick based on episode_art_mode setting.
+                    # Fetch all relevant art for episode + show, then pick by mode.
                     cur.execute(
-                        "SELECT url FROM art WHERE media_id=? AND media_type='episode'"
-                        " AND type='thumb' LIMIT 1",
-                        (row["idEpisode"],),
+                        "SELECT media_type || '.' || type AS key, url FROM art"
+                        " WHERE (media_id=? AND media_type='episode' AND type IN ('thumb','fanart'))"
+                        "    OR (media_id=? AND media_type='tvshow'  AND type IN ('poster','fanart'))",
+                        (row["idEpisode"], row["idShow"]),
                     )
-                    ep_thumb = cur.fetchone()
-                    cur.execute(
-                        "SELECT url FROM art WHERE media_id=? AND media_type='tvshow'"
-                        " AND type='poster' LIMIT 1",
-                        (row["idShow"],),
-                    )
-                    show_poster = cur.fetchone()
-                    if episode_art_mode == "thumb" and ep_thumb:
-                        result["artwork_url"] = self._image_url(ep_thumb["url"])
-                    elif show_poster:
-                        result["artwork_url"] = self._image_url(show_poster["url"])
-                    elif ep_thumb:
-                        result["artwork_url"] = self._image_url(ep_thumb["url"])
+                    ep_art = {r["key"]: r["url"] for r in cur.fetchall()}
+                    ep_thumb    = ep_art.get("episode.thumb",  "")
+                    ep_fanart   = ep_art.get("episode.fanart", "")
+                    show_poster = ep_art.get("tvshow.poster",  "")
+                    show_fanart = ep_art.get("tvshow.fanart",  "")
+                    if episode_art_mode == "thumb":
+                        ep_url = ep_thumb or show_poster or ep_fanart or show_fanart
+                    elif episode_art_mode == "season.poster":
+                        # season.poster not stored separately here → use show poster
+                        ep_url = show_poster or ep_thumb or ep_fanart or show_fanart
+                    elif episode_art_mode == "fanart":
+                        ep_url = ep_fanart or show_fanart or show_poster or ep_thumb
+                    else:  # "poster" → tvshow poster
+                        ep_url = show_poster or ep_thumb or ep_fanart or show_fanart
+                    if ep_url:
+                        result["artwork_url"] = self._image_url(ep_url)
                     return result
 
                 # ── Movie ─────────────────────────────────────────────────
@@ -670,16 +717,24 @@ class KodiClient:
                         "title": row["title"] or "",
                         "year":  row["year"]  or 0,
                     }
-                    cur.execute("""
-                        SELECT url FROM art
-                        WHERE  media_id = ? AND media_type = 'movie'
-                          AND  type IN ('poster', 'thumb')
-                        ORDER  BY CASE type WHEN 'poster' THEN 1 ELSE 2 END
-                        LIMIT  1
-                    """, (row["idMovie"],))
-                    art = cur.fetchone()
-                    if art:
-                        result["artwork_url"] = self._image_url(art["url"])
+                    cur.execute(
+                        "SELECT type, url FROM art"
+                        " WHERE media_id=? AND media_type='movie'"
+                        "   AND type IN ('poster','thumb','fanart')",
+                        (row["idMovie"],),
+                    )
+                    mv_art = {r["type"]: r["url"] for r in cur.fetchall()}
+                    mv_poster = mv_art.get("poster", "")
+                    mv_thumb  = mv_art.get("thumb",  "")
+                    mv_fanart = mv_art.get("fanart", "")
+                    if movie_art_mode == "fanart":
+                        mv_url = mv_fanart or mv_poster or mv_thumb
+                    elif movie_art_mode == "thumb":
+                        mv_url = mv_thumb or mv_poster or mv_fanart
+                    else:  # "poster"
+                        mv_url = mv_poster or mv_thumb or mv_fanart
+                    if mv_url:
+                        result["artwork_url"] = self._image_url(mv_url)
                     return result
 
             finally:
