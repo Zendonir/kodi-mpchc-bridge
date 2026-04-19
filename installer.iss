@@ -522,11 +522,11 @@ begin
     '$c | Add-Member -Force -NotePropertyName hide_explorer -NotePropertyValue ' + HideVal  + #13#10 +
     '$c | Add-Member -Force -NotePropertyName shell_mode    -NotePropertyValue ' + ShellVal + #13#10 +
     '$c | Add-Member -Force -NotePropertyName kodi_exe_path -NotePropertyValue ' + #39 + ExeVal + #39 + #13#10 +
-    '($c | ConvertTo-Json -Depth 10) | Set-Content $f -Encoding UTF8';
+    '[System.IO.File]::WriteAllText($f, ($c | ConvertTo-Json -Depth 10), (New-Object System.Text.UTF8Encoding $false))';
 
   if SaveStringToFile(ScriptPath, Script, False) then
     Exec('powershell.exe',
-         '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '"',
+         '-WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '"',
          '', SW_HIDE, ewWaitUntilTerminated, rc);
 end;
 
@@ -1009,7 +1009,8 @@ end;
 // --------------------------------------------------------------------------
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
-  ConfigFile: String;
+  ConfigFile, KodiUD, XmlPath, BakPath, DisabledPath, ShellVal: String;
+  rc: Integer;
 begin
   if CurUninstallStep = usUninstall then begin
 
@@ -1023,11 +1024,33 @@ begin
     DeleteWatchdogTask;
     DeleteFile(ExpandConstant('{app}\watchdog.ps1'));
 
+    // If bridge was registered as Windows shell, Explorer is not running → start it.
+    if RegQueryStringValue(HKCU,
+        'Software\Microsoft\Windows NT\CurrentVersion\Winlogon',
+        'Shell', ShellVal) then begin
+      if Pos(LowerCase('{#AppExe}'), LowerCase(ShellVal)) > 0 then
+        Exec('explorer.exe', '', '', SW_SHOW, ewNoWait, rc);
+    end;
+
     // Restore Windows shell: remove HKCU override so Windows falls back
     // to the HKLM default (explorer.exe).  Safe no-op if never set.
     RegDeleteValue(HKCU,
       'Software\Microsoft\Windows NT\CurrentVersion\Winlogon',
       'Shell');
+
+    // playercorefactory.xml cleanup: restore .bak if it exists, else delete.
+    // Also remove .bridge_disabled variant so Kodi has no stale config.
+    KodiUD      := GetEnv('APPDATA') + '\Kodi\userdata';
+    XmlPath     := KodiUD + '\playercorefactory.xml';
+    BakPath     := XmlPath + '.bak';
+    DisabledPath := XmlPath + '.bridge_disabled';
+    if FileExists(BakPath) then begin
+      DeleteFile(XmlPath);
+      RenameFile(BakPath, XmlPath);
+    end else if FileExists(XmlPath) then
+      DeleteFile(XmlPath);
+    if FileExists(DisabledPath) then
+      DeleteFile(DisabledPath);
 
     // config.json: ask user
     ConfigFile := ExpandConstant('{app}\config.json');

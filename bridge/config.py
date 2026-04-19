@@ -77,7 +77,7 @@ class ConfigManager:
 
     def _load(self) -> None:
         try:
-            with open(self._path, "r", encoding="utf-8") as f:
+            with open(self._path, "r", encoding="utf-8-sig") as f:
                 data = json.load(f)
             for k, v in data.items():
                 if hasattr(self._cfg, k):

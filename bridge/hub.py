@@ -168,6 +168,40 @@ def _kill_kodi() -> None:
         _LOG.error("Failed to kill Kodi: %s", exc)
 
 
+def _is_kodi_running() -> bool:
+    """Check if kodi.exe is currently running on Windows."""
+    if sys.platform != "win32":
+        return False
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["tasklist", "/FI", "IMAGENAME eq kodi.exe", "/NH"],
+            capture_output=True, text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+            timeout=3.0,
+        )
+        return "kodi.exe" in out.stdout.lower()
+    except Exception:
+        return False
+
+
+def _is_explorer_running() -> bool:
+    """Check if explorer.exe is currently running."""
+    if sys.platform != "win32":
+        return False
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["tasklist", "/FI", "IMAGENAME eq explorer.exe", "/NH"],
+            capture_output=True, text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+            timeout=3.0,
+        )
+        return "explorer.exe" in out.stdout.lower()
+    except Exception:
+        return True  # assume running to avoid double-start
+
+
 def _match_track(tracks: list[dict], current_name: str) -> int:
     """
     Match MPC-HC's current track string against parsed MKV track list.
@@ -457,6 +491,10 @@ class Hub:
             port=cfg.server_port,
             on_external_play=self.external_play,
             on_player_setup=self.setup_external_player,
+            on_kiosk_kodi=self.switch_to_kodi,
+            on_kiosk_windows=self.switch_to_windows,
+            on_kiosk_restart=self.restart_kodi,
+            on_kiosk_status=self._kiosk_status,
         )
 
     # ------------------------------------------------------------------
@@ -944,6 +982,61 @@ class Hub:
                 _focus_kodi_window()
             _LOG.info("Kiosk toggle: Explorer hidden, Kodi focused")
         return True
+
+    # ------------------------------------------------------------------
+    # Explicit kiosk state switches (Web-UI buttons)
+    # ------------------------------------------------------------------
+    async def switch_to_kodi(self) -> bool:
+        """
+        Web-UI 'Kodi' button — idempotent, state-aware.
+        Hides Explorer (if visible), starts Kodi (if not running), focuses window.
+        """
+        cfg = self._config.cfg
+        kodi_running = _is_kodi_running()
+
+        if not self._explorer_hidden:
+            _set_explorer_visible(False)
+            self._explorer_hidden = True
+
+        if not kodi_running:
+            if not cfg.kodi_exe_path:
+                _LOG.warning("switch_to_kodi: kodi_exe_path not configured")
+                return False
+            _launch_kodi(cfg.kodi_exe_path)
+            await asyncio.sleep(3.0)
+
+        _focus_kodi_window()
+        _LOG.info("switch_to_kodi: kodi_running_before=%s", kodi_running)
+        return True
+
+    async def switch_to_windows(self) -> bool:
+        """Web-UI 'Windows' button — kills Kodi, restores Explorer."""
+        _kill_kodi()
+        if self._explorer_hidden or not _is_explorer_running():
+            _set_explorer_visible(True)
+            self._explorer_hidden = False
+        _LOG.info("switch_to_windows: Explorer restored, Kodi killed")
+        return True
+
+    async def restart_kodi(self) -> bool:
+        """Web-UI 'Kodi neustarten' button — kills Kodi, relaunches it; Explorer state unchanged."""
+        cfg = self._config.cfg
+        if not cfg.kodi_exe_path:
+            _LOG.warning("restart_kodi: kodi_exe_path not configured")
+            return False
+        _kill_kodi()
+        await asyncio.sleep(1.5)
+        _launch_kodi(cfg.kodi_exe_path)
+        await asyncio.sleep(3.0)
+        _focus_kodi_window()
+        _LOG.info("restart_kodi: done")
+        return True
+
+    def _kiosk_status(self) -> dict:
+        return {
+            "kodi_running": _is_kodi_running(),
+            "explorer_hidden": self._explorer_hidden,
+        }
 
     # ------------------------------------------------------------------
     # Toggle external player on / off

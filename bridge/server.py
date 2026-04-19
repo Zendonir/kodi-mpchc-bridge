@@ -36,6 +36,10 @@ class BridgeServer:
         port: int = 13590,
         on_external_play=None,
         on_player_setup=None,
+        on_kiosk_kodi=None,
+        on_kiosk_windows=None,
+        on_kiosk_restart=None,
+        on_kiosk_status=None,
     ) -> None:
         self._state = state_manager
         self._router = router
@@ -44,6 +48,10 @@ class BridgeServer:
         self._port = port
         self._on_external_play = on_external_play
         self._on_player_setup = on_player_setup
+        self._on_kiosk_kodi = on_kiosk_kodi
+        self._on_kiosk_windows = on_kiosk_windows
+        self._on_kiosk_restart = on_kiosk_restart
+        self._on_kiosk_status = on_kiosk_status
         self._ws_clients: set[web.WebSocketResponse] = set()
         self._app = web.Application()
         self._runner: web.AppRunner | None = None
@@ -60,6 +68,10 @@ class BridgeServer:
         self._app.router.add_get("/api/ws", self._handle_ws)
         self._app.router.add_get("/api/artwork", self._handle_artwork)
         self._app.router.add_get("/api/logs", self._handle_logs)
+        self._app.router.add_post("/api/kiosk/kodi", self._handle_kiosk_kodi)
+        self._app.router.add_post("/api/kiosk/windows", self._handle_kiosk_windows)
+        self._app.router.add_post("/api/kiosk/restart", self._handle_kiosk_restart)
+        self._app.router.add_get("/api/kiosk/status", self._handle_kiosk_status)
         self._app.router.add_get("/", self._handle_root)
         self._artwork_data: bytes | None = None
         self._artwork_ct: str = "image/jpeg"
@@ -182,6 +194,45 @@ class BridgeServer:
         if ok:
             return web.json_response({"ok": True, "xml_path": detail})
         return web.json_response({"ok": False, "error": detail}, status=500)
+
+    async def _handle_kiosk_kodi(self, request: web.Request) -> web.Response:
+        """POST /api/kiosk/kodi — hide Explorer, launch/focus Kodi."""
+        if self._on_kiosk_kodi is None:
+            return web.json_response({"ok": False, "error": "not configured"}, status=501)
+        try:
+            ok = await self._on_kiosk_kodi()
+            return web.json_response({"ok": ok})
+        except Exception as exc:
+            return web.json_response({"ok": False, "error": str(exc)}, status=500)
+
+    async def _handle_kiosk_windows(self, request: web.Request) -> web.Response:
+        """POST /api/kiosk/windows — kill Kodi, restore Explorer."""
+        if self._on_kiosk_windows is None:
+            return web.json_response({"ok": False, "error": "not configured"}, status=501)
+        try:
+            ok = await self._on_kiosk_windows()
+            return web.json_response({"ok": ok})
+        except Exception as exc:
+            return web.json_response({"ok": False, "error": str(exc)}, status=500)
+
+    async def _handle_kiosk_restart(self, request: web.Request) -> web.Response:
+        """POST /api/kiosk/restart — kill Kodi and relaunch it."""
+        if self._on_kiosk_restart is None:
+            return web.json_response({"ok": False, "error": "not configured"}, status=501)
+        try:
+            ok = await self._on_kiosk_restart()
+            return web.json_response({"ok": ok})
+        except Exception as exc:
+            return web.json_response({"ok": False, "error": str(exc)}, status=500)
+
+    async def _handle_kiosk_status(self, request: web.Request) -> web.Response:
+        """GET /api/kiosk/status — current kiosk state for UI button highlighting."""
+        if self._on_kiosk_status is None:
+            return web.json_response({"kodi_running": False, "explorer_hidden": False})
+        try:
+            return web.json_response(self._on_kiosk_status())
+        except Exception as exc:
+            return web.json_response({"ok": False, "error": str(exc)}, status=500)
 
     def set_artwork(self, data: bytes, content_type: str) -> None:
         """Store artwork fetched from Kodi. Called by the hub."""
@@ -394,6 +445,11 @@ _WEB_UI = """<!DOCTYPE html>
       <button onclick="toggleLogs()" data-i18n="btn_logs" style="background:#1a2a3d;border-color:#2a4a6a;color:#6af"></button>
       <button onclick="toggleSettings()" data-i18n="btn_settings" style="background:#1a2a3d;border-color:#2a4a6a;color:#6af"></button>
     </div>
+    <div class="btns" id="kiosk-btns" style="display:none">
+      <button id="btn-kiosk-kodi" onclick="kioskCmd('kodi')" data-i18n="btn_kiosk_kodi" style="background:#1a3d1a;border-color:#2a6a2a;color:#9f9"></button>
+      <button id="btn-kiosk-windows" onclick="kioskCmd('windows')" data-i18n="btn_kiosk_windows" style="background:#2a2a2a;border-color:#555;color:#ddd"></button>
+      <button id="btn-kiosk-restart" onclick="kioskCmd('restart')" data-i18n="btn_kiosk_restart" style="background:#3d2a00;border-color:#7a5500;color:#fc6"></button>
+    </div>
   </div>
 
   <!-- Card: Playback info -->
@@ -575,6 +631,9 @@ const _TR = {
     lbl_kiosk:'Kiosk',
     opt_hide_explorer:'Hide Explorer on startup (kiosk mode)',
     lbl_kodi_exe:'Kodi path:',
+    btn_kiosk_kodi:'Kodi',
+    btn_kiosk_windows:'Windows',
+    btn_kiosk_restart:'Restart Kodi',
   },
   de:{
     status_connecting:'Verbinde\u2026',
@@ -630,6 +689,9 @@ const _TR = {
     lbl_kiosk:'Kiosk',
     opt_hide_explorer:'Explorer beim Start verstecken (Kiosk-Modus)',
     lbl_kodi_exe:'Kodi-Pfad:',
+    btn_kiosk_kodi:'Kodi',
+    btn_kiosk_windows:'Windows',
+    btn_kiosk_restart:'Kodi neustarten',
   },
   fr:{
     status_connecting:'Connexion\u2026',
@@ -852,6 +914,27 @@ function cmd(c, val) {
 function restartConfirm() {
   if (confirm(t('confirm_restart'))) { cmd('system_restart'); }
 }
+
+function kioskCmd(mode) {
+  fetch('/api/kiosk/' + mode, {method:'POST'}).catch(()=>{});
+  setTimeout(updateKioskStatus, 4000);
+}
+
+let _kioskStatusTimer = null;
+async function updateKioskStatus() {
+  try {
+    const s = await fetch('/api/kiosk/status').then(r => r.json());
+    const btns = document.getElementById('kiosk-btns');
+    if (btns) btns.style.display = '';
+    const bKodi    = document.getElementById('btn-kiosk-kodi');
+    const bWin     = document.getElementById('btn-kiosk-windows');
+    if (bKodi) bKodi.style.background    = s.kodi_running && s.explorer_hidden ? '#1a5c2a' : '#1a3d1a';
+    if (bWin)  bWin.style.background     = !s.explorer_hidden ? '#3a3a3a' : '#2a2a2a';
+  } catch(e) {}
+}
+// Poll kiosk status every 5 s to keep button highlight in sync
+_kioskStatusTimer = setInterval(updateKioskStatus, 5000);
+updateKioskStatus();
 
 document.addEventListener('keydown', function(e) {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
