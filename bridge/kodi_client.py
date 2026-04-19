@@ -76,9 +76,10 @@ class KodiClient:
         self._active_player_id: int | None = None
         self._last: dict[str, Any] = {}
         # Per-episode art caches — populated by prefetch_season_art().
-        # _episode_art_cache : filename → resolved art URL
-        # _episode_bytes_cache: art_url  → (bytes, content_type)
-        self._episode_art_cache:   dict[str, str]                 = {}
+        # _episode_art_cache : (filename, mode) → resolved art URL
+        #   Key includes the art mode so a config change never serves stale art.
+        # _episode_bytes_cache: art_url → (bytes, content_type)
+        self._episode_art_cache:   dict[tuple[str, str], str]     = {}
         self._episode_bytes_cache: dict[str, tuple[bytes, str]]   = {}
 
     # ------------------------------------------------------------------
@@ -464,7 +465,7 @@ class KodiClient:
 
                     # Art — pre-fetch cache first, then GetEpisodeDetails (single row)
                     episodeid  = ep.get("episodeid", -1)
-                    cached_url = self._episode_art_cache.get(filename, "")
+                    cached_url = self._episode_art_cache.get((filename, episode_art_mode), "")
                     if cached_url:
                         m["artwork_url"] = cached_url
                         _LOG.debug("FileInfo [3b] art from pre-fetch cache: %s", cached_url[:60])
@@ -472,7 +473,7 @@ class KodiClient:
                         detail_url = await self._get_episode_art_url(episodeid, episode_art_mode)
                         if detail_url:
                             m["artwork_url"] = detail_url
-                            self._episode_art_cache[filename] = detail_url
+                            self._episode_art_cache[(filename, episode_art_mode)] = detail_url
                             _LOG.debug("FileInfo [3b] art from GetEpisodeDetails: %s", detail_url[:60])
 
                     cur_season_ep = ep.get("season", _mismatch_season)
@@ -491,7 +492,7 @@ class KodiClient:
             # Loop found nothing (0 eps or filename absent).
             # The pre-fetch cache may still have the correct thumbnail from
             # when the season was first loaded — use it directly.
-            cached_url = self._episode_art_cache.get(filename, "")
+            cached_url = self._episode_art_cache.get((filename, episode_art_mode), "")
             if cached_url:
                 sc, ec = await self._fetch_season_counts(_mismatch_tvshowid, _mismatch_season)
                 _LOG.info(
@@ -557,7 +558,7 @@ class KodiClient:
         # Kodi is idle) so step 1 never runs and _mismatch_tvshowid stays -1,
         # and the filename filter in steps 2-3 returns None on MySQL backends.
         if filename:
-            cached_url = self._episode_art_cache.get(filename, "")
+            cached_url = self._episode_art_cache.get((filename, episode_art_mode), "")
             if cached_url:
                 _LOG.info(
                     "FileInfo: art-cache fallback (all API steps failed): "
@@ -648,8 +649,8 @@ class KodiClient:
         GetEpisodeDetails is still called individually.
 
         Results go into:
-        * _episode_art_cache  : filename → resolved art URL
-        * _episode_bytes_cache: art_url  → (bytes, content_type)
+        * _episode_art_cache  : (filename, mode) → resolved art URL
+        * _episode_bytes_cache: art_url          → (bytes, content_type)
         """
         import os
         _LOG.info(
@@ -665,7 +666,7 @@ class KodiClient:
                 continue
 
             # Art URL — resolve per priority:
-            art_url = self._episode_art_cache.get(filename, "")
+            art_url = self._episode_art_cache.get((filename, episode_art_mode), "")
             if not art_url:
                 if episode_art_mode != "thumb" and current_art_url:
                     # poster / season.poster / fanart: same art for every episode.
@@ -676,7 +677,7 @@ class KodiClient:
                     # thumb mode (or no shared URL): fetch per-episode art.
                     art_url = await self._get_episode_art_url(episodeid, episode_art_mode)
                 if art_url:
-                    self._episode_art_cache[filename] = art_url
+                    self._episode_art_cache[(filename, episode_art_mode)] = art_url
 
             if not art_url:
                 _LOG.debug("Season pre-fetch: no art URL for %s", filename)
