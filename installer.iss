@@ -489,7 +489,7 @@ begin
 
   if SaveStringToFile(TaskScriptPath, TaskScript, False) then
     Exec('powershell.exe',
-         '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + TaskScriptPath + '"',
+         '-WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + TaskScriptPath + '"',
          '', SW_HIDE, ewWaitUntilTerminated, rc);
 end;
 
@@ -786,7 +786,7 @@ begin
 
   if SaveStringToFile(ScriptPath, Script, False) then
     Exec('powershell.exe',
-         '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '"',
+         '-WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '"',
          '', SW_HIDE, ewWaitUntilTerminated, rc);
 end;
 
