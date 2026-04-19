@@ -102,6 +102,7 @@ class CommandRouter:
         on_mpchc_stop: "Callable | None" = None,
         on_toggle_ext_player: "Callable | None" = None,
         on_play_episode: "Callable | None" = None,
+        on_kiosk_toggle: "Callable | None" = None,
     ) -> None:
         self._state = state
         self._kodi = kodi
@@ -114,6 +115,9 @@ class CommandRouter:
         # Optional async callback(direction) — plays next/prev episode from the
         # season episode list currently in state.
         self._on_play_episode = on_play_episode
+        # Optional async callback — kiosk mode: kill Kodi / toggle Explorer.
+        # When None, the classic minimize/restore behaviour is used.
+        self._on_kiosk_toggle = on_kiosk_toggle
         # While the resume dialog is visible this is set to the dialog's
         # inject-key function.  All nav/stop commands are redirected there.
         self._dialog_handler: "Callable[[str], None] | None" = None
@@ -174,6 +178,8 @@ class CommandRouter:
 
         if cmd == "kodi_windows":
             _LOG.info("CMD %-22s → system (Kodi/Windows toggle)", cmd)
+            if self._on_kiosk_toggle:
+                return await self._on_kiosk_toggle()
             return self._toggle_kodi_windows()
 
         if cmd == "system_restart":

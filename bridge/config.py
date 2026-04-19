@@ -42,6 +42,10 @@ class BridgeConfig:
     episode_art_mode: str = "poster"      # episode artwork: "poster"(=tvshow) | "season.poster" | "thumb" | "fanart"
     music_art_mode: str = "thumb"         # music artwork: "thumb"(=album cover) | "fanart"
 
+    # Kiosk mode
+    kodi_exe_path: str = ""               # full path to Kodi.exe (for kiosk mode)
+    hide_explorer: bool = False           # hide Explorer shell on bridge start + launch Kodi
+
     def __post_init__(self) -> None:
         for f in fields(self):
             if not isinstance(f.default, dataclasses.MISSING.__class__) and getattr(self, f.name) is None:

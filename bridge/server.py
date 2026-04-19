@@ -494,6 +494,25 @@ _WEB_UI = """<!DOCTYPE html>
           onchange="saveArtMode('music_art_mode',this)"><span data-i18n="opt_art_fanart"></span></label>
       </div>
     </div>
+
+    <!-- Kiosk -->
+    <div class="settings-section">
+      <div class="settings-section-title" data-i18n="lbl_kiosk"></div>
+      <div style="margin-bottom:6px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:.84rem;cursor:pointer">
+          <input type="checkbox" id="chk_hide_explorer"
+            onchange="saveKioskSetting('hide_explorer',this.checked)">
+          <span data-i18n="opt_hide_explorer"></span>
+        </label>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <label style="font-size:.84rem;white-space:nowrap" data-i18n="lbl_kodi_exe"></label>
+        <input type="text" id="inp_kodi_exe"
+          style="flex:1;min-width:180px;background:#1a1a1a;border:1px solid #333;
+                 color:#e0e0e0;padding:3px 6px;border-radius:4px;font-size:.82rem"
+          onchange="saveKioskSetting('kodi_exe_path',this.value)">
+      </div>
+    </div>
   </div>
 
 </div>
@@ -553,6 +572,9 @@ const _TR = {
     opt_art_thumb:'Thumbnail',
     opt_art_tvposter:'Series poster',
     opt_art_seasonposter:'Season poster',
+    lbl_kiosk:'Kiosk',
+    opt_hide_explorer:'Hide Explorer on startup (kiosk mode)',
+    lbl_kodi_exe:'Kodi path:',
   },
   de:{
     status_connecting:'Verbinde\u2026',
@@ -605,6 +627,9 @@ const _TR = {
     opt_art_thumb:'Thumbnail',
     opt_art_tvposter:'Seriencover',
     opt_art_seasonposter:'Staffelcover',
+    lbl_kiosk:'Kiosk',
+    opt_hide_explorer:'Explorer beim Start verstecken (Kiosk-Modus)',
+    lbl_kodi_exe:'Kodi-Pfad:',
   },
   fr:{
     status_connecting:'Connexion\u2026',
@@ -637,6 +662,9 @@ const _TR = {
     btn_fullscreen:'\u26F6 Plein \u00E9cran',
     btn_restart_pc:'\u23FB Red\u00E9marrer le PC',
     confirm_restart:'Planifier un red\u00E9marrage du syst\u00E8me dans 10 secondes\u00A0?',
+    lbl_kiosk:'Kiosque',
+    opt_hide_explorer:'Masquer l\u2019Explorateur au d\u00E9marrage (mode kiosque)',
+    lbl_kodi_exe:'Chemin Kodi\u00A0:',
   },
   es:{
     status_connecting:'Conectando\u2026',
@@ -669,6 +697,9 @@ const _TR = {
     btn_fullscreen:'\u26F6 Pantalla completa',
     btn_restart_pc:'\u23FB Reiniciar PC',
     confirm_restart:'\u00BFProgramar un reinicio del sistema en 10 segundos?',
+    lbl_kiosk:'Quiosco',
+    opt_hide_explorer:'Ocultar el Explorador al inicio (modo quiosco)',
+    lbl_kodi_exe:'Ruta de Kodi:',
   },
   it:{
     status_connecting:'Connessione\u2026',
@@ -701,6 +732,9 @@ const _TR = {
     btn_fullscreen:'\u26F6 Schermo intero',
     btn_restart_pc:'\u23FB Riavvia PC',
     confirm_restart:'Pianificare il riavvio del sistema tra 10 secondi?',
+    lbl_kiosk:'Chiosco',
+    opt_hide_explorer:'Nascondi Explorer all\u2019avvio (modalit\u00E0 chiosco)',
+    lbl_kodi_exe:'Percorso Kodi:',
   },
 };
 const _T = _TR[_LANG] || _TR.en;
@@ -871,6 +905,21 @@ function syncSettingsUI(cfg) {
       r.checked = r.value === modeMap[name];
     });
   });
+  // Kiosk
+  var chkHide = document.getElementById('chk_hide_explorer');
+  if (chkHide) chkHide.checked = !!cfg.hide_explorer;
+  var inpKodi = document.getElementById('inp_kodi_exe');
+  if (inpKodi) inpKodi.value = cfg.kodi_exe_path || '';
+}
+
+function saveKioskSetting(key, val) {
+  var body = {};
+  body[key] = val;
+  fetch('/api/config', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  }).catch(function() {});
 }
 
 function saveArtMode(configKey, radio) {

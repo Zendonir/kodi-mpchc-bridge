@@ -105,6 +105,8 @@ english.PlayerBrowseBtn=Browse...
 english.PlayerUseResume=Use built-in resume (seek MPC-HC to Kodi's saved position)
 english.PlayerBackupChk=Backup existing playercorefactory.xml as .bak
 english.ErrPlayerNoExe=Please select the MPC-HC / MPC-BE executable.
+english.KioskHideExplorer=Hide Explorer on startup (kiosk mode)
+english.KioskKodiExeLbl=Kodi executable (for kiosk mode):
 
 ; ── German ────────────────────────────────────────────────────────────────────
 german.ConfigPageTitle=Kodi-Verbindung konfigurieren
@@ -135,6 +137,8 @@ german.PlayerBrowseBtn=Durchsuchen...
 german.PlayerUseResume=Integriertes Resume (MPC-HC springt zur gespeicherten Kodi-Position)
 german.PlayerBackupChk=Bestehende playercorefactory.xml als .bak sichern
 german.ErrPlayerNoExe=Bitte die MPC-HC / MPC-BE Programmdatei auswählen.
+german.KioskHideExplorer=Explorer beim Start verstecken (Kiosk-Modus)
+german.KioskKodiExeLbl=Kodi-Programmdatei (für Kiosk-Modus):
 
 ; ── French ────────────────────────────────────────────────────────────────────
 french.ConfigPageTitle=Configurer la connexion Kodi
@@ -165,6 +169,8 @@ french.PlayerBrowseBtn=Parcourir...
 french.PlayerUseResume=Resume intégré (positionne MPC-HC à la position Kodi)
 french.PlayerBackupChk=Sauvegarder playercorefactory.xml existant en .bak
 french.ErrPlayerNoExe=Veuillez sélectionner l'exécutable MPC-HC / MPC-BE.
+french.KioskHideExplorer=Masquer l'Explorateur au démarrage (mode kiosque)
+french.KioskKodiExeLbl=Exécutable Kodi (mode kiosque) :
 
 ; ── Spanish ───────────────────────────────────────────────────────────────────
 spanish.ConfigPageTitle=Configurar conexión de Kodi
@@ -195,6 +201,8 @@ spanish.PlayerBrowseBtn=Examinar...
 spanish.PlayerUseResume=Resume integrado (lleva MPC-HC a la posición guardada en Kodi)
 spanish.PlayerBackupChk=Copia de seguridad de playercorefactory.xml existente como .bak
 spanish.ErrPlayerNoExe=Por favor, seleccione el ejecutable MPC-HC / MPC-BE.
+spanish.KioskHideExplorer=Ocultar el Explorador al inicio (modo quiosco)
+spanish.KioskKodiExeLbl=Ejecutable de Kodi (modo quiosco):
 
 ; ── Italian ───────────────────────────────────────────────────────────────────
 italian.ConfigPageTitle=Configura connessione Kodi
@@ -225,6 +233,8 @@ italian.PlayerBrowseBtn=Sfoglia...
 italian.PlayerUseResume=Resume integrato (porta MPC-HC alla posizione salvata in Kodi)
 italian.PlayerBackupChk=Backup del playercorefactory.xml esistente come .bak
 italian.ErrPlayerNoExe=Selezionare l'eseguibile MPC-HC / MPC-BE.
+italian.KioskHideExplorer=Nascondi Explorer all'avvio (modalità chiosco)
+italian.KioskKodiExeLbl=Eseguibile Kodi (modalità chiosco):
 
 ; ============================================================
 [Tasks]
@@ -284,6 +294,11 @@ var
   btnBrowseExe:    TNewButton;
   chkUseResume:    TNewCheckBox;
   chkBackup:       TNewCheckBox;
+  // ── Kiosk controls (on the same page) ─────────────────────────────────────
+  chkHideExplorer: TNewCheckBox;
+  lblKodiExe:      TLabel;
+  edtKodiExe:      TNewEdit;
+  btnBrowseKodi:   TNewButton;
 
 // --------------------------------------------------------------------------
 // Get the previously-installed directory from the uninstall registry key.
@@ -444,6 +459,18 @@ begin
 end;
 
 // --------------------------------------------------------------------------
+// Browse for Kodi executable
+// --------------------------------------------------------------------------
+procedure BrowseKodiExeClick(Sender: TObject);
+var F: String;
+begin
+  F := edtKodiExe.Text;
+  if GetOpenFileName('', F, '',
+    'Executables (*.exe)|*.exe|All files (*.*)|*.*', 'exe') then
+    edtKodiExe.Text := F;
+end;
+
+// --------------------------------------------------------------------------
 // Create wizard pages
 // --------------------------------------------------------------------------
 procedure InitializeWizard;
@@ -525,6 +552,32 @@ begin
   chkBackup.Checked  := True;
   chkBackup.Enabled  := False;
 
+  // ── Row F (Y≈172): kiosk – hide explorer checkbox ────────────────────────
+  chkHideExplorer := TNewCheckBox.Create(PlayerPage.Surface);
+  chkHideExplorer.Parent   := PlayerPage.Surface;
+  chkHideExplorer.SetBounds(0, ScaleY(172), PW, ScaleY(20));
+  chkHideExplorer.Caption  := CustomMessage('KioskHideExplorer');
+  chkHideExplorer.Checked  := False;
+
+  // ── Row G (Y≈202): Kodi exe label ────────────────────────────────────────
+  lblKodiExe := TLabel.Create(PlayerPage.Surface);
+  lblKodiExe.Parent   := PlayerPage.Surface;
+  lblKodiExe.AutoSize := False;
+  lblKodiExe.SetBounds(0, ScaleY(202), PW, ScaleY(17));
+  lblKodiExe.Caption  := CustomMessage('KioskKodiExeLbl');
+
+  // ── Row H (Y≈221): Kodi exe edit + browse button ─────────────────────────
+  edtKodiExe := TNewEdit.Create(PlayerPage.Surface);
+  edtKodiExe.Parent  := PlayerPage.Surface;
+  edtKodiExe.SetBounds(0, ScaleY(221), PW - ScaleX(90), ScaleY(23));
+  edtKodiExe.Text    := 'C:\Program Files\Kodi\Kodi.exe';
+
+  btnBrowseKodi := TNewButton.Create(PlayerPage.Surface);
+  btnBrowseKodi.Parent   := PlayerPage.Surface;
+  btnBrowseKodi.SetBounds(PW - ScaleX(86), ScaleY(221), ScaleX(86), ScaleY(23));
+  btnBrowseKodi.Caption  := CustomMessage('PlayerBrowseBtn');
+  btnBrowseKodi.OnClick  := @BrowseKodiExeClick;
+
   // ── Pre-fill from existing config.json on upgrade ─────────────────────────
   if ConfigExists then begin
     ExistingExe := ReadConfigString('mpchc_exe_path');
@@ -534,6 +587,11 @@ begin
       chkUseResume.Checked    := ReadConfigBool('resume_enabled');
       TogglePlayerControls(nil);
     end;
+    if ReadConfigBool('hide_explorer') then
+      chkHideExplorer.Checked := True;
+    ExistingExe := ReadConfigString('kodi_exe_path');
+    if Trim(ExistingExe) <> '' then
+      edtKodiExe.Text := ExistingExe;
   end;
 end;
 
@@ -721,6 +779,7 @@ var
   Lines: TStringList;
   Json: String;
   ResumeStr: String;
+  HideExplorerStr: String;
 begin
   if CurStep <> ssPostInstall then Exit;
 
@@ -728,7 +787,8 @@ begin
   ConfigFile := ExpandConstant('{app}\config.json');
   if not FileExists(ConfigFile) then begin
     // Include player settings only when the player page was filled in
-    if chkUseResume.Checked then ResumeStr := 'true' else ResumeStr := 'false';
+    if chkUseResume.Checked      then ResumeStr      := 'true' else ResumeStr      := 'false';
+    if chkHideExplorer.Checked   then HideExplorerStr := 'true' else HideExplorerStr := 'false';
     if chkEnablePlayer.Checked then begin
       Json :=
         '{' + #13#10 +
@@ -745,7 +805,9 @@ begin
         '  "server_host": "0.0.0.0",' + #13#10 +
         '  "server_port": 13590,' + #13#10 +
         '  "mpchc_exe_path": "' + EscapeJson(Trim(edtPlayerExe.Text)) + '",' + #13#10 +
-        '  "resume_enabled": ' + ResumeStr + #13#10 +
+        '  "resume_enabled": ' + ResumeStr + ',' + #13#10 +
+        '  "kodi_exe_path": "' + EscapeJson(Trim(edtKodiExe.Text)) + '",' + #13#10 +
+        '  "hide_explorer": ' + HideExplorerStr + #13#10 +
         '}';
     end else begin
       Json :=
@@ -761,7 +823,9 @@ begin
         '  "mpchc_port": 13579,' + #13#10 +
         '  "mpchc_enabled": true,' + #13#10 +
         '  "server_host": "0.0.0.0",' + #13#10 +
-        '  "server_port": 13590' + #13#10 +
+        '  "server_port": 13590,' + #13#10 +
+        '  "kodi_exe_path": "' + EscapeJson(Trim(edtKodiExe.Text)) + '",' + #13#10 +
+        '  "hide_explorer": ' + HideExplorerStr + #13#10 +
         '}';
     end;
     Lines := TStringList.Create;

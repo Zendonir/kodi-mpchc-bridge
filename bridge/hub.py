@@ -77,6 +77,74 @@ def _detect_media_type(filepath: str) -> str:
     return "movie"
 
 
+def _set_explorer_visible(visible: bool) -> None:
+    """
+    Show or hide the Windows Explorer shell (taskbar + desktop icons).
+
+    Hides / shows three window classes:
+    * ``Shell_TrayWnd``  — the taskbar
+    * ``Progman``        — the desktop / wallpaper host
+    * ``WorkerW``        — secondary desktop-icon overlay windows
+    """
+    if sys.platform != "win32":
+        return
+    import ctypes
+    import ctypes.wintypes
+
+    SW_SHOW = 5
+    SW_HIDE = 0
+    user32  = ctypes.windll.user32
+    cmd     = SW_SHOW if visible else SW_HIDE
+
+    for cls_name in ("Shell_TrayWnd", "Progman"):
+        hwnd = user32.FindWindowW(cls_name, None)
+        if hwnd:
+            user32.ShowWindow(hwnd, cmd)
+
+    # WorkerW windows host the desktop-icon layer — enumerate all
+    EnumWindowsProc = ctypes.WINFUNCTYPE(
+        ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM
+    )
+
+    def _cb(hwnd: int, _: int) -> bool:
+        buf = ctypes.create_unicode_buffer(64)
+        user32.GetClassNameW(hwnd, buf, 64)
+        if buf.value == "WorkerW":
+            user32.ShowWindow(hwnd, cmd)
+        return True
+
+    user32.EnumWindows(EnumWindowsProc(_cb), 0)
+    _LOG.info("Explorer %s", "shown" if visible else "hidden")
+
+
+def _launch_kodi(exe_path: str) -> None:
+    """Launch Kodi from *exe_path* as a detached process."""
+    import subprocess
+    try:
+        kwargs: dict = {}
+        if sys.platform == "win32":
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        subprocess.Popen([exe_path], **kwargs)
+        _LOG.info("Kodi launched: %r", exe_path)
+    except Exception as exc:
+        _LOG.error("Failed to launch Kodi: %s", exc)
+
+
+def _kill_kodi() -> None:
+    """Terminate kodi.exe forcefully via taskkill."""
+    if sys.platform != "win32":
+        return
+    import subprocess
+    try:
+        subprocess.Popen(
+            ["taskkill", "/f", "/im", "kodi.exe"],
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        _LOG.info("Kodi killed (taskkill /f /im kodi.exe)")
+    except Exception as exc:
+        _LOG.error("Failed to kill Kodi: %s", exc)
+
+
 def _match_track(tracks: list[dict], current_name: str) -> int:
     """
     Match MPC-HC's current track string against parsed MKV track list.
@@ -330,6 +398,7 @@ class Hub:
         # Auto-next: True after we have triggered the next episode so we don't
         # trigger twice for the same file.  Reset whenever the filepath changes.
         self._autonext_triggered: bool = False
+        self._explorer_hidden: bool = False  # True while kiosk mode has Explorer hidden
 
         cfg = config.cfg
 
@@ -354,6 +423,7 @@ class Hub:
             on_mpchc_stop=self._signal_mpchc_stopped,
             on_toggle_ext_player=self._toggle_external_player,
             on_play_episode=self._play_episode_cmd,
+            on_kiosk_toggle=self._toggle_kiosk_mode,
         )
 
         self._server = BridgeServer(
@@ -377,6 +447,23 @@ class Hub:
         if cfg.mpchc_enabled:
             self._mpchc.start()
         _LOG.info("Hub started")
+
+        # Kiosk mode: hide Explorer shell + launch Kodi if configured
+        if cfg.hide_explorer:
+            if cfg.kodi_exe_path:
+                _set_explorer_visible(False)
+                self._explorer_hidden = True
+                _launch_kodi(cfg.kodi_exe_path)
+                _LOG.info(
+                    "Kiosk mode: Explorer hidden, Kodi launched (%s)",
+                    cfg.kodi_exe_path,
+                )
+            else:
+                _LOG.warning(
+                    "hide_explorer is True but kodi_exe_path is empty — "
+                    "kiosk mode skipped (configure kodi_exe_path in settings)"
+                )
+
         # Push initial external_player_enabled so remote UIs get correct state
         await self._push({"external_player_enabled": cfg.external_player_enabled})
         if cfg.external_player_enabled:
@@ -393,6 +480,10 @@ class Hub:
             _LOG.info("External player DISABLED — Kodi will handle playback itself")
 
     async def stop(self) -> None:
+        # Restore Explorer before exiting if we hid it
+        if self._explorer_hidden:
+            _set_explorer_visible(True)
+            self._explorer_hidden = False
         await self._kodi.stop()
         await self._mpchc.stop()
         await self._server.stop()
@@ -753,6 +844,36 @@ class Hub:
         patch = self._state.apply(updates)
         if patch:
             await self._server.push_patch(patch)
+
+    # ------------------------------------------------------------------
+    # Kiosk mode — Toggle Kodi / Windows desktop
+    # ------------------------------------------------------------------
+    async def _toggle_kiosk_mode(self) -> bool:
+        """
+        Called by the router for the ``kodi_windows`` command when kiosk mode
+        is configured (hide_explorer=True, kodi_exe_path set).
+
+        Behaviour:
+        * If Explorer is currently hidden (kiosk active):
+          → kill Kodi, show Explorer (Windows desktop visible)
+        * If Explorer is currently visible (Windows mode):
+          → hide Explorer, re-launch Kodi
+        """
+        if self._explorer_hidden:
+            # Switch to Windows desktop: kill Kodi, restore Explorer
+            _kill_kodi()
+            _set_explorer_visible(True)
+            self._explorer_hidden = False
+            _LOG.info("Kiosk toggle: Explorer shown, Kodi killed")
+        else:
+            # Switch back to Kodi: hide Explorer, (re-)launch Kodi
+            cfg = self._config.cfg
+            _set_explorer_visible(False)
+            self._explorer_hidden = True
+            if cfg.kodi_exe_path:
+                _launch_kodi(cfg.kodi_exe_path)
+            _LOG.info("Kiosk toggle: Explorer hidden, Kodi launched")
+        return True
 
     # ------------------------------------------------------------------
     # Toggle external player on / off

@@ -270,6 +270,7 @@ class KodiClient:
         _mismatch_tvshowid: int = -1
         _mismatch_tv_show:  str = ""
         _mismatch_art:      str = ""
+        _mismatch_season:   int = 0   # season of the *new* file (from mismatch item)
 
         # 1) Active Kodi player → fastest, most complete metadata
         players = await self._call("Player.GetActivePlayers") or []
@@ -323,6 +324,9 @@ class KodiClient:
                 _mismatch_tvshowid = tvshow_id2
                 _mismatch_tv_show  = item.get("showtitle", "") or "" if is_ep2 else ""
                 _mismatch_art      = self._image_url(safe_art) if safe_art else ""
+                # Season of the *mismatched* item is the best guess for the new
+                # episode's season (they usually belong to the same season).
+                _mismatch_season   = item.get("season", 0) if is_ep2 else 0
 
                 if episode_art_mode != "thumb":
                     # Poster / season-poster / fanart are identical for all
@@ -385,6 +389,43 @@ class KodiClient:
                           m.get("season"), m.get("season_count"),
                           m.get("episode"), m.get("episode_count"))
                 return m
+
+        # 3b) Episode lookup via tvshowid+season (MySQL-backed Kodi libraries do
+        #     not support VideoLibrary.GetEpisodes with a filename filter — the
+        #     call returns None instead of an empty list).  When we landed on the
+        #     mismatch path in step 1 we already know the tvshowid and season, so
+        #     we can fetch all episodes for that season and match by filename in
+        #     Python — reliable on both SQLite and MySQL setups.
+        if _mismatch_tvshowid >= 0 and _mismatch_season > 0:
+            result3b = await self._call("VideoLibrary.GetEpisodes", {
+                "tvshowid": _mismatch_tvshowid,
+                "season":   _mismatch_season,
+                "properties": [
+                    "thumbnail", "art", "title", "year", "showtitle",
+                    "season", "episode", "tvshowid", "file",
+                ],
+            })
+            eps3b = (result3b or {}).get("episodes", [])
+            _LOG.info(
+                "FileInfo [3b] GetEpisodes(tvshowid=%d, season=%d) → %d eps",
+                _mismatch_tvshowid, _mismatch_season, len(eps3b),
+            )
+            for ep in eps3b:
+                if os.path.basename(ep.get("file", "")) == filename:
+                    m = _meta(ep, is_episode=True)
+                    tvshowid_ep   = ep.get("tvshowid", _mismatch_tvshowid)
+                    cur_season_ep = ep.get("season",   _mismatch_season)
+                    if tvshowid_ep >= 0 and cur_season_ep > 0:
+                        sc, ec = await self._fetch_season_counts(tvshowid_ep, cur_season_ep)
+                        m["season_count"] = sc
+                        m["episode_count"] = ec
+                    _LOG.info(
+                        "FileInfo [3b] matched: title=%r s%s/%s e%s/%s",
+                        m["title"],
+                        m.get("season"), m.get("season_count"),
+                        m.get("episode"), m.get("episode_count"),
+                    )
+                    return m
 
         # 4) Files.GetFileDetails (exact path, last resort)
         result = await self._call("Files.GetFileDetails", {
