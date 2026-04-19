@@ -1,15 +1,23 @@
 # -*- mode: python ; coding: utf-8 -*-
 #
-# PyInstaller spec — baut eine einzige bridge.exe (one-file, no console).
+# PyInstaller spec — baut ein onedir-Paket (dist\kodi-bridge\).
 #
 # Bauen:
 #   pip install pyinstaller
 #   pyinstaller bridge.spec
 #
-# Die fertige Datei liegt unter:  dist\bridge.exe
+# Die fertigen Dateien liegen unter:  dist\kodi-bridge\*
+# Der Installer kopiert dist\kodi-bridge\* → {app}\
+#
+# Warum onedir statt onefile?
+#   onefile extrahiert bei jedem Start alle DLLs in einen neuen _MEI*-
+#   Temp-Ordner.  Da die Bridge im Kiosk-Modus per "taskkill /f" abgewürgt
+#   wird, räumt PyInstaller diesen Ordner nie auf → massenhaft _MEI*-Müll
+#   in %LOCALAPPDATA%.  onedir legt alle Dateien einmalig beim Install ab
+#   und braucht keinerlei Temp-Extraktion.
 
 import sys
-from PyInstaller.building.build_main import Analysis, PYZ, EXE
+from PyInstaller.building.build_main import Analysis, PYZ, EXE, COLLECT
 
 a = Analysis(
     ["main.py"],
@@ -76,28 +84,31 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    [],
+    [],                      # binaries go into COLLECT, not into the exe
+    exclude_binaries=True,   # onedir: DLLs liegen neben der .exe
     name="kodi-bridge",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
     upx_exclude=[],
-    # Festes Extraktionsverzeichnis — verhindert "Failed to remove temp dir"-
-    # Warnung wenn eine frühere Instanz unsauber beendet wurde.
-    # HINWEIS: Dies ist nur das Extraktions-Temp-Verzeichnis für den Python-
-    # Laufzeit-Overhead; config.json liegt im Installationsverzeichnis
-    # (neben bridge.exe), ermittelt über sys.executable.
-    runtime_tmpdir=r'%LOCALAPPDATA%\kodi-mpchc-bridge-rt',
-    console=False,           # Kein Konsolenfenster
+    console=False,           # kein Konsolenfenster
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
     # icon="bridge.ico",     # Optional: .ico Datei hier eintragen
-    uac_admin=False,          # GUI startet ohne Admin; Admin nur für Firewall/Service via UAC
+    uac_admin=False,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name="kodi-bridge",      # → dist\kodi-bridge\
 )
