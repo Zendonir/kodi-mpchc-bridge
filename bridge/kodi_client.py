@@ -397,25 +397,25 @@ class KodiClient:
 
         # 3b) Episode lookup via tvshowid+season.
         #
-        #     KEY: "art" is intentionally omitted from properties.
-        #     On MySQL-backed Kodi libraries, requesting "art" in a bulk
-        #     GetEpisodes call silently returns 0 results (the DB join that
-        #     maps art rows to every episode in the result set fails on MySQL).
-        #     "thumbnail" is safe — it maps to a single column in the episode
-        #     table and works on both SQLite and MySQL backends.
+        #     On MySQL-backed Kodi libraries, BOTH "art" AND "thumbnail" in a
+        #     bulk GetEpisodes call return 0 results.  In Kodi 20+ "thumbnail"
+        #     is no longer a plain column — it is resolved from the art table
+        #     JOIN (type='thumb'), the same JOIN that breaks on MySQL for bulk
+        #     queries.  Only properties that don't touch the art table are safe:
+        #     file, title, year, showtitle, season, episode, tvshowid, runtime,
+        #     playcount, resume — matching exactly what get_season_episodes uses.
         #
-        #     After finding the episode we try (in order):
-        #       1. _episode_art_cache — pre-fetched by prefetch_season_art()
-        #       2. "thumbnail" field from GetEpisodes — works on all backends
-        #       3. GetEpisodeDetails for a single episodeid — one-row lookup,
-        #          safe on MySQL; gives the full art dict including tvshow.poster
+        #     Art for the matched episode is fetched via GetEpisodeDetails
+        #     (single-row lookup) which is always MySQL-safe, or returned from
+        #     _episode_art_cache if pre-fetch has already populated it.
         if _mismatch_tvshowid >= 0 and _mismatch_season > 0:
             result3b = await self._call("VideoLibrary.GetEpisodes", {
                 "tvshowid": _mismatch_tvshowid,
                 "season":   _mismatch_season,
                 "properties": [
-                    "file", "thumbnail",   # "art" omitted: causes MySQL failure
-                    "title", "year", "showtitle", "season", "episode", "tvshowid",
+                    # NO "art", NO "thumbnail" — both break MySQL bulk queries.
+                    # Identical property set to get_season_episodes (known working).
+                    "file", "title", "year", "showtitle", "season", "episode", "tvshowid",
                 ],
             })
             eps3b = (result3b or {}).get("episodes", [])
@@ -425,18 +425,15 @@ class KodiClient:
             )
             for ep in eps3b:
                 if os.path.basename(ep.get("file", "")) == filename:
-                    # _meta() picks thumbnail via _pick_art's fallback to tn
-                    # (art={} → falls back to ep["thumbnail"]).
-                    m = _meta(ep, is_episode=True)
+                    m = _meta(ep, is_episode=True)   # artwork_url="" (no art props)
 
-                    # Try to improve art quality (order of preference):
-                    episodeid = ep.get("episodeid", -1)
+                    # Art — pre-fetch cache first, then GetEpisodeDetails (single row)
+                    episodeid  = ep.get("episodeid", -1)
                     cached_url = self._episode_art_cache.get(filename, "")
                     if cached_url:
                         m["artwork_url"] = cached_url
                         _LOG.debug("FileInfo [3b] art from pre-fetch cache: %s", cached_url[:60])
-                    elif not m["artwork_url"] and episodeid >= 0:
-                        # thumbnail field was empty → try GetEpisodeDetails
+                    elif episodeid >= 0:
                         detail_url = await self._get_episode_art_url(episodeid, episode_art_mode)
                         if detail_url:
                             m["artwork_url"] = detail_url
