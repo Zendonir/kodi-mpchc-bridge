@@ -1028,6 +1028,7 @@ begin
     end;
   end;
   Exec('taskkill', '/f /im {#AppExe}', '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Sleep(1500);  // let Windows release all file handles (VCRUNTIME140.dll etc.)
 
   // Kill any leftover wscript.exe instance running the legacy watchdog
   // (so the .vbs file can be deleted and the task removed cleanly).
