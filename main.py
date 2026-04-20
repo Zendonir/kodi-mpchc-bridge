@@ -179,6 +179,24 @@ def main() -> None:
             except Exception:
                 return None
 
+        def _is_mpchc_running() -> bool:
+            """Return True if any MPC-HC or MPC-BE process is running."""
+            if sys.platform != "win32":
+                return True  # can't check on non-Windows; assume running
+            import subprocess
+            for name in ("mpc-hc64.exe", "mpc-hc.exe", "mpc-be64.exe", "mpc-be.exe"):
+                try:
+                    out = subprocess.run(
+                        ["tasklist", "/FI", f"IMAGENAME eq {name}", "/NH"],
+                        capture_output=True, text=True, timeout=3.0,
+                        creationflags=subprocess.CREATE_NO_WINDOW,
+                    )
+                    if name in out.stdout.lower():
+                        return True
+                except Exception:
+                    pass
+            return False
+
         # ── Step 2: wait up to 30 s for MPC-HC to appear ─────────────────────
         _LOG.info("--play: waiting for MPC-HC to become active…")
         _deadline = _time.monotonic() + 30
@@ -191,11 +209,47 @@ def main() -> None:
             sys.exit(0)
 
         # ── Step 3: stay alive while MPC-HC is playing ────────────────────────
+        # Exit conditions (in priority order):
+        #   a) Bridge reports active_player != "mpchc"  — normal close/stop
+        #   b) Bridge unreachable for > 10 s            — bridge crashed
+        #   c) MPC-HC process not found for > 2 s       — MPC-HC crashed/closed
+        #      without the bridge detecting it
         _LOG.info("--play: MPC-HC active — holding process alive for Kodi…")
+        _bridge_miss = 0
+        _BRIDGE_MISS_MAX = 20   # 20 × 0.5 s = 10 s
+        _mpc_gone = 0
+        _MPC_GONE_MAX = 4       # 4 × 0.5 s = 2 s
         while True:
             ap = _active_player()
             if ap is not None and ap != "mpchc":
+                # Bridge confirmed MPC-HC is gone — normal exit path
                 break
+
+            if ap is None:
+                _bridge_miss += 1
+                if _bridge_miss >= _BRIDGE_MISS_MAX:
+                    _LOG.warning(
+                        "--play: bridge unreachable for %.0f s — releasing Kodi",
+                        _bridge_miss * 0.5,
+                    )
+                    break
+            else:
+                _bridge_miss = 0
+
+            # Fallback: direct process check so we don't hang if the bridge
+            # fails to detect a crash (e.g. if self._last was already empty)
+            if not _is_mpchc_running():
+                _mpc_gone += 1
+                if _mpc_gone >= _MPC_GONE_MAX:
+                    _LOG.warning(
+                        "--play: MPC-HC process gone for %.0f s "
+                        "(bridge may have missed the crash) — releasing Kodi",
+                        _mpc_gone * 0.5,
+                    )
+                    break
+            else:
+                _mpc_gone = 0
+
             _time.sleep(0.5)
 
         _LOG.info("--play: MPC-HC closed — releasing Kodi")
