@@ -337,6 +337,11 @@ class MpcHcClient:
         _LOG.info("MPC-HC polling started at %s", self._base)
         _was_reachable = False
         _miss_streak = 0
+        # True once we have fired active_player=mpchc at least once.
+        # Used to decide whether a crash/close must trigger active_player=none.
+        # Stays True even when _parse_status clears self._last on a brief idle
+        # state, so a subsequent HTTP outage still fires the none transition.
+        _reported_active = False
         # Fire active_player=none only after this many consecutive failed polls.
         # Prevents HDR / track-info flicker caused by brief HTTP unavailability
         # during resume seeks or file-open transitions (typ. 0.5–1 s).
@@ -354,12 +359,15 @@ class MpcHcClient:
                         )
                     else:
                         _LOG.info(
-                            "MPC-HC unreachable at %s (after %d misses)",
-                            self._base, _miss_streak,
+                            "MPC-HC unreachable at %s (after %d misses) — "
+                            "active_was=%s",
+                            self._base, _miss_streak, _reported_active,
                         )
                         _was_reachable = False
-                        if self._last:
-                            self._last = {}
+                        had_active = _reported_active
+                        _reported_active = False
+                        self._last = {}
+                        if had_active:
                             await self._on_state(
                                 {"active_player": "none", "state": "idle", "filepath": ""}
                             )
@@ -384,6 +392,11 @@ class MpcHcClient:
             updates = self._parse_status(fields)
             if updates:
                 _LOG.debug("MPC-HC update: %s", {k: v for k, v in updates.items() if k != "filepath"})
+                _ap = updates.get("active_player")
+                if _ap == "mpchc":
+                    _reported_active = True
+                elif _ap == "none":
+                    _reported_active = False
                 await self._on_state(updates)
 
             await asyncio.sleep(POLL_INTERVAL)
