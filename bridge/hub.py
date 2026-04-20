@@ -591,21 +591,33 @@ class Hub:
         elif new_active == "none" and self._mpchc_active:
             self._mpchc_active = False
             self._server.clear_artwork()
-            updates["artwork_url"] = ""   # clear artwork on remote immediately
-            updates["media_type"] = ""    # clear type so Kodi can set its own
-            # Clear video info so Kodi's own stream details take over cleanly
-            updates.setdefault("hdr", "")
-            updates.setdefault("video_codec", "")
-            updates.setdefault("video_fps", 0.0)
-            # NOTE: season_episodes / playlist_index are intentionally NOT cleared
-            # here.  MPC-HC briefly reports state=0 during file transitions (when
-            # the user switches to a different episode in the web UI), which also
-            # fires active_player→none.  Clearing the list here would make it
-            # disappear on every episode switch.  The list is cleared in two
-            # places instead:
-            #   • _signal_mpchc_stopped() — explicit Stop / Back from the remote
-            #   • _on_kodi_update()       — when Kodi regains the active player
-            #     role after the last episode ends naturally
+            # Clear ALL media metadata so the UI shows nothing while idle.
+            # volume/muted/repeat/shuffle/external_player_enabled are kept
+            # because they belong to Kodi's persistent state, not the file.
+            updates.update({
+                "artwork_url": "",
+                "media_type": "",
+                "title": "",
+                "year": 0,
+                "tv_show": "",
+                "season": 0,
+                "episode": 0,
+                "rating": 0.0,
+                "position": 0.0,
+                "duration": 0.0,
+                "audio_tracks": [],
+                "subtitle_tracks": [],
+                "chapters": [],
+                "current_audio": 0,
+                "current_subtitle": -1,
+                "current_chapter": 0,
+                "hdr": "",
+                "video_codec": "",
+                "video_fps": 0.0,
+                "video_width": 0,
+                "video_height": 0,
+                "video_bitrate_kbps": 0,
+            })
             _LOG.info("ACTIVE PLAYER → none   (mpchc idle, kodi may take over)")
             # Sync playback state to Kodi library in the background
             _fp  = self._last_filepath

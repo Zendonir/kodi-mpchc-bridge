@@ -218,7 +218,7 @@ def main() -> None:
         _bridge_miss = 0
         _BRIDGE_MISS_MAX = 20   # 20 × 0.5 s = 10 s
         _mpc_gone = 0
-        _MPC_GONE_MAX = 4       # 4 × 0.5 s = 2 s
+        _MPC_GONE_MAX = 2       # 2 × 0.5 s = 1 s
         while True:
             ap = _active_player()
             if ap is not None and ap != "mpchc":
