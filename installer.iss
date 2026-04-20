@@ -1015,7 +1015,7 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   rc: Integer;
-  ShellVal, RtDir: String;
+  ShellVal, RtDir, ScriptPath, Script: String;
 begin
   // If bridge is registered as the Windows shell, start Explorer before
   // killing the bridge so the user keeps a usable desktop during the upgrade.
@@ -1027,8 +1027,27 @@ begin
       Sleep(2000);  // give Explorer time to draw the desktop
     end;
   end;
+
+  // Kill all bridge instances (main + any --play processes) and wait until
+  // the OS has fully released every file handle (VCRUNTIME140.dll etc.).
+  // Strategy:
+  //   1. PowerShell: Kill() + WaitForExit(5000) → guaranteed process-gone
+  //   2. taskkill fallback in case PowerShell fails
+  //   3. Short sleep so the kernel can flush remaining handle references
+  ScriptPath := ExpandConstant('{tmp}\kill_bridge.ps1');
+  Script :=
+    '$procs = Get-Process -Name "kodi-bridge" -ErrorAction SilentlyContinue;' +
+    ' if ($procs) {' +
+    ' $procs | ForEach-Object { try { $_.Kill() } catch {} };' +
+    ' $procs | ForEach-Object { try { $_.WaitForExit(5000) } catch {} };' +
+    ' Start-Sleep -Milliseconds 300 }';
+  if SaveStringToFile(ScriptPath, Script, False) then
+    Exec('powershell.exe',
+         '-WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '"',
+         '', SW_HIDE, ewWaitUntilTerminated, rc);
+  // Fallback: plain taskkill (covers edge cases where PowerShell failed)
   Exec('taskkill', '/f /im {#AppExe}', '', SW_HIDE, ewWaitUntilTerminated, rc);
-  Sleep(1500);  // let Windows release all file handles (VCRUNTIME140.dll etc.)
+  Sleep(500);  // final OS handle-flush grace period
 
   // Kill any leftover wscript.exe instance running the legacy watchdog
   // (so the .vbs file can be deleted and the task removed cleanly).
