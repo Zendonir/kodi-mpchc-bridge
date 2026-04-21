@@ -1242,13 +1242,18 @@ class Hub:
         Called by the CommandRouter when the user explicitly stops MPC-HC via
         the bridge (stop button, back/home nav).
 
-        Immediately pushes active_player=none so the --play process can exit
-        right away and Kodi returns to its UI without waiting for the next
-        MPC-HC poll cycle.
+        Kills the MPC-HC process so the --play process's condition-c (process
+        gone) fires reliably.  The --play loop now only exits via the bridge
+        state when the MPC-HC process is also gone, which prevents false exits
+        during MPC-HC's own internal playlist transitions.
         """
         if not self._mpchc_active:
             return
-        _LOG.info("Explicit stop — immediately signalling active_player=none")
+        _LOG.info("Explicit stop — killing MPC-HC and signalling active_player=none")
+        # Kill the MPC-HC process so the --play process (which Kodi is waiting
+        # on) detects the process exit and releases Kodi.  Without this, --play
+        # would stay alive if MPC-HC remains open after a stop command.
+        _kill_mpchc(self._config.cfg.mpchc_exe_path or "")
         # Re-use the full transition logic in _on_mpchc_update
         await self._on_mpchc_update({"active_player": "none", "state": "idle"})
         # Explicit stop: clear the season episode list now.

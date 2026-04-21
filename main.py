@@ -210,7 +210,10 @@ def main() -> None:
 
         # ── Step 3: stay alive while MPC-HC is playing ────────────────────────
         # Exit conditions (in priority order):
-        #   a) Bridge reports active_player != "mpchc"  — normal close/stop
+        #   a) Bridge reports active_player != "mpchc"  AND process is gone
+        #      — normal close/stop (split check prevents premature exit during
+        #        internal MPC-HC playlist transitions where the bridge briefly
+        #        reports active_player=none while MPC-HC is still running)
         #   b) Bridge unreachable for > 10 s            — bridge crashed
         #   c) MPC-HC process not found for > 2 s       — MPC-HC crashed/closed
         #      without the bridge detecting it
@@ -222,8 +225,21 @@ def main() -> None:
         while True:
             ap = _active_player()
             if ap is not None and ap != "mpchc":
-                # Bridge confirmed MPC-HC is gone — normal exit path
-                break
+                # Bridge says MPC-HC is no longer active.  Only exit if the
+                # MPC-HC process is also gone — this prevents a false exit
+                # during MPC-HC's own internal playlist transitions, where the
+                # player briefly reports idle/none between files while the
+                # process is still running.
+                if not _is_mpchc_running():
+                    _LOG.info(
+                        "--play: active_player=%s and MPC-HC process gone"
+                        " — releasing Kodi", ap,
+                    )
+                    break
+                _LOG.debug(
+                    "--play: active_player=%s but MPC-HC still running"
+                    " — waiting (internal playlist transition?)", ap,
+                )
 
             if ap is None:
                 _bridge_miss += 1
