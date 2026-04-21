@@ -1134,6 +1134,10 @@ function fmtResumeTime(secs) {
     : m + ':' + String(ss).padStart(2,'0');
 }
 
+let _epScrolledIdx = -2; // sentinel: force first scroll
+let _epRenderedLen = -1;
+let _epRenderedIdx = -2;
+
 function renderSeasonEpisodes() {
   const card = document.getElementById('card-season');
   const hdr  = document.getElementById('season-hdr');
@@ -1143,6 +1147,7 @@ function renderSeasonEpisodes() {
   const eps = state.season_episodes;
   if (!eps || !eps.length) {
     card.style.display = 'none';
+    _epRenderedLen = -1; _epRenderedIdx = -2;
     return;
   }
   card.style.display = '';
@@ -1156,6 +1161,18 @@ function renderSeasonEpisodes() {
     '  (' + eps.length + ')';
 
   const idx = state.playlist_index != null ? state.playlist_index : -1;
+
+  // Skip full DOM rebuild when list length and current index haven't changed
+  const needRebuild = eps.length !== _epRenderedLen || idx !== _epRenderedIdx;
+  if (!needRebuild) {
+    const prevBtn = document.getElementById('btn-prev-ep');
+    const nextBtn = document.getElementById('btn-next-ep');
+    if (prevBtn) prevBtn.disabled = idx <= 0;
+    if (nextBtn) nextBtn.disabled = idx < 0 || idx >= eps.length - 1;
+    return;
+  }
+  _epRenderedLen = eps.length;
+  _epRenderedIdx = idx;
 
   // Build rows — file path stored in data-epfile attribute (no JS quoting needed)
   list.innerHTML = eps.map((ep, i) => {
@@ -1209,10 +1226,13 @@ function renderSeasonEpisodes() {
   if (prevBtn) prevBtn.disabled = idx <= 0;
   if (nextBtn) nextBtn.disabled = idx < 0 || idx >= eps.length - 1;
 
-  // Scroll current episode into view
-  if (idx >= 0) {
+  // Scroll current episode into view — only when index actually changes
+  if (idx >= 0 && idx !== _epScrolledIdx) {
+    _epScrolledIdx = idx;
     const rows = list.querySelectorAll('.ep-row');
     if (rows[idx]) rows[idx].scrollIntoView({block: 'nearest'});
+  } else if (idx < 0) {
+    _epScrolledIdx = -2;
   }
 }
 
