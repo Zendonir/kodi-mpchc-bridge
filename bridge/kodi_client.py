@@ -1099,6 +1099,19 @@ class KodiClient:
         """Send Input.ExecuteAction for navigation (up/down/left/right/select/back etc.)."""
         await self._call("Input.ExecuteAction", {"action": action})
 
+    async def show_movie_info(self, media_type: str, media_id: int) -> None:
+        """Open Kodi's movie / episode information dialog for the given library item."""
+        if media_type == "movie":
+            await self._call("GUI.ActivateWindow", {
+                "window": "movieinformation",
+                "parameters": [str(media_id)],
+            })
+        elif media_type == "episode":
+            await self._call("GUI.ActivateWindow", {
+                "window": "episodeinformation",
+                "parameters": [str(media_id)],
+            })
+
     async def set_audio_stream(self, index: int) -> None:
         if self._active_player_id is not None:
             await self._call(
@@ -1179,7 +1192,7 @@ class KodiClient:
             ("VideoLibrary.GetEpisodes", "episodes", "episode"),
         ):
             result = await self._call(method, {
-                "properties": ["file", "resume"],
+                "properties": ["file", "resume", "playcount"],
                 "filter": {"field": "filename", "operator": "is", "value": filename},
             })
             for item in (result or {}).get(list_key, []):

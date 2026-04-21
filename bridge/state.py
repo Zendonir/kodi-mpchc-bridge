@@ -104,6 +104,10 @@ class UnifiedState:
     season_episodes: list[dict] = field(default_factory=list)
     playlist_index:  int = -1   # 0-based index of current file; -1 = unknown
 
+    # --- Library item (for toggle_watched / show_movie_info) ---
+    media_id: int = 0      # Kodi movieid / episodeid; 0 = not in library
+    playcount: int = 0     # 0 = unwatched, >0 = watched
+
     # --- MPC-HC internals (not pushed to clients) ---
     filepath: str = ""
 
@@ -191,5 +195,7 @@ class StateManager:
                 "video_bitrate_kbps": 0,
                 "season_episodes": [],
                 "playlist_index": -1,
+                "media_id": 0,
+                "playcount": 0,
             }
         )

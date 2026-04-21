@@ -481,6 +481,7 @@ class Hub:
             on_toggle_ext_player=self._toggle_external_player,
             on_play_episode=self._play_episode_cmd,
             on_kiosk_toggle=self._toggle_kiosk_mode,
+            on_toggle_watched=self._toggle_watched,
         )
 
         self._server = BridgeServer(
@@ -594,6 +595,11 @@ class Hub:
             # Clear ALL media metadata so the UI shows nothing while idle.
             # volume/muted/repeat/shuffle/external_player_enabled are kept
             # because they belong to Kodi's persistent state, not the file.
+            # NOTE: season_episodes / playlist_index are intentionally NOT cleared
+            # here.  MPC-HC briefly reports active_player=none during file transitions
+            # (episode switches).  The list is cleared in two places instead:
+            #   • _signal_mpchc_stopped() — explicit Stop / Back from the remote
+            #   • _on_kodi_update()       — when Kodi regains the active player role
             updates.update({
                 "artwork_url": "",
                 "media_type": "",
@@ -617,6 +623,8 @@ class Hub:
                 "video_width": 0,
                 "video_height": 0,
                 "video_bitrate_kbps": 0,
+                "media_id": 0,
+                "playcount": 0,
             })
             _LOG.info("ACTIVE PLAYER → none   (mpchc idle, kodi may take over)")
             # Sync playback state to Kodi library in the background
@@ -870,6 +878,27 @@ class Hub:
                 await self._push({"artwork_url": bridge_url})
             else:
                 _LOG.info("No artwork found for %r", filepath)
+
+            # Fetch media_id + playcount so toggle_watched and show_movie_info work
+            try:
+                found = await self._kodi.find_library_item(filepath)
+                if found:
+                    lib_type, lib_item = found
+                    lib_media_id = lib_item.get("movieid") or lib_item.get("episodeid") or 0
+                    lib_playcount = lib_item.get("playcount", 0)
+                    if lib_media_id:
+                        await self._push({"media_id": lib_media_id, "playcount": lib_playcount})
+                        _LOG.info(
+                            "Library item: %s id=%d playcount=%d",
+                            lib_type, lib_media_id, lib_playcount,
+                        )
+                    else:
+                        await self._push({"media_id": 0, "playcount": 0})
+                else:
+                    await self._push({"media_id": 0, "playcount": 0})
+            except Exception as exc:
+                _LOG.debug("find_library_item in _fetch_artwork failed: %s", exc)
+
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -1049,6 +1078,41 @@ class Hub:
             "kodi_running": _is_kodi_running(),
             "explorer_hidden": self._explorer_hidden,
         }
+
+    # ------------------------------------------------------------------
+    # Toggle watched / unwatched status in Kodi library
+    # ------------------------------------------------------------------
+    async def _toggle_watched(self) -> bool:
+        """
+        Toggle the watched status of the currently playing item in Kodi.
+
+        Reads media_id, media_type and playcount from state.  If playcount > 0
+        the item is marked unwatched (playcount=0); otherwise it is marked
+        watched (playcount=1, lastplayed=now).  Always fires a library update
+        notification so Kodi's UI reflects the change immediately.
+        """
+        st = self._state.state
+        media_id   = st.media_id
+        media_type = st.media_type
+        if not media_id or media_type not in ("movie", "episode"):
+            _LOG.info("toggle_watched: no library item in state (media_id=%d type=%r) — ignored",
+                      media_id, media_type)
+            return False
+
+        if st.playcount > 0:
+            ok = await self._kodi.reset_watched(media_type, media_id)
+            if ok:
+                await self._push({"playcount": 0})
+                _LOG.info("toggle_watched: %s id=%d → unwatched", media_type, media_id)
+        else:
+            ok = await self._kodi.set_watched(media_type, media_id)
+            if ok:
+                await self._push({"playcount": 1})
+                _LOG.info("toggle_watched: %s id=%d → watched", media_type, media_id)
+
+        if ok:
+            await self._kodi.notify_library_update(media_type, media_id)
+        return ok
 
     # ------------------------------------------------------------------
     # Toggle external player on / off

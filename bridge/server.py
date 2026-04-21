@@ -433,6 +433,7 @@ _WEB_UI = """<!DOCTYPE html>
           <button onclick="cmd('navigate_home')" data-i18n="btn_home"></button>
           <button onclick="cmd('context_menu')"  data-i18n="btn_menu"></button>
           <button onclick="cmd('show_info')"      data-i18n="btn_info"></button>
+          <button id="btn-watched" onclick="cmd('toggle_watched')" data-i18n="btn_watched" style="display:none"></button>
         </div>
       </div>
     </div>
@@ -592,6 +593,8 @@ const _TR = {
     btn_home:'\u2302 Home',
     btn_menu:'\u2630 Menu',
     btn_info:'\u2139 Info',
+    btn_watched:'\u2606 Unwatched',
+    btn_watched_on:'\u2605 Watched',
     nav_up:'Up (\u2191)', nav_down:'Down (\u2193)',
     nav_left:'Left (\u2190)', nav_right:'Right (\u2192)', nav_ok:'OK (Enter)',
     kbd_hint:'Keyboard: <kbd>\u2191\u2193\u2190\u2192</kbd> navigate &nbsp;<kbd>Enter</kbd> OK &nbsp;<kbd>Esc</kbd> Back &nbsp;<kbd>Space</kbd> Play/Pause',
@@ -653,6 +656,8 @@ const _TR = {
     btn_home:'\u2302 Home',
     btn_menu:'\u2630 Men\u00FC',
     btn_info:'\u2139 Info',
+    btn_watched:'\u2606 Ungesehen',
+    btn_watched_on:'\u2605 Gesehen',
     nav_up:'Hoch (\u2191)', nav_down:'Runter (\u2193)',
     nav_left:'Links (\u2190)', nav_right:'Rechts (\u2192)', nav_ok:'OK (Enter)',
     kbd_hint:'Tastatur: <kbd>\u2191\u2193\u2190\u2192</kbd> navigieren &nbsp;<kbd>Enter</kbd> OK &nbsp;<kbd>Esc</kbd> Zur\u00FCck &nbsp;<kbd>Leertaste</kbd> Play/Pause',
@@ -714,6 +719,8 @@ const _TR = {
     btn_home:'\u2302 Accueil',
     btn_menu:'\u2630 Menu',
     btn_info:'\u2139 Infos',
+    btn_watched:'\u2606 Non vu',
+    btn_watched_on:'\u2605 Vu',
     nav_up:'Haut (\u2191)', nav_down:'Bas (\u2193)',
     nav_left:'Gauche (\u2190)', nav_right:'Droite (\u2192)', nav_ok:'OK (Entr\u00E9e)',
     kbd_hint:'Clavier\u00A0: <kbd>\u2191\u2193\u2190\u2192</kbd> naviguer &nbsp;<kbd>Entr\u00E9e</kbd> OK &nbsp;<kbd>\u00C9chap</kbd> Retour &nbsp;<kbd>Espace</kbd> Lecture/Pause',
@@ -752,6 +759,8 @@ const _TR = {
     btn_home:'\u2302 Inicio',
     btn_menu:'\u2630 Men\u00FA',
     btn_info:'\u2139 Info',
+    btn_watched:'\u2606 No visto',
+    btn_watched_on:'\u2605 Visto',
     nav_up:'Arriba (\u2191)', nav_down:'Abajo (\u2193)',
     nav_left:'Izquierda (\u2190)', nav_right:'Derecha (\u2192)', nav_ok:'OK (Intro)',
     kbd_hint:'Teclado: <kbd>\u2191\u2193\u2190\u2192</kbd> navegar &nbsp;<kbd>Intro</kbd> OK &nbsp;<kbd>Esc</kbd> Volver &nbsp;<kbd>Espacio</kbd> Play/Pausa',
@@ -790,6 +799,8 @@ const _TR = {
     btn_home:'\u2302 Home',
     btn_menu:'\u2630 Menu',
     btn_info:'\u2139 Info',
+    btn_watched:'\u2606 Non visto',
+    btn_watched_on:'\u2605 Visto',
     nav_up:'Su (\u2191)', nav_down:'Gi\u00F9 (\u2193)',
     nav_left:'Sinistra (\u2190)', nav_right:'Destra (\u2192)', nav_ok:'OK (Invio)',
     kbd_hint:'Tastiera: <kbd>\u2191\u2193\u2190\u2192</kbd> navigare &nbsp;<kbd>Invio</kbd> OK &nbsp;<kbd>Esc</kbd> Indietro &nbsp;<kbd>Spazio</kbd> Play/Pausa',
@@ -885,6 +896,16 @@ function renderTable(id, keys) {
   document.getElementById(id).innerHTML = rows;
 }
 
+function updateWatchedBtn() {
+  const btn = document.getElementById('btn-watched');
+  if (!btn) return;
+  const hasItem = state.media_id > 0 && (state.media_type === 'movie' || state.media_type === 'episode');
+  btn.style.display = hasItem ? '' : 'none';
+  if (hasItem) {
+    btn.textContent = state.playcount > 0 ? t('btn_watched_on') : t('btn_watched');
+  }
+}
+
 function renderAll() {
   renderTable('tbl-play',  PLAY_KEYS);
   renderTable('tbl-video', VIDEO_KEYS);
@@ -913,6 +934,7 @@ function renderAll() {
   }
 
   renderSeasonEpisodes();
+  updateWatchedBtn();
 }
 
 function cmd(c, val) {
