@@ -103,6 +103,7 @@ class CommandRouter:
         on_toggle_ext_player: "Callable | None" = None,
         on_play_episode: "Callable | None" = None,
         on_kiosk_toggle: "Callable | None" = None,
+        on_toggle_watched: "Callable | None" = None,
     ) -> None:
         self._state = state
         self._kodi = kodi
@@ -118,6 +119,8 @@ class CommandRouter:
         # Optional async callback — kiosk mode: kill Kodi / toggle Explorer.
         # When None, the classic minimize/restore behaviour is used.
         self._on_kiosk_toggle = on_kiosk_toggle
+        # Optional async callback — toggle watched/unwatched in Kodi library.
+        self._on_toggle_watched = on_toggle_watched
         # While the resume dialog is visible this is set to the dialog's
         # inject-key function.  All nav/stop commands are redirected there.
         self._dialog_handler: "Callable[[str], None] | None" = None
@@ -169,6 +172,13 @@ class CommandRouter:
                 return await self._on_play_episode(cmd)
             return False
 
+        # Toggle watched / unwatched — always available when media_id is known
+        if cmd == "toggle_watched":
+            _LOG.info("CMD %-22s → toggle watched/unwatched", cmd)
+            if self._on_toggle_watched:
+                return await self._on_toggle_watched()
+            return False
+
         # System-level commands (player-independent)
         if cmd == "toggle_external_player":
             _LOG.info("CMD %-22s → system (toggle external player)", cmd)
@@ -194,6 +204,22 @@ class CommandRouter:
         if cmd in _KODI_ONLY:
             _LOG.info("CMD %-22s → kodi (always)", cmd)
             return await self._kodi_navigate(cmd)
+
+        # show_info — if a library item is known, always open Kodi's info dialog
+        if cmd == "show_info":
+            media_id   = self._state.state.media_id
+            media_type = self._state.state.media_type
+            if media_id > 0 and media_type in ("movie", "episode"):
+                _LOG.info("CMD %-22s → kodi movie info (media_id=%d)", cmd, media_id)
+                await self._kodi.show_movie_info(media_type, media_id)
+                return True
+            # No library item — fall back to default behaviour
+            if active == "mpchc":
+                _LOG.info("CMD %-22s → mpchc (Ctrl+J fallback)", cmd)
+                return await self._handle_mpchc_nav(cmd)
+            else:
+                _LOG.info("CMD %-22s → kodi (info action)", cmd)
+                return await self._kodi_navigate(cmd)
 
         # Smart navigation: MPC-HC gets keyboard control when active
         if cmd in _SMART_NAV:
