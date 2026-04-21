@@ -168,6 +168,30 @@ def _kill_kodi() -> None:
         _LOG.error("Failed to kill Kodi: %s", exc)
 
 
+def _kill_mpchc(exe_path: str = "") -> None:
+    """Terminate MPC-HC forcefully via taskkill."""
+    if sys.platform != "win32":
+        return
+    import os
+    import subprocess
+    names: list[str] = []
+    if exe_path:
+        names.append(os.path.basename(exe_path))
+    # Always try common names as fallback so we catch any running instance
+    for n in ("mpc-hc64.exe", "mpc-hc.exe", "mpc-be64.exe", "mpc-be.exe"):
+        if n not in names:
+            names.append(n)
+    for name in names:
+        try:
+            subprocess.Popen(
+                ["taskkill", "/f", "/im", name],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+        except Exception as exc:
+            _LOG.debug("_kill_mpchc(%s): %s", name, exc)
+    _LOG.info("MPC-HC kill requested: %s", names[0] if names else "?")
+
+
 def _is_kodi_running() -> bool:
     """Check if kodi.exe is currently running on Windows."""
     if sys.platform != "win32":
@@ -1051,7 +1075,30 @@ class Hub:
         return True
 
     async def switch_to_windows(self) -> bool:
-        """Web-UI 'Windows' button — kills Kodi, restores Explorer."""
+        """Web-UI 'Windows' button — kills MPC-HC (if active), syncs watched
+        status to Kodi, then kills Kodi and restores Explorer."""
+        if self._mpchc_active:
+            fp  = self._last_filepath
+            pos = self._mpchc_last_position
+            dur = self._mpchc_last_duration
+            _LOG.info(
+                "switch_to_windows: MPC-HC active — killing and syncing"
+                "  file=%r pos=%.1f dur=%.1f",
+                fp, pos, dur,
+            )
+            _kill_mpchc(self._config.cfg.mpchc_exe_path or "")
+            # Sync watched / resume state to Kodi before Kodi itself is killed.
+            # _sync_to_kodi waits ~2 s for Kodi's auto-mark to land, then
+            # writes the correct playcount / resume position.
+            if fp:
+                try:
+                    await self._sync_to_kodi(fp, pos, dur)
+                except Exception as exc:
+                    _LOG.warning("switch_to_windows: Kodi sync failed: %s", exc)
+            # Clear filepath so _signal_mpchc_stopped doesn't trigger a second sync
+            self._last_filepath = ""
+            # Update internal state so the hub knows MPC-HC is gone
+            await self._signal_mpchc_stopped()
         _kill_kodi()
         if self._explorer_hidden or not _is_explorer_running():
             _set_explorer_visible(True)
