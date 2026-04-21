@@ -345,8 +345,8 @@ class MpcHcClient:
         # Fire active_player=none only after this many consecutive failed polls.
         # Prevents HDR / track-info flicker caused by brief HTTP unavailability
         # during resume seeks or file-open transitions (typ. 0.5–1 s).
-        # 4 × 0.5 s = 2 s grace window before we declare MPC-HC gone.
-        _GONE_AFTER = 4
+        # 3 × 0.5 s = 1.5 s grace window before we declare MPC-HC gone.
+        _GONE_AFTER = 3
         while self._running:
             fields = await self._fetch_status()
             if fields is None:
