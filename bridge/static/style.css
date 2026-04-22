@@ -20,7 +20,7 @@
   --badge-kodi-color:  #6aaff0;
   --badge-mpchc-bg:    #3d1a1a;
   --badge-mpchc-color: #f99060;
-  --sidebar-w:         260px;
+  --sidebar-w:         440px;
   --panel-w:           360px;
 }
 
@@ -180,10 +180,39 @@ button:disabled { opacity: 0.4; cursor: default; }
 }
 .btn-amber:hover { background: #503800; }
 
+/* ── Sidebar two-column layout ──────────────────────────────────────────── */
+.sidebar-cols {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar-col-l {
+  flex: 0 0 196px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebar-col-r {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ctrl-section-label {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+
 /* ── Control rows (sidebar) ─────────────────────────────────────────────── */
 .ctrl-row {
   display: flex;
-  flex-wrap: wrap;
   gap: 4px;
 }
 
@@ -196,19 +225,28 @@ button:disabled { opacity: 0.4; cursor: default; }
 .seek-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
+  flex-wrap: nowrap;
+}
+
+.seek-row button {
+  flex: 0 0 auto;
+  padding: 5px 6px;
+  font-size: 0.75rem;
+  min-width: 0;
 }
 
 .seek-row input[type=number] {
-  width: 56px;
+  width: 38px;
   background: #1e1e1e;
   border: 1px solid #444;
   color: var(--text);
   border-radius: 4px;
-  padding: 4px 6px;
-  font-size: 0.82rem;
+  padding: 4px 4px;
+  font-size: 0.78rem;
   text-align: center;
   -moz-appearance: textfield;
+  flex-shrink: 0;
 }
 
 .seek-row input[type=number]::-webkit-inner-spin-button,
@@ -219,15 +257,30 @@ button:disabled { opacity: 0.4; cursor: default; }
 .seek-unit {
   font-size: 0.75rem;
   color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+/* ── Keyboard shortcuts table ───────────────────────────────────────────── */
+.kbd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+}
+
+.kbd-table td {
+  padding: 3px 4px;
+  border-bottom: 1px solid #1a1a1a;
+  vertical-align: middle;
+  color: var(--text-dim);
+}
+
+.kbd-table td:first-child {
+  white-space: nowrap;
+  width: auto;
+  color: var(--text);
 }
 
 /* ── D-pad ──────────────────────────────────────────────────────────────── */
-.nav-area {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-top: 4px;
-}
 
 .dpad {
   position: relative;
@@ -275,14 +328,6 @@ button:disabled { opacity: 0.4; cursor: default; }
 
 .nav-side button {
   width: 100%;
-}
-
-/* ── Keyboard hint ──────────────────────────────────────────────────────── */
-.kbd-hint {
-  font-size: 0.7rem;
-  color: #555;
-  line-height: 1.5;
-  margin-top: 2px;
 }
 
 kbd {
@@ -618,8 +663,8 @@ td:last-child {
   flex-shrink: 0;
 }
 
-.ep-badge.ep-seen   { background: #1a3d1a; color: #66ee66; }
-.ep-badge.ep-resume { background: #3d2a00; color: #ffaa00; }
+.ep-badge.ep-seen-badge   { background: #1a3d1a; color: #66ee66; }
+.ep-badge.ep-resume-badge { background: #3d2a00; color: #ffaa00; }
 
 .ep-runtime {
   min-width: 34px;
@@ -873,6 +918,14 @@ td:last-child {
     position: static;
     border-right: none;
     border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-cols {
+    flex-wrap: wrap;
+  }
+
+  .sidebar-col-l {
+    flex: 1 1 180px;
   }
 
   #panel-season {
