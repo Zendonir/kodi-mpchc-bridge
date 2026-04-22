@@ -321,7 +321,8 @@ kbd {
 }
 
 .artwork {
-  max-height: 100px;
+  max-height: 200px;
+  max-width: 180px;
   width: auto;
   border-radius: 6px;
   flex-shrink: 0;
@@ -515,12 +516,8 @@ td:last-child {
   width: var(--panel-w);
   flex-shrink: 0;
   padding: 16px 12px;
-  display: none;            /* shown by JS when episodes exist */
-  flex-direction: column;
-}
-
-#panel-season.visible {
   display: flex;
+  flex-direction: column;
 }
 
 #card-season {

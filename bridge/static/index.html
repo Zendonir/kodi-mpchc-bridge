@@ -10,13 +10,7 @@
 
 <!-- ── Mobile sticky header (≤900px only) ───────────────────────────────── -->
 <header id="mob-hdr">
-  <svg class="kodi-icon" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M14 1L27 14L14 27L1 14Z" fill="#0d1117"/>
-    <path d="M14 1L27 14L14 14Z" fill="#2563c0"/>
-    <path d="M14 1L1 14L14 14Z" fill="#3b7dd8"/>
-    <path d="M14 27L1 14L14 14Z" fill="#1a4490"/>
-    <path d="M14 27L27 14L14 14Z" fill="#1e55a8"/>
-  </svg>
+  <img src="/static/logo.png" class="kodi-icon" alt="logo" onerror="this.style.display='none'">
   <div class="mob-logo-info">
     <span class="mob-logo">kodi-mpchc-bridge</span>
     <span id="mob-status-text" class="mob-status-text"></span>
@@ -32,13 +26,7 @@
 
     <!-- Logo + status -->
     <div class="sidebar-logo">
-      <svg class="kodi-icon" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M14 1L27 14L14 27L1 14Z" fill="#0d1117"/>
-        <path d="M14 1L27 14L14 14Z" fill="#2563c0"/>
-        <path d="M14 1L1 14L14 14Z" fill="#3b7dd8"/>
-        <path d="M14 27L1 14L14 14Z" fill="#1a4490"/>
-        <path d="M14 27L27 14L14 14Z" fill="#1e55a8"/>
-      </svg>
+      <img src="/static/logo.png" class="kodi-icon" alt="logo" onerror="this.style.display='none'">
       <div class="logo-info">
         <span class="logo-text">kodi-mpchc-bridge</span>
         <span id="status-badge" class="status-badge"></span>
@@ -48,20 +36,20 @@
     <!-- Section: STEUERUNG -->
     <div class="card-hdr" data-i18n="card_controls"></div>
 
-    <!-- Row: -1min, +1min, -10s, +10s -->
+    <!-- Row: -1min, +1min -->
     <div class="ctrl-row">
-      <button onclick="cmd('skip_backward')"       data-i18n="btn_skip_back"></button>
-      <button onclick="cmd('skip_forward')"        data-i18n="btn_skip_fwd"></button>
-      <button onclick="cmd('seek_backward_small')" data-i18n="btn_seek_back"></button>
-      <button onclick="cmd('seek_forward_small')"  data-i18n="btn_seek_fwd"></button>
+      <button onclick="cmd('skip_backward')" data-i18n="btn_skip_back"></button>
+      <button onclick="cmd('skip_forward')"  data-i18n="btn_skip_fwd"></button>
     </div>
 
-    <!-- Row: custom seek -->
+    <!-- Row: custom seek + -10s / +10s -->
     <div class="ctrl-row seek-row">
+      <button onclick="cmd('seek_backward_small')" data-i18n="btn_seek_back"></button>
       <button onclick="seekCustom(-1)" data-i18n="btn_seek_minus"></button>
       <input id="seek-secs" type="number" value="30" min="1" max="7200">
       <span class="seek-unit">s</span>
       <button onclick="seekCustom(1)" data-i18n="btn_seek_plus"></button>
+      <button onclick="cmd('seek_forward_small')"  data-i18n="btn_seek_fwd"></button>
     </div>
 
     <!-- Row: play/pause, stop -->
@@ -85,6 +73,8 @@
         <button onclick="cmd('context_menu')"   data-i18n="btn_menu"></button>
         <button onclick="cmd('show_info')"      data-i18n="btn_info"></button>
         <button id="btn-watched" onclick="cmd('toggle_watched')" data-i18n="btn_watched" style="display:none"></button>
+        <button id="btn-prev-ep" onclick="prevEpisode()" data-i18n="btn_prev_ep" style="display:none" disabled></button>
+        <button id="btn-next-ep" onclick="nextEpisode()" data-i18n="btn_next_ep" style="display:none" disabled></button>
       </div>
     </div>
 
@@ -95,7 +85,8 @@
     <!-- System buttons -->
     <div class="ctrl-row">
       <button onclick="cmd('fullscreen')" data-i18n="btn_fullscreen"></button>
-      <button onclick="restartConfirm()" class="btn-danger" data-i18n="btn_restart_pc"></button>
+      <button onclick="restartConfirm()"  class="btn-danger" data-i18n="btn_restart_pc"></button>
+      <button onclick="shutdownConfirm()" class="btn-danger" data-i18n="btn_shutdown"></button>
     </div>
 
     <!-- Kiosk buttons (hidden by default, shown when kiosk API responds) -->
@@ -178,9 +169,9 @@
         <span class="track-label" data-i18n="lbl_current_subtitle"></span>
         <select id="sel-subtitle" onchange="cmd('subtitle_track', parseInt(this.value))"></select>
       </div>
-      <div class="track-row">
+      <div class="track-row" id="chapter-row" style="display:none">
         <span class="track-label" data-i18n="lbl_current_chapter"></span>
-        <span id="chapter-display">&#x2014;</span>
+        <select id="sel-chapter" onchange="cmd('chapter', parseInt(this.value))"></select>
       </div>
     </div>
 
@@ -281,10 +272,6 @@
     <div class="card" id="card-season" style="display:none">
       <div class="season-hdr-row">
         <div id="season-hdr" class="card-hdr" style="margin-bottom:0;flex:1"></div>
-        <div class="season-nav">
-          <button id="btn-prev-ep" onclick="prevEpisode()" data-i18n="btn_prev_ep" disabled></button>
-          <button id="btn-next-ep" onclick="nextEpisode()" data-i18n="btn_next_ep" disabled></button>
-        </div>
       </div>
       <div id="ep-list" class="ep-list"></div>
     </div>
