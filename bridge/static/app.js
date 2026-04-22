@@ -15,7 +15,7 @@ const _TR = {
     btn_fullscreen:'⛶ Fullscreen',btn_restart_pc:'⏻ Restart PC',
     confirm_restart:'Schedule a system restart in 10 seconds?',
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Restart Kodi',
-    btn_prev_ep:'⏮ Prev',btn_next_ep:'Next ⏭',
+    btn_prev_ep:'← Back',btn_next_ep:'Next →',
     btn_logs:'\U0001f4cb Log',btn_log_refresh:'↻',btn_settings:'⚙ Settings',
     nav_up:'Up',nav_down:'Down',nav_left:'Left',nav_right:'Right',nav_ok:'OK (Enter)',
     kbd_hint:'Keyboard: <kbd>↑↓←→</kbd> navigate &nbsp;<kbd>Enter</kbd> OK &nbsp;<kbd>Esc</kbd> Back &nbsp;<kbd>Space</kbd> Play/Pause',
@@ -50,7 +50,7 @@ const _TR = {
     btn_fullscreen:'⛶ Vollbild',btn_restart_pc:'⏻ PC neu starten',
     confirm_restart:'PC in 10 Sekunden neu starten?',
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Kodi Windows',btn_kiosk_restart:'Kodi neustarten',
-    btn_prev_ep:'⏮ Zurück',btn_next_ep:'Weiter ⏭',
+    btn_prev_ep:'← Zurück',btn_next_ep:'Weiter →',
     btn_logs:'\U0001f4cb Log',btn_log_refresh:'↻',btn_settings:'⚙ Einstellungen',
     nav_up:'Hoch',nav_down:'Runter',nav_left:'Links',nav_right:'Rechts',nav_ok:'OK (Enter)',
     kbd_hint:'Tastatur: <kbd>↑↓←→</kbd> navigieren &nbsp;<kbd>Enter</kbd> OK &nbsp;<kbd>Esc</kbd> Zurück &nbsp;<kbd>Leertaste</kbd> Play/Pause',
@@ -191,13 +191,15 @@ function kioskCmd(mode){
 function playEpisode(fp){
   fetch('/api/external_play',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filepath:fp})}).catch(()=>{});
 }
+let _epPage=0;
+const _epPageSize=18;
 function prevEpisode(){
-  const eps=state.season_episodes, idx=state.playlist_index??-1;
-  if(eps&&idx>0) playEpisode(eps[idx-1].file);
+  if(_epPage>0){ _epPage--; _epRenderedLen=-1; renderSeasonEpisodes(); }
 }
 function nextEpisode(){
-  const eps=state.season_episodes, idx=state.playlist_index??-1;
-  if(eps&&idx>=0&&idx<eps.length-1) playEpisode(eps[idx+1].file);
+  const eps=state.season_episodes||[];
+  const pc=Math.max(1,Math.ceil(eps.length/_epPageSize));
+  if(_epPage<pc-1){ _epPage++; _epRenderedLen=-1; renderSeasonEpisodes(); }
 }
 
 // ── Playback card ─────────────────────────────────────────────────────────────
@@ -228,15 +230,15 @@ function updatePlaybackCard(){
   if(yr) yr.textContent = state.year ? String(state.year) : '—';
 
   // Datetime (current local time)
-  const dt = document.getElementById('m-datetime');
-  if(dt){
-    const now=new Date();
-    dt.textContent = '📅 '
-      + String(now.getDate()).padStart(2,'0')+'.'
-      + String(now.getMonth()+1).padStart(2,'0')+'.'
-      + String(now.getFullYear()).slice(2)+', '
-      + pad2(now.getHours())+':'+pad2(now.getMinutes());
-  }
+  const now=new Date();
+  const dtStr=String(now.getDate()).padStart(2,'0')+'.'
+    +String(now.getMonth()+1).padStart(2,'0')+'.'
+    +String(now.getFullYear()).slice(2)+', '
+    +pad2(now.getHours())+':'+pad2(now.getMinutes());
+  const dt=document.getElementById('m-datetime');
+  if(dt) dt.textContent='📅 '+dtStr;
+  const bd=document.getElementById('bottom-datetime');
+  if(bd) bd.textContent='📅 '+dtStr;
 
   // Progress bar
   const fill = document.getElementById('progress-fill');
@@ -370,6 +372,7 @@ function renderSeasonEpisodes(){
   if(!eps||!eps.length){
     card.style.display='none';
     _epRenderedLen=-1; _epRenderedIdx=-2;
+    document.getElementById('bottom-pages').textContent='';
     return;
   }
   card.style.display='';
@@ -380,48 +383,66 @@ function renderSeasonEpisodes(){
     (show?'  ·  '+show:'')+' ('+eps.length+')';
 
   const idx=state.playlist_index??-1;
-  if(eps.length===_epRenderedLen && idx===_epRenderedIdx){
-    const pB=document.getElementById('btn-prev-ep');
-    const nB=document.getElementById('btn-next-ep');
-    if(pB) pB.disabled=idx<=0;
-    if(nB) nB.disabled=idx<0||idx>=eps.length-1;
-    return;
+  const pc=Math.max(1,Math.ceil(eps.length/_epPageSize));
+
+  // Auto-advance page when current episode moves to a different page
+  if(idx>=0){
+    const epPage=Math.floor(idx/_epPageSize);
+    if(epPage!==_epPage){ _epPage=epPage; _epRenderedLen=-1; }
   }
-  _epRenderedLen=eps.length; _epRenderedIdx=idx;
+  _epPage=Math.min(_epPage,pc-1);
 
-  list.innerHTML=eps.map((ep,i)=>{
-    const isCur=i===idx;
-    const isWatched=ep.playcount>0&&!isCur;
-    const hasResume=ep.resume_pos>10&&!isWatched;
-    let cls='ep-row'+(isCur?' ep-current':'')+(isWatched?' ep-watched':'');
-    const fileAttr=(ep.file||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
-    const numStr=isCur?'▶':'E'+String(ep.episode).padStart(2,'0');
-    const title=(ep.title||('Episode '+ep.episode)).replace(/&/g,'&amp;').replace(/</g,'&lt;');
-    let badges='';
-    if(isWatched) badges+='<span class="ep-badge ep-seen-badge">✓</span>';
-    if(hasResume) badges+='<span class="ep-badge ep-resume-badge">⏵ '+fmtResumeTime(ep.resume_pos)+'</span>';
-    return '<div class="'+cls+'" data-epfile="'+fileAttr+'">'
-      +'<span class="ep-num">'+numStr+'</span>'
-      +'<span class="ep-title">'+title+'</span>'
-      +badges
-      +'<span class="ep-runtime">'+fmtRuntime(ep.runtime)+'</span>'
-      +'</div>';
-  }).join('');
+  const pgStart=_epPage*_epPageSize;
+  const pgEnd=Math.min(pgStart+_epPageSize,eps.length);
+  const pageEps=eps.slice(pgStart,pgEnd);
+  const renderKey=pgStart+'|'+idx;
 
-  list.onclick=e=>{
-    const row=e.target.closest('.ep-row');
-    if(row&&row.dataset.epfile) playEpisode(row.dataset.epfile);
-  };
+  if(renderKey===_epRenderedLen+'|'+_epRenderedIdx){
+    // only update nav buttons + bottom bar
+  } else {
+    _epRenderedLen=pgStart; _epRenderedIdx=idx;
+
+    list.innerHTML=pageEps.map((ep,pi)=>{
+      const i=pgStart+pi;
+      const isCur=i===idx;
+      const isWatched=ep.playcount>0&&!isCur;
+      const hasResume=ep.resume_pos>10&&!isWatched;
+      let cls='ep-row'+(isCur?' ep-current':'')+(isWatched?' ep-watched':'');
+      const fileAttr=(ep.file||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+      const numStr=isCur
+        ?'<span class="ep-play-icon">&#x25B6;</span>'
+        :'E'+String(ep.episode).padStart(2,'0');
+      const title=(ep.title||('Episode '+ep.episode)).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+      let badges='';
+      if(isWatched) badges+='<span class="ep-badge ep-seen-badge">✓</span>';
+      if(hasResume) badges+='<span class="ep-badge ep-resume-badge">⏵ '+fmtResumeTime(ep.resume_pos)+'</span>';
+      return '<div class="'+cls+'" data-epfile="'+fileAttr+'">'
+        +'<span class="ep-num">'+numStr+'</span>'
+        +'<span class="ep-title">'+title+'</span>'
+        +badges
+        +'<span class="ep-runtime">'+fmtRuntime(ep.runtime)+'</span>'
+        +'</div>';
+    }).join('');
+
+    list.onclick=e=>{
+      const row=e.target.closest('.ep-row');
+      if(row&&row.dataset.epfile) playEpisode(row.dataset.epfile);
+    };
+  }
 
   const pB=document.getElementById('btn-prev-ep');
   const nB=document.getElementById('btn-next-ep');
-  if(pB) pB.disabled=idx<=0;
-  if(nB) nB.disabled=idx<0||idx>=eps.length-1;
+  if(pB) pB.disabled=_epPage<=0;
+  if(nB) nB.disabled=_epPage>=pc-1;
+
+  const bpEl=document.getElementById('bottom-pages');
+  if(bpEl) bpEl.textContent=pc>1?('Seite '+((_epPage+1)+' von '+pc)):'';
 
   if(idx>=0&&idx!==_epScrolledIdx){
     _epScrolledIdx=idx;
+    const localRow=idx-pgStart;
     const rows=list.querySelectorAll('.ep-row');
-    if(rows[idx]) rows[idx].scrollIntoView({block:'nearest'});
+    if(rows[localRow]) rows[localRow].scrollIntoView({block:'nearest'});
   } else if(idx<0) _epScrolledIdx=-2;
 }
 
@@ -551,13 +572,13 @@ function connect(){
   const ws=new WebSocket(proto+'://'+location.host+'/api/ws');
   const setStatus=(text,cls)=>{
     const b=document.getElementById('status-badge');
-    const d=document.getElementById('mob-status-dot');
+    const d=document.getElementById('mob-status-text');
     if(b){b.textContent=text;b.className='status-badge '+cls;}
-    if(d) d.className='mob-status-dot '+cls;
+    if(d){d.textContent=text;d.className='mob-status-text '+cls;}
   };
-  ws.onopen =()=>setStatus(t('status_connected'),'ok');
-  ws.onclose=()=>{setStatus(t('status_reconnecting'),'err');setTimeout(connect,3000);};
-  ws.onerror=()=>setStatus(t('status_reconnecting'),'err');
+  ws.onopen =()=>setStatus(t('status_connected'),'connected');
+  ws.onclose=()=>{setStatus(t('status_reconnecting'),'reconnecting');setTimeout(connect,3000);};
+  ws.onerror=()=>setStatus(t('status_reconnecting'),'reconnecting');
   ws.onmessage=e=>{
     const msg=JSON.parse(e.data);
     if(msg.type==='state_full')  state=msg.data;
@@ -566,5 +587,11 @@ function connect(){
   };
 }
 
-document.getElementById('status-badge').textContent=t('status_connecting');
+(function(){
+  const b=document.getElementById('status-badge');
+  const d=document.getElementById('mob-status-text');
+  const txt=t('status_connecting');
+  if(b){b.textContent=txt;b.className='status-badge';}
+  if(d){d.textContent=txt;d.className='mob-status-text';}
+})();
 connect();

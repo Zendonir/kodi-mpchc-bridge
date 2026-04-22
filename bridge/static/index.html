@@ -10,8 +10,17 @@
 
 <!-- ── Mobile sticky header (≤900px only) ───────────────────────────────── -->
 <header id="mob-hdr">
-  <span class="mob-logo">kodi-mpchc-bridge</span>
-  <span id="mob-status-dot" class="mob-status-dot"></span>
+  <svg class="kodi-icon" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M14 1L27 14L14 27L1 14Z" fill="#0d1117"/>
+    <path d="M14 1L27 14L14 14Z" fill="#2563c0"/>
+    <path d="M14 1L1 14L14 14Z" fill="#3b7dd8"/>
+    <path d="M14 27L1 14L14 14Z" fill="#1a4490"/>
+    <path d="M14 27L27 14L14 14Z" fill="#1e55a8"/>
+  </svg>
+  <div class="mob-logo-info">
+    <span class="mob-logo">kodi-mpchc-bridge</span>
+    <span id="mob-status-text" class="mob-status-text"></span>
+  </div>
   <button class="mob-hamburger" onclick="toggleMobileMenu()" title="Menu">&#9776;</button>
 </header>
 
@@ -21,10 +30,19 @@
   <!-- ── Left sidebar (nav#sidebar) ──────────────────────────────────── -->
   <nav id="sidebar">
 
-    <!-- Logo + status badge -->
+    <!-- Logo + status -->
     <div class="sidebar-logo">
-      <span class="logo-text">kodi-mpchc-bridge</span>
-      <span id="status-badge" class="status-badge"></span>
+      <svg class="kodi-icon" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M14 1L27 14L14 27L1 14Z" fill="#0d1117"/>
+        <path d="M14 1L27 14L14 14Z" fill="#2563c0"/>
+        <path d="M14 1L1 14L14 14Z" fill="#3b7dd8"/>
+        <path d="M14 27L1 14L14 14Z" fill="#1a4490"/>
+        <path d="M14 27L27 14L14 14Z" fill="#1e55a8"/>
+      </svg>
+      <div class="logo-info">
+        <span class="logo-text">kodi-mpchc-bridge</span>
+        <span id="status-badge" class="status-badge"></span>
+      </div>
     </div>
 
     <!-- Section: STEUERUNG -->
@@ -55,15 +73,11 @@
     <!-- D-pad + side nav buttons -->
     <div class="nav-area">
       <div class="dpad">
-        <div></div>
-        <button onclick="cmd('navigate_up')"     data-i18n-title="nav_up">&#x25B2;</button>
-        <div></div>
-        <button onclick="cmd('navigate_left')"   data-i18n-title="nav_left">&#x25C4;</button>
-        <button class="ok" onclick="cmd('navigate_select')" data-i18n-title="nav_ok">OK</button>
-        <button onclick="cmd('navigate_right')"  data-i18n-title="nav_right">&#x25BA;</button>
-        <div></div>
-        <button onclick="cmd('navigate_down')"   data-i18n-title="nav_down">&#x25BC;</button>
-        <div></div>
+        <button class="dpad-up"    onclick="cmd('navigate_up')"     data-i18n-title="nav_up">&#x25B2;</button>
+        <button class="dpad-left"  onclick="cmd('navigate_left')"   data-i18n-title="nav_left">&#x25C4;</button>
+        <button class="dpad-ok ok" onclick="cmd('navigate_select')" data-i18n-title="nav_ok">OK</button>
+        <button class="dpad-right" onclick="cmd('navigate_right')"  data-i18n-title="nav_right">&#x25BA;</button>
+        <button class="dpad-down"  onclick="cmd('navigate_down')"   data-i18n-title="nav_down">&#x25BC;</button>
       </div>
       <div class="nav-side">
         <button onclick="cmd('navigate_back')"  data-i18n="btn_back"></button>
@@ -304,6 +318,12 @@
     <span class="mob-foot-icon">&#x2699;</span>
     <span class="mob-foot-lbl" data-i18n="btn_settings"></span>
   </button>
+</div>
+
+<!-- ── Desktop bottom status bar ────────────────────────────────────────── -->
+<div id="bottom-bar">
+  <span id="bottom-datetime"></span>
+  <span id="bottom-pages"></span>
 </div>
 
 <script src="/static/app.js"></script>

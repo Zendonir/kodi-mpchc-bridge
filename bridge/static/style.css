@@ -67,12 +67,23 @@ body {
   height: 100vh;
 }
 
+.kodi-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
 .sidebar-logo {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 4px;
-  flex-wrap: wrap;
+}
+
+.logo-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .logo-text {
@@ -80,26 +91,22 @@ body {
   font-weight: 700;
   color: #ffffff;
   letter-spacing: -0.01em;
+  line-height: 1.2;
 }
 
 /* ── Status badge (sidebar) ─────────────────────────────────────────────── */
 .status-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 10px;
   font-size: 0.72rem;
-  background: #2a2a2a;
   color: var(--text-dim);
   white-space: nowrap;
+  line-height: 1.2;
 }
 
 .status-badge.connected {
-  background: #1a3d1a;
-  color: #66ee66;
+  color: #55dd55;
 }
 
 .status-badge.reconnecting {
-  background: #3d1a1a;
   color: #ee6666;
 }
 
@@ -223,28 +230,41 @@ button:disabled { opacity: 0.4; cursor: default; }
 }
 
 .dpad {
-  display: grid;
-  grid-template-columns: 40px 40px 40px;
-  grid-template-rows: 40px 40px 40px;
-  gap: 3px;
+  position: relative;
+  width: 138px;
+  height: 138px;
   flex-shrink: 0;
+  background: #1c1e24;
+  border-radius: 50%;
+  border: 1px solid #2a2a2a;
 }
 
 .dpad button {
-  width: 40px;
-  height: 40px;
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
   padding: 0;
-  font-size: 1rem;
+  font-size: 0.9rem;
   font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.dpad .ok {
-  background: #1a3d1a;
-  border-color: #2a6a2a;
-  font-size: 0.8rem;
+.dpad-up    { top: 8px;    left: 50%; transform: translateX(-50%); }
+.dpad-down  { bottom: 8px; left: 50%; transform: translateX(-50%); }
+.dpad-left  { left: 8px;   top: 50%;  transform: translateY(-50%); }
+.dpad-right { right: 8px;  top: 50%;  transform: translateY(-50%); }
+.dpad-ok.ok {
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 46px; height: 46px;
+  background: #1e3f8a;
+  border-color: #2a5dbb;
+  font-size: 0.85rem;
 }
-
-.dpad .ok:hover { background: #224d22; }
+.dpad-ok.ok:hover { background: #254da0; }
 
 .nav-side {
   display: flex;
@@ -570,6 +590,19 @@ td:last-child {
 
 .ep-row.ep-current .ep-num { color: var(--ep-current-border); }
 
+.ep-play-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ep-current-border);
+  color: #fff;
+  font-size: 0.6rem;
+  line-height: 1;
+}
+
 .ep-title {
   flex: 1;
   white-space: nowrap;
@@ -735,23 +768,28 @@ td:last-child {
   z-index: 100;
 }
 
-.mob-logo {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #ffffff;
+.mob-logo-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   flex: 1;
 }
 
-.mob-status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #444;
-  flex-shrink: 0;
+.mob-logo {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.2;
 }
 
-.mob-status-dot.connected    { background: #44cc44; }
-.mob-status-dot.reconnecting { background: #cc4444; }
+.mob-status-text {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  line-height: 1.2;
+}
+
+.mob-status-text.connected    { color: #55dd55; }
+.mob-status-text.reconnecting { color: #ee6666; }
 
 .mob-hamburger {
   background: none;
@@ -810,6 +848,19 @@ td:last-child {
 .mob-foot-btn.mob-foot-kodi   .mob-foot-icon { color: #66ee66; }
 .mob-foot-btn.mob-foot-amber  .mob-foot-icon { color: #ffcc44; }
 
+/* ── Desktop bottom status bar ──────────────────────────────────────────── */
+#bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 16px;
+  background: #0d0d0d;
+  border-top: 1px solid #1e1e1e;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
 /* ── Responsive: ≤900px ─────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   #mob-hdr    { display: flex; }
@@ -846,6 +897,10 @@ td:last-child {
 
   /* Status badge moves to mob-hdr on mobile */
   .sidebar-logo .status-badge {
+    display: none;
+  }
+
+  #bottom-bar {
     display: none;
   }
 }
