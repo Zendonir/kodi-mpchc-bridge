@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>kodi-mpchc-bridge</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="brand-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="15" fill="#1d4ed8" opacity="0.85"/>
+      <path d="M11 9v14M11 16l8-7M11 16l8 7" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span class="brand-name">kodi-mpchc-bridge</span>
+  </div>
+  <div class="topbar-right">
+    <span id="status"></span>
+    <button class="menu-toggle" id="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout" id="layout">
+
+  <!-- Left sidebar: Controls -->
+  <aside class="sidebar" id="sidebar">
+    <div class="card">
+      <h2 data-i18n="card_controls"></h2>
+
+      <div class="seek-grid">
+        <button onclick="cmd('skip_backward')" data-i18n="btn_skip_back"></button>
+        <button onclick="cmd('skip_forward')" data-i18n="btn_skip_fwd"></button>
+        <button onclick="cmd('seek_backward_small')" data-i18n="btn_seek_back"></button>
+        <button onclick="cmd('seek_forward_small')" data-i18n="btn_seek_fwd"></button>
+      </div>
+      <div class="seek-grid cols-2">
+        <button onclick="cmd('seek_relative',-30)">&#x23EE; 30 s</button>
+        <button onclick="cmd('seek_relative', 30)">30 s &#x23ED;</button>
+      </div>
+
+      <div class="nav-area">
+        <div class="dpad">
+          <div></div>
+          <button onclick="cmd('navigate_up')" data-i18n-title="nav_up">&#x25B2;</button>
+          <div></div>
+          <button onclick="cmd('navigate_left')" data-i18n-title="nav_left">&#x25C4;</button>
+          <button class="dpad-ok" onclick="cmd('navigate_select')" data-i18n-title="nav_ok">OK</button>
+          <button onclick="cmd('navigate_right')" data-i18n-title="nav_right">&#x25BA;</button>
+          <div></div>
+          <button onclick="cmd('navigate_down')" data-i18n-title="nav_down">&#x25BC;</button>
+          <div></div>
+        </div>
+        <div class="nav-btns">
+          <button onclick="cmd('navigate_back')" data-i18n="btn_back"></button>
+          <button onclick="cmd('navigate_home')" data-i18n="btn_home"></button>
+          <button onclick="cmd('context_menu')" data-i18n="btn_menu"></button>
+          <button onclick="cmd('show_info')" data-i18n="btn_info"></button>
+          <button id="btn-watched" onclick="cmd('toggle_watched')" data-i18n="btn_watched" style="display:none"></button>
+        </div>
+      </div>
+      <div class="kbd-hint" data-i18n-html="kbd_hint"></div>
+
+      <div class="sep"></div>
+
+      <div class="action-btns">
+        <button onclick="cmd('fullscreen')" data-i18n="btn_fullscreen"></button>
+        <button onclick="restartConfirm()" data-i18n="btn_restart_pc" class="btn-danger"></button>
+      </div>
+      <div class="action-btns" id="kiosk-btns" style="display:none">
+        <button id="btn-kiosk-kodi" onclick="kioskCmd('kodi')" data-i18n="btn_kiosk_kodi" class="btn-kiosk"></button>
+        <button id="btn-kiosk-windows" onclick="kioskCmd('windows')" data-i18n="btn_kiosk_windows"></button>
+        <button id="btn-kiosk-restart" onclick="kioskCmd('restart')" data-i18n="btn_kiosk_restart" class="btn-warn"></button>
+      </div>
+      <div class="action-btns">
+        <button onclick="toggleLogs()" data-i18n="btn_logs" class="btn-blue"></button>
+        <button onclick="toggleSettings()" data-i18n="btn_settings" class="btn-blue"></button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main">
+
+    <!-- Playback card -->
+    <div class="card card-playback">
+      <h2 data-i18n="card_playback"></h2>
+      <div class="playback-body">
+        <img id="artwork" class="artwork" src="" alt="" style="display:none">
+        <div class="playback-info">
+          <div class="pb-badges">
+            <div class="pb-field">
+              <span class="pb-label" data-i18n="lbl_active_player"></span>
+              <span id="pb-player" class="player-badge player-none">&#x2014;</span>
+            </div>
+            <div class="pb-field">
+              <span class="pb-label" data-i18n="lbl_state"></span>
+              <span id="pb-status" class="pb-status">&#x2014;</span>
+            </div>
+          </div>
+          <div class="pb-label" data-i18n="lbl_title"></div>
+          <div id="pb-title" class="pb-title">&#x2014;</div>
+          <div class="pb-year-row">
+            <div class="pb-field">
+              <span class="pb-label" data-i18n="lbl_year"></span>
+              <span id="pb-year">&#x2014;</span>
+            </div>
+            <span id="pb-clock" class="pb-clock"></span>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-bar">
+              <div id="progress-fill" class="progress-fill" style="width:0%"></div>
+            </div>
+            <div class="progress-times">
+              <span id="pb-position">00:00:00</span>
+              <span id="pb-duration">00:00:00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Details + Video-Info + Tracks grid -->
+    <div class="info-grid">
+      <div class="card" id="card-details">
+        <h2 data-i18n="card_details"></h2>
+        <table id="tbl-play"></table>
+      </div>
+      <div class="card" id="card-video">
+        <h2 data-i18n="card_video"></h2>
+        <table id="tbl-video"></table>
+      </div>
+      <div class="card" id="card-tracks">
+        <h2 data-i18n="card_tracks"></h2>
+        <table id="tbl-tracks"></table>
+      </div>
+    </div>
+
+    <!-- Log viewer (hidden by default) -->
+    <div class="card" id="card-logs" style="display:none">
+      <h2 data-i18n="card_logs"></h2>
+      <div class="log-controls">
+        <select id="log-level">
+          <option value="">ALL</option>
+          <option value="DEBUG">DEBUG</option>
+          <option value="INFO">INFO</option>
+          <option value="WARNING">WARNING</option>
+          <option value="ERROR">ERROR</option>
+        </select>
+        <input id="log-search" type="text" placeholder="Filter&#x2026;" style="flex:1;min-width:100px">
+        <select id="log-count">
+          <option value="50" selected>50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+          <option value="500">500</option>
+        </select>
+        <label class="log-auto-label">
+          <input type="checkbox" id="log-auto"> Auto
+        </label>
+        <button onclick="fetchLogs()" data-i18n="btn_log_refresh"></button>
+      </div>
+      <div id="log-output" class="log-output"></div>
+    </div>
+
+    <!-- Settings (hidden by default) -->
+    <div class="card" id="card-settings" style="display:none">
+      <h2 data-i18n="card_settings"></h2>
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="lbl_art_movie"></div>
+        <div class="radio-group">
+          <label><input type="radio" name="art_movie" value="poster"
+            onchange="saveArtMode('movie_art_mode',this)"><span data-i18n="opt_art_poster"></span></label>
+          <label><input type="radio" name="art_movie" value="fanart"
+            onchange="saveArtMode('movie_art_mode',this)"><span data-i18n="opt_art_fanart"></span></label>
+          <label><input type="radio" name="art_movie" value="thumb"
+            onchange="saveArtMode('movie_art_mode',this)"><span data-i18n="opt_art_thumb"></span></label>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="lbl_art_episode"></div>
+        <div class="radio-group">
+          <label><input type="radio" name="art_episode" value="poster"
+            onchange="saveArtMode('episode_art_mode',this)"><span data-i18n="opt_art_tvposter"></span></label>
+          <label><input type="radio" name="art_episode" value="season.poster"
+            onchange="saveArtMode('episode_art_mode',this)"><span data-i18n="opt_art_seasonposter"></span></label>
+          <label><input type="radio" name="art_episode" value="thumb"
+            onchange="saveArtMode('episode_art_mode',this)"><span data-i18n="opt_art_thumb"></span></label>
+          <label><input type="radio" name="art_episode" value="fanart"
+            onchange="saveArtMode('episode_art_mode',this)"><span data-i18n="opt_art_fanart"></span></label>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="lbl_art_music"></div>
+        <div class="radio-group">
+          <label><input type="radio" name="art_music" value="thumb"
+            onchange="saveArtMode('music_art_mode',this)"><span data-i18n="opt_art_thumb"></span></label>
+          <label><input type="radio" name="art_music" value="fanart"
+            onchange="saveArtMode('music_art_mode',this)"><span data-i18n="opt_art_fanart"></span></label>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="lbl_boot_target"></div>
+        <div class="radio-group" style="margin-bottom:10px">
+          <label><input type="radio" name="boot_target" value="kodi"
+            onchange="saveBootTarget(this)"><span data-i18n="opt_boot_kodi"></span></label>
+          <label><input type="radio" name="boot_target" value="windows"
+            onchange="saveBootTarget(this)"><span data-i18n="opt_boot_windows"></span></label>
+        </div>
+        <div class="kodi-exe-row">
+          <label class="kodi-exe-label" data-i18n="lbl_kodi_exe"></label>
+          <input type="text" id="inp_kodi_exe" class="kodi-exe-input"
+            onchange="saveKioskSetting('kodi_exe_path',this.value)">
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Right: Season/Episode list -->
+  <div class="season-col">
+    <div class="card" id="card-season" style="display:none">
+      <div class="season-header-row">
+        <h2 id="season-hdr" style="margin:0"></h2>
+        <div class="season-nav">
+          <button id="btn-prev-ep" onclick="prevEpisode()" data-i18n="btn_prev_ep" disabled></button>
+          <button id="btn-next-ep" onclick="nextEpisode()" data-i18n="btn_next_ep" disabled></button>
+        </div>
+      </div>
+      <div id="ep-list" class="ep-list"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Mobile bottom action bar -->
+<nav class="mobile-bar" id="mobile-bar">
+  <button class="mobile-bar-btn" onclick="cmd('fullscreen')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+    </svg>
+    <span data-i18n="btn_fullscreen_short"></span>
+  </button>
+  <button class="mobile-bar-btn btn-danger" onclick="restartConfirm()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
+    </svg>
+    <span data-i18n="btn_restart_short"></span>
+  </button>
+  <button class="mobile-bar-btn btn-kiosk" id="btn-kiosk-kodi-mob" onclick="kioskCmd('kodi')">
+    <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M11 9v14M11 16l8-7M11 16l8 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span data-i18n="btn_kiosk_kodi_short"></span>
+  </button>
+  <button class="mobile-bar-btn btn-kiosk" id="btn-kiosk-restart-mob" onclick="kioskCmd('restart')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <polyline points="23 4 23 10 17 10"/>
+      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+    </svg>
+    <span data-i18n="btn_kiosk_restart_short"></span>
+  </button>
+  <button class="mobile-bar-btn btn-blue" onclick="toggleSettings()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+    <span data-i18n="btn_settings_short"></span>
+  </button>
+</nav>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
