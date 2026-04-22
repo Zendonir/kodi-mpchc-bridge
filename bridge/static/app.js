@@ -18,8 +18,12 @@ const _TR = {
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Restart Kodi',
     btn_prev_ep:'← Back',btn_next_ep:'Next →',
     btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Settings',
+    card_navigation:'Navigation',card_actions:'Actions',card_power:'Power',
+    card_system:'Start & System',card_keyboard:'Keyboard',
+    lbl_time_jump:'Time jump',lbl_playback:'Playback',
+    kbh_navigate:'navigate',kbh_ok:'OK',kbh_back:'Back',
+    kbh_playpause:'Play/Pause',kbh_seek:'custom seek',
     nav_up:'Up',nav_down:'Down',nav_left:'Left',nav_right:'Right',nav_ok:'OK (Enter)',
-    kbd_hint:'Keyboard: <kbd>↑↓←→</kbd> navigate &nbsp;<kbd>Enter</kbd> OK &nbsp;<kbd>Esc</kbd> Back &nbsp;<kbd>Space</kbd> Play/Pause',
     lbl_active_player:'Player',lbl_state:'Status',lbl_title:'Title',
     lbl_artist:'Artist',lbl_album:'Album',lbl_media_type:'Type',
     lbl_position:'Position',lbl_duration:'Duration',lbl_volume:'Volume',
@@ -54,8 +58,12 @@ const _TR = {
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Kodi neustarten',
     btn_prev_ep:'← Zurück',btn_next_ep:'Weiter →',
     btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Einstellungen',
+    card_navigation:'Navigation',card_actions:'Aktionen',card_power:'Power',
+    card_system:'Start & System',card_keyboard:'Tastatur',
+    lbl_time_jump:'Zeit springen',lbl_playback:'Wiedergabe',
+    kbh_navigate:'navigieren',kbh_ok:'OK',kbh_back:'Zurück',
+    kbh_playpause:'Play/Pause',kbh_seek:'freier Sprung',
     nav_up:'Hoch',nav_down:'Runter',nav_left:'Links',nav_right:'Rechts',nav_ok:'OK (Enter)',
-    kbd_hint:'Tastatur: <kbd>↑↓←→</kbd> navigieren &nbsp;<kbd>Enter</kbd> OK &nbsp;<kbd>Esc</kbd> Zurück &nbsp;<kbd>Leertaste</kbd> Play/Pause',
     lbl_active_player:'Player',lbl_state:'Status',lbl_title:'Titel',
     lbl_artist:'Interpret',lbl_album:'Album',lbl_media_type:'Typ',
     lbl_position:'Position',lbl_duration:'Dauer',lbl_volume:'Lautstärke',
@@ -195,6 +203,7 @@ function kioskCmd(mode){
   setTimeout(updateKioskStatus,4000);
 }
 function playEpisode(fp){
+  document.body.classList.remove('menu-open');
   fetch('/api/external_play',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filepath:fp})}).catch(()=>{});
 }
 let _epPage=0;
@@ -322,22 +331,18 @@ function renderTracks(){
     selS.disabled=sub.length===0;
   }
 
-  // Chapter select
-  const chRow=document.getElementById('chapter-row');
+  // Chapter select — always visible; disabled when no chapter data
   const selCh=document.getElementById('sel-chapter');
   if(selCh){
-    if(chapters.length){
-      if(chRow) chRow.style.display='';
-      const cHash=JSON.stringify(chapters);
-      if(cHash!==_chHash){
-        _chHash=cHash;
-        selCh.innerHTML=chapters.map((ch,i)=>`<option value="${i}">${ch.name||('Chapter '+(i+1))}</option>`).join('');
-      }
-      selCh.value=String(curCh);
-      selCh.disabled=false;
-    } else {
-      if(chRow) chRow.style.display='none';
+    const cHash=JSON.stringify(chapters);
+    if(cHash!==_chHash){
+      _chHash=cHash;
+      selCh.innerHTML=chapters.length
+        ? chapters.map((ch,i)=>`<option value="${i}">${ch.name||('Chapter '+(i+1))}</option>`).join('')
+        : '<option value="">—</option>';
     }
+    selCh.value=chapters.length?String(curCh):'';
+    selCh.disabled=chapters.length===0;
   }
 }
 
@@ -482,6 +487,7 @@ updateKioskStatus();
 // ── Log viewer ────────────────────────────────────────────────────────────────
 let _logAutoTimer=null;
 function toggleLogs(){
+  if(window.innerWidth<=900) document.body.classList.remove('menu-open');
   const card=document.getElementById('card-logs');
   if(!card) return;
   const vis=card.style.display!=='none';
@@ -518,6 +524,7 @@ async function fetchLogs(){
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 function toggleSettings(){
+  if(window.innerWidth<=900) document.body.classList.remove('menu-open');
   const card=document.getElementById('card-settings');
   if(!card) return;
   const vis=card.style.display!=='none';
@@ -565,9 +572,17 @@ document.addEventListener('keydown',e=>{
 });
 
 // ── Mobile menu toggle ────────────────────────────────────────────────────────
-function toggleMobileMenu(){ toggleLogs(); }
+function toggleMobileMenu(force){
+  const body=document.body;
+  const willOpen = typeof force==='boolean' ? force : !body.classList.contains('menu-open');
+  body.classList.toggle('menu-open', willOpen);
+}
 
-window.addEventListener('resize',()=>{_ensureSeasonPlacement();});
+
+window.addEventListener('resize',()=>{
+  _ensureSeasonPlacement();
+  if(window.innerWidth>900) document.body.classList.remove('menu-open');
+});
 
 // ── renderAll ────────────────────────────────────────────────────────────────
 function renderAll(){
