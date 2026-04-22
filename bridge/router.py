@@ -196,6 +196,10 @@ class CommandRouter:
             _LOG.info("CMD %-22s → system (PC restart in 10 s)", cmd)
             return self._system_restart()
 
+        if cmd == "system_shutdown":
+            _LOG.info("CMD %-22s → system (PC shutdown in 10 s)", cmd)
+            return self._system_shutdown()
+
         if cmd == "fullscreen":
             _LOG.info("CMD %-22s → system (fullscreen, active=%s)", cmd, active)
             return await self._fullscreen(active)
@@ -292,6 +296,23 @@ class CommandRouter:
             _LOG.error("system_restart failed: %s", exc)
             return False
 
+    def _system_shutdown(self) -> bool:
+        """Schedule a Windows system shutdown in 10 seconds via shutdown.exe."""
+        if sys.platform != "win32":
+            _LOG.warning("system_shutdown only supported on Windows")
+            return False
+        import subprocess
+        try:
+            subprocess.Popen(
+                ["shutdown", "/s", "/t", "10"],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            _LOG.info("System shutdown scheduled in 10 s")
+            return True
+        except Exception as exc:
+            _LOG.error("system_shutdown failed: %s", exc)
+            return False
+
     async def _fullscreen(self, active: str) -> bool:
         """Toggle fullscreen for the active player."""
         if active == "mpchc":
@@ -384,6 +405,13 @@ class CommandRouter:
             if ok:
                 self._state.apply({"current_subtitle": target})
             return ok
+        elif cmd == "chapter" and value is not None:
+            target = int(value)
+            cur = self._state.state.current_chapter
+            delta = target - cur
+            for _ in range(abs(delta)):
+                await self._mpchc.send_command(CMD_NEXT_CHAPTER if delta > 0 else CMD_PREV_CHAPTER)
+            return True
         elif cmd == "mpchc_next_audio":
             return await self._mpchc.send_command(CMD_NEXT_AUDIO)
         elif cmd == "mpchc_prev_audio":
@@ -455,6 +483,15 @@ class CommandRouter:
             await self._kodi.set_volume(max(0, cur - 5))
         elif cmd == "mute":
             await self._kodi.set_mute(not self._state.state.muted)
+        elif cmd == "chapter" and value is not None:
+            target = int(value)
+            cur = self._state.state.current_chapter
+            delta = target - cur
+            for _ in range(abs(delta)):
+                if delta > 0:
+                    await self._kodi.next_chapter()
+                else:
+                    await self._kodi.prev_chapter()
         elif cmd == "audio_track" and value is not None:
             await self._kodi.set_audio_stream(int(value))
         elif cmd == "subtitle_track" and value is not None:

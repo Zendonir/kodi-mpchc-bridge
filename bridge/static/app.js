@@ -12,11 +12,12 @@ const _TR = {
     btn_seek_minus:'⏪ s',btn_seek_plus:'s ⏩',
     btn_back:'← Back',btn_home:'⌂ Home',btn_menu:'☰ Menu',
     btn_info:'ℹ Info',btn_watched:'☆ Unwatched',btn_watched_on:'★ Watched',
-    btn_fullscreen:'⛶ Fullscreen',btn_restart_pc:'⏻ Restart PC',
+    btn_fullscreen:'⛶ Fullscreen',btn_restart_pc:'⏻ Restart PC',btn_shutdown:'⏻ Shutdown',
     confirm_restart:'Schedule a system restart in 10 seconds?',
+    confirm_shutdown:'Shut down PC in 10 seconds?',
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Restart Kodi',
     btn_prev_ep:'← Back',btn_next_ep:'Next →',
-    btn_logs:'\U0001f4cb Log',btn_log_refresh:'↻',btn_settings:'⚙ Settings',
+    btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Settings',
     nav_up:'Up',nav_down:'Down',nav_left:'Left',nav_right:'Right',nav_ok:'OK (Enter)',
     kbd_hint:'Keyboard: <kbd>↑↓←→</kbd> navigate &nbsp;<kbd>Enter</kbd> OK &nbsp;<kbd>Esc</kbd> Back &nbsp;<kbd>Space</kbd> Play/Pause',
     lbl_active_player:'Player',lbl_state:'Status',lbl_title:'Title',
@@ -47,11 +48,12 @@ const _TR = {
     btn_seek_minus:'⏪ s',btn_seek_plus:'s ⏩',
     btn_back:'← Zurück',btn_home:'⌂ Home',btn_menu:'☰ Menü',
     btn_info:'ℹ Info',btn_watched:'☆ Ungesehen',btn_watched_on:'★ Gesehen',
-    btn_fullscreen:'⛶ Vollbild',btn_restart_pc:'⏻ PC neu starten',
+    btn_fullscreen:'⛶ Vollbild',btn_restart_pc:'⏻ PC neu starten',btn_shutdown:'⏻ Herunterfahren',
     confirm_restart:'PC in 10 Sekunden neu starten?',
-    btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Kodi Windows',btn_kiosk_restart:'Kodi neustarten',
+    confirm_shutdown:'PC in 10 Sekunden herunterfahren?',
+    btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Kodi neustarten',
     btn_prev_ep:'← Zurück',btn_next_ep:'Weiter →',
-    btn_logs:'\U0001f4cb Log',btn_log_refresh:'↻',btn_settings:'⚙ Einstellungen',
+    btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Einstellungen',
     nav_up:'Hoch',nav_down:'Runter',nav_left:'Links',nav_right:'Rechts',nav_ok:'OK (Enter)',
     kbd_hint:'Tastatur: <kbd>↑↓←→</kbd> navigieren &nbsp;<kbd>Enter</kbd> OK &nbsp;<kbd>Esc</kbd> Zurück &nbsp;<kbd>Leertaste</kbd> Play/Pause',
     lbl_active_player:'Player',lbl_state:'Status',lbl_title:'Titel',
@@ -79,11 +81,12 @@ const _TR = {
     card_logs:'Bridge Log',card_settings:'Paramètres',
     btn_back:'← Retour',btn_home:'⌂ Accueil',btn_menu:'☰ Menu',
     btn_info:'ℹ Infos',btn_watched:'☆ Non vu',btn_watched_on:'★ Vu',
-    btn_fullscreen:'⛶ Plein écran',btn_restart_pc:'⏻ Redémarrer',
+    btn_fullscreen:'⛶ Plein écran',btn_restart_pc:'⏻ Redémarrer',btn_shutdown:'⏻ Éteindre',
     confirm_restart:'Redémarrer le système dans 10 secondes ?',
+    confirm_shutdown:'Éteindre le système dans 10 secondes ?',
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Relancer Kodi',
     btn_prev_ep:'⏮ Préc',btn_next_ep:'Suiv ⏭',
-    btn_logs:'\U0001f4cb Journal',btn_log_refresh:'↻',btn_settings:'⚙ Paramètres',
+    btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Paramètres',
     lbl_year:'Année',lbl_tv_show:'Série',lbl_season:'Saison',lbl_episode:'Épisode',
     lbl_volume:'Volume',lbl_muted:'Muet',lbl_shuffle:'Aléatoire',lbl_repeat:'Répéter',
     val_yes:'Oui',val_no:'Non',val_of:'sur',
@@ -96,11 +99,12 @@ const _TR = {
     card_logs:'Bridge Log',card_settings:'Ajustes',
     btn_back:'← Volver',btn_home:'⌂ Inicio',btn_menu:'☰ Menú',
     btn_info:'ℹ Info',btn_watched:'☆ No visto',btn_watched_on:'★ Visto',
-    btn_fullscreen:'⛶ Pantalla completa',btn_restart_pc:'⏻ Reiniciar',
+    btn_fullscreen:'⛶ Pantalla completa',btn_restart_pc:'⏻ Reiniciar',btn_shutdown:'⏻ Apagar',
     confirm_restart:'¿Reiniciar el sistema en 10 segundos?',
+    confirm_shutdown:'¿Apagar el sistema en 10 segundos?',
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Reiniciar Kodi',
     btn_prev_ep:'⏮ Anterior',btn_next_ep:'Siguiente ⏭',
-    btn_logs:'\U0001f4cb Log',btn_log_refresh:'↻',btn_settings:'⚙ Ajustes',
+    btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Ajustes',
     lbl_year:'Año',lbl_tv_show:'Serie',lbl_season:'Temporada',lbl_episode:'Episodio',
     lbl_volume:'Volumen',lbl_muted:'Silencio',lbl_shuffle:'Aleatorio',lbl_repeat:'Repetir',
     val_yes:'Sí',val_no:'No',val_of:'de',
@@ -113,11 +117,12 @@ const _TR = {
     card_logs:'Bridge Log',card_settings:'Impostazioni',
     btn_back:'← Indietro',btn_home:'⌂ Home',btn_menu:'☰ Menu',
     btn_info:'ℹ Info',btn_watched:'☆ Non visto',btn_watched_on:'★ Visto',
-    btn_fullscreen:'⛶ Schermo intero',btn_restart_pc:'⏻ Riavvia',
+    btn_fullscreen:'⛶ Schermo intero',btn_restart_pc:'⏻ Riavvia',btn_shutdown:'⏻ Spegni',
     confirm_restart:'Riavviare il sistema tra 10 secondi?',
+    confirm_shutdown:'Spegnere il sistema tra 10 secondi?',
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Riavvia Kodi',
     btn_prev_ep:'⏮ Prec',btn_next_ep:'Succ ⏭',
-    btn_logs:'\U0001f4cb Log',btn_log_refresh:'↻',btn_settings:'⚙ Impostazioni',
+    btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Impostazioni',
     lbl_year:'Anno',lbl_tv_show:'Serie',lbl_season:'Stagione',lbl_episode:'Episodio',
     lbl_volume:'Volume',lbl_muted:'Muto',lbl_shuffle:'Casuale',lbl_repeat:'Ripeti',
     val_yes:'Sì',val_no:'No',val_of:'di',
@@ -184,6 +189,7 @@ function seekByClick(e){
   if(dur>0) cmd('seek_relative', Math.round(pct*dur - (state.position||0)));
 }
 function restartConfirm(){ if(confirm(t('confirm_restart'))) cmd('system_restart'); }
+function shutdownConfirm(){ if(confirm(t('confirm_shutdown'))) cmd('system_shutdown'); }
 function kioskCmd(mode){
   fetch('/api/kiosk/'+mode,{method:'POST'}).catch(()=>{});
   setTimeout(updateKioskStatus,4000);
@@ -193,14 +199,8 @@ function playEpisode(fp){
 }
 let _epPage=0;
 const _epPageSize=18;
-function prevEpisode(){
-  if(_epPage>0){ _epPage--; _epRenderedLen=-1; renderSeasonEpisodes(); }
-}
-function nextEpisode(){
-  const eps=state.season_episodes||[];
-  const pc=Math.max(1,Math.ceil(eps.length/_epPageSize));
-  if(_epPage<pc-1){ _epPage++; _epRenderedLen=-1; renderSeasonEpisodes(); }
-}
+function prevEpisode(){ cmd('prev_episode'); }
+function nextEpisode(){ cmd('next_episode'); }
 
 // ── Playback card ─────────────────────────────────────────────────────────────
 let _lastArtUrl = '';
@@ -288,7 +288,7 @@ function renderTable(id, keys){
 }
 
 // ── Track selects ─────────────────────────────────────────────────────────────
-let _audioHash='', _subHash='';
+let _audioHash='', _subHash='', _chHash='';
 function renderTracks(){
   const audio=state.audio_tracks||[], sub=state.subtitle_tracks||[];
   const curA=state.current_audio??0, curS=state.current_subtitle??-1;
@@ -322,13 +322,21 @@ function renderTracks(){
     selS.disabled=sub.length===0;
   }
 
-  // Chapter text
-  const chEl=document.getElementById('chapter-display');
-  if(chEl){
-    if(chapters.length && curCh>=0 && curCh<chapters.length){
-      chEl.textContent=chapters[curCh].name||('Chapter '+(curCh+1));
+  // Chapter select
+  const chRow=document.getElementById('chapter-row');
+  const selCh=document.getElementById('sel-chapter');
+  if(selCh){
+    if(chapters.length){
+      if(chRow) chRow.style.display='';
+      const cHash=JSON.stringify(chapters);
+      if(cHash!==_chHash){
+        _chHash=cHash;
+        selCh.innerHTML=chapters.map((ch,i)=>`<option value="${i}">${ch.name||('Chapter '+(i+1))}</option>`).join('');
+      }
+      selCh.value=String(curCh);
+      selCh.disabled=false;
     } else {
-      chEl.textContent='—';
+      if(chRow) chRow.style.display='none';
     }
   }
 }
@@ -373,6 +381,10 @@ function renderSeasonEpisodes(){
     card.style.display='none';
     _epRenderedLen=-1; _epRenderedIdx=-2;
     document.getElementById('bottom-pages').textContent='';
+    const pB=document.getElementById('btn-prev-ep');
+    const nB=document.getElementById('btn-next-ep');
+    if(pB) pB.style.display='none';
+    if(nB) nB.style.display='none';
     return;
   }
   card.style.display='';
@@ -430,10 +442,11 @@ function renderSeasonEpisodes(){
     };
   }
 
+  // Sidebar prev/next episode buttons — show when episodes exist, disable at boundaries
   const pB=document.getElementById('btn-prev-ep');
   const nB=document.getElementById('btn-next-ep');
-  if(pB) pB.disabled=_epPage<=0;
-  if(nB) nB.disabled=_epPage>=pc-1;
+  if(pB){ pB.style.display=''; pB.disabled=idx<=0; }
+  if(nB){ nB.style.display=''; nB.disabled=idx<0||idx>=eps.length-1; }
 
   const bpEl=document.getElementById('bottom-pages');
   if(bpEl) bpEl.textContent=pc>1?('Seite '+((_epPage+1)+' von '+pc)):'';
