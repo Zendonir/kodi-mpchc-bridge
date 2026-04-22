@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>kodi-mpchc-bridge</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ── Mobile sticky header (≤900px only) ───────────────────────────────── -->
+<header id="mob-hdr">
+  <span class="mob-logo">kodi-mpchc-bridge</span>
+  <span id="mob-status-dot" class="mob-status-dot"></span>
+  <button class="mob-hamburger" onclick="toggleMobileMenu()" title="Menu">&#9776;</button>
+</header>
+
+<!-- ── Three-column layout ──────────────────────────────────────────────── -->
+<div id="layout">
+
+  <!-- ── Left sidebar (nav#sidebar) ──────────────────────────────────── -->
+  <nav id="sidebar">
+
+    <!-- Logo + status badge -->
+    <div class="sidebar-logo">
+      <span class="logo-text">kodi-mpchc-bridge</span>
+      <span id="status-badge" class="status-badge"></span>
+    </div>
+
+    <!-- Section: STEUERUNG -->
+    <div class="card-hdr" data-i18n="card_controls"></div>
+
+    <!-- Row: -1min, +1min, -10s, +10s -->
+    <div class="ctrl-row">
+      <button onclick="cmd('skip_backward')"       data-i18n="btn_skip_back"></button>
+      <button onclick="cmd('skip_forward')"        data-i18n="btn_skip_fwd"></button>
+      <button onclick="cmd('seek_backward_small')" data-i18n="btn_seek_back"></button>
+      <button onclick="cmd('seek_forward_small')"  data-i18n="btn_seek_fwd"></button>
+    </div>
+
+    <!-- Row: custom seek -->
+    <div class="ctrl-row seek-row">
+      <button onclick="seekCustom(-1)" data-i18n="btn_seek_minus"></button>
+      <input id="seek-secs" type="number" value="30" min="1" max="7200">
+      <span class="seek-unit">s</span>
+      <button onclick="seekCustom(1)" data-i18n="btn_seek_plus"></button>
+    </div>
+
+    <!-- Row: play/pause, stop -->
+    <div class="ctrl-row">
+      <button onclick="cmd('play_pause')">&#x23EF; Play/Pause</button>
+      <button onclick="cmd('stop')">&#x23F9; Stop</button>
+    </div>
+
+    <!-- D-pad + side nav buttons -->
+    <div class="nav-area">
+      <div class="dpad">
+        <div></div>
+        <button onclick="cmd('navigate_up')"     data-i18n-title="nav_up">&#x25B2;</button>
+        <div></div>
+        <button onclick="cmd('navigate_left')"   data-i18n-title="nav_left">&#x25C4;</button>
+        <button class="ok" onclick="cmd('navigate_select')" data-i18n-title="nav_ok">OK</button>
+        <button onclick="cmd('navigate_right')"  data-i18n-title="nav_right">&#x25BA;</button>
+        <div></div>
+        <button onclick="cmd('navigate_down')"   data-i18n-title="nav_down">&#x25BC;</button>
+        <div></div>
+      </div>
+      <div class="nav-side">
+        <button onclick="cmd('navigate_back')"  data-i18n="btn_back"></button>
+        <button onclick="cmd('navigate_home')"  data-i18n="btn_home"></button>
+        <button onclick="cmd('context_menu')"   data-i18n="btn_menu"></button>
+        <button onclick="cmd('show_info')"      data-i18n="btn_info"></button>
+        <button id="btn-watched" onclick="cmd('toggle_watched')" data-i18n="btn_watched" style="display:none"></button>
+      </div>
+    </div>
+
+    <div class="kbd-hint" data-i18n-html="kbd_hint"></div>
+
+    <div class="sep"></div>
+
+    <!-- System buttons -->
+    <div class="ctrl-row">
+      <button onclick="cmd('fullscreen')" data-i18n="btn_fullscreen"></button>
+      <button onclick="restartConfirm()" class="btn-danger" data-i18n="btn_restart_pc"></button>
+    </div>
+
+    <!-- Kiosk buttons (hidden by default, shown when kiosk API responds) -->
+    <div class="ctrl-row" id="kiosk-btns" style="display:none">
+      <button id="btn-kiosk-kodi"    onclick="kioskCmd('kodi')"    class="btn-kiosk-kodi"    data-i18n="btn_kiosk_kodi"></button>
+      <button id="btn-kiosk-windows" onclick="kioskCmd('windows')"                            data-i18n="btn_kiosk_windows"></button>
+      <button id="btn-kiosk-restart" onclick="kioskCmd('restart')" class="btn-amber"          data-i18n="btn_kiosk_restart"></button>
+    </div>
+
+    <!-- Log + Settings -->
+    <div class="ctrl-row">
+      <button onclick="toggleLogs()"     class="btn-blue" data-i18n="btn_logs"></button>
+      <button onclick="toggleSettings()" class="btn-blue" data-i18n="btn_settings"></button>
+    </div>
+
+  </nav><!-- #sidebar -->
+
+  <!-- ── Main center ──────────────────────────────────────────────────── -->
+  <main id="main-content">
+
+    <!-- 1. WIEDERGABE card -->
+    <div class="card" id="card-playback">
+      <div class="card-hdr" data-i18n="card_playback"></div>
+
+      <div class="playback-meta">
+        <img id="artwork" class="artwork" src="" alt="" style="display:none">
+        <div class="meta-block">
+          <div class="meta-row">
+            <span class="meta-label" data-i18n="lbl_active_player"></span>
+            <span id="m-player" class="player-badge none">none</span>
+            <span class="meta-gap"></span>
+            <span id="m-status" class="status-text">&#x2014;</span>
+          </div>
+          <div id="m-title" class="play-title">&#x2014;</div>
+          <div class="meta-row meta-bottom-row">
+            <span class="meta-label" data-i18n="lbl_year"></span>
+            <span id="m-year">&#x2014;</span>
+            <span id="m-datetime" class="meta-dt"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Clickable progress bar -->
+      <div class="progress-wrap" onclick="seekByClick(event)">
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="progress-fill"></div>
+        </div>
+      </div>
+      <div class="times-row">
+        <span id="m-pos">00:00:00</span>
+        <span id="m-dur">00:00:00</span>
+      </div>
+    </div>
+
+    <!-- 2. Info grid (2 columns) -->
+    <div class="info-grid">
+
+      <!-- DETAILS card -->
+      <div class="card">
+        <div class="card-hdr" data-i18n="card_details"></div>
+        <table id="tbl-play"></table>
+      </div>
+
+      <!-- VIDEO-INFO card -->
+      <div class="card">
+        <div class="card-hdr" data-i18n="card_video"></div>
+        <table id="tbl-video"></table>
+      </div>
+
+    </div>
+
+    <!-- 3. SPUREN card -->
+    <div class="card">
+      <div class="card-hdr" data-i18n="card_tracks"></div>
+      <div class="track-row">
+        <span class="track-label" data-i18n="lbl_current_audio"></span>
+        <select id="sel-audio" onchange="cmd('audio_track', parseInt(this.value))"></select>
+      </div>
+      <div class="track-row">
+        <span class="track-label" data-i18n="lbl_current_subtitle"></span>
+        <select id="sel-subtitle" onchange="cmd('subtitle_track', parseInt(this.value))"></select>
+      </div>
+      <div class="track-row">
+        <span class="track-label" data-i18n="lbl_current_chapter"></span>
+        <span id="chapter-display">&#x2014;</span>
+      </div>
+    </div>
+
+    <!-- 4. Season mobile slot (JS moves card-season here when ≤900px) -->
+    <div id="season-mobile-slot"></div>
+
+    <!-- 5. Log viewer (hidden by default) -->
+    <div class="card" id="card-logs" style="display:none">
+      <div class="card-hdr" data-i18n="card_logs"></div>
+      <div class="log-controls">
+        <select id="log-level">
+          <option value="">ALL</option>
+          <option value="DEBUG">DEBUG</option>
+          <option value="INFO">INFO</option>
+          <option value="WARNING">WARNING</option>
+          <option value="ERROR">ERROR</option>
+        </select>
+        <input id="log-search" type="text" placeholder="Filter&#x2026;" style="flex:1;min-width:100px">
+        <select id="log-count">
+          <option value="50" selected>50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+          <option value="500">500</option>
+        </select>
+        <label class="log-auto-label">
+          <input type="checkbox" id="log-auto"> Auto
+        </label>
+        <button onclick="fetchLogs()" data-i18n="btn_log_refresh"></button>
+      </div>
+      <div id="log-output" class="log-output"></div>
+    </div>
+
+    <!-- 6. Settings card (hidden by default) -->
+    <div class="card" id="card-settings" style="display:none">
+      <div class="card-hdr" data-i18n="card_settings"></div>
+
+      <!-- Movie art -->
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="lbl_art_movie"></div>
+        <div class="radio-group">
+          <label><input type="radio" name="art_movie" value="poster"
+            onchange="saveArtMode('movie_art_mode',this)"><span data-i18n="opt_art_poster"></span></label>
+          <label><input type="radio" name="art_movie" value="fanart"
+            onchange="saveArtMode('movie_art_mode',this)"><span data-i18n="opt_art_fanart"></span></label>
+          <label><input type="radio" name="art_movie" value="thumb"
+            onchange="saveArtMode('movie_art_mode',this)"><span data-i18n="opt_art_thumb"></span></label>
+        </div>
+      </div>
+
+      <!-- TV Series art -->
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="lbl_art_episode"></div>
+        <div class="radio-group">
+          <label><input type="radio" name="art_episode" value="poster"
+            onchange="saveArtMode('episode_art_mode',this)"><span data-i18n="opt_art_tvposter"></span></label>
+          <label><input type="radio" name="art_episode" value="season.poster"
+            onchange="saveArtMode('episode_art_mode',this)"><span data-i18n="opt_art_seasonposter"></span></label>
+          <label><input type="radio" name="art_episode" value="thumb"
+            onchange="saveArtMode('episode_art_mode',this)"><span data-i18n="opt_art_thumb"></span></label>
+          <label><input type="radio" name="art_episode" value="fanart"
+            onchange="saveArtMode('episode_art_mode',this)"><span data-i18n="opt_art_fanart"></span></label>
+        </div>
+      </div>
+
+      <!-- Music art -->
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="lbl_art_music"></div>
+        <div class="radio-group">
+          <label><input type="radio" name="art_music" value="thumb"
+            onchange="saveArtMode('music_art_mode',this)"><span data-i18n="opt_art_thumb"></span></label>
+          <label><input type="radio" name="art_music" value="fanart"
+            onchange="saveArtMode('music_art_mode',this)"><span data-i18n="opt_art_fanart"></span></label>
+        </div>
+      </div>
+
+      <!-- Boot target / Kiosk -->
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="lbl_boot_target"></div>
+        <div class="radio-group" style="margin-bottom:10px">
+          <label><input type="radio" name="boot_target" value="kodi"
+            onchange="saveBootTarget(this)"><span data-i18n="opt_boot_kodi"></span></label>
+          <label><input type="radio" name="boot_target" value="windows"
+            onchange="saveBootTarget(this)"><span data-i18n="opt_boot_windows"></span></label>
+        </div>
+        <div class="kodi-exe-row">
+          <label class="kodi-exe-label" data-i18n="lbl_kodi_exe"></label>
+          <input type="text" id="inp_kodi_exe" class="kodi-exe-input"
+            onchange="saveKioskSetting('kodi_exe_path',this.value)">
+        </div>
+      </div>
+    </div>
+
+  </main><!-- #main-content -->
+
+  <!-- ── Right panel: season episodes (desktop) ───────────────────────── -->
+  <aside id="panel-season">
+    <!-- card-season is the single DOM node; JS moves it to season-mobile-slot on mobile -->
+    <div class="card" id="card-season" style="display:none">
+      <div class="season-hdr-row">
+        <div id="season-hdr" class="card-hdr" style="margin-bottom:0;flex:1"></div>
+        <div class="season-nav">
+          <button id="btn-prev-ep" onclick="prevEpisode()" data-i18n="btn_prev_ep" disabled></button>
+          <button id="btn-next-ep" onclick="nextEpisode()" data-i18n="btn_next_ep" disabled></button>
+        </div>
+      </div>
+      <div id="ep-list" class="ep-list"></div>
+    </div>
+  </aside>
+
+</div><!-- #layout -->
+
+<!-- ── Mobile fixed bottom bar ──────────────────────────────────────────── -->
+<div id="mob-footer">
+  <button onclick="cmd('fullscreen')" class="mob-foot-btn">
+    <span class="mob-foot-icon">&#x26F6;</span>
+    <span class="mob-foot-lbl" data-i18n="btn_fullscreen"></span>
+  </button>
+  <button onclick="restartConfirm()" class="mob-foot-btn mob-foot-danger">
+    <span class="mob-foot-icon">&#x23FB;</span>
+    <span class="mob-foot-lbl" data-i18n="btn_restart_pc"></span>
+  </button>
+  <button id="mob-btn-kiosk-kodi" onclick="kioskCmd('kodi')" class="mob-foot-btn mob-foot-kodi" style="display:none">
+    <span class="mob-foot-icon">&#x25B6;</span>
+    <span class="mob-foot-lbl" data-i18n="btn_kiosk_kodi"></span>
+  </button>
+  <button id="mob-btn-kiosk-windows" onclick="kioskCmd('windows')" class="mob-foot-btn" style="display:none">
+    <span class="mob-foot-icon">&#x1F5BC;</span>
+    <span class="mob-foot-lbl" data-i18n="btn_kiosk_windows"></span>
+  </button>
+  <button id="mob-btn-kiosk-restart" onclick="kioskCmd('restart')" class="mob-foot-btn mob-foot-amber" style="display:none">
+    <span class="mob-foot-icon">&#x21BB;</span>
+    <span class="mob-foot-lbl" data-i18n="btn_kiosk_restart"></span>
+  </button>
+  <button onclick="toggleSettings()" class="mob-foot-btn">
+    <span class="mob-foot-icon">&#x2699;</span>
+    <span class="mob-foot-lbl" data-i18n="btn_settings"></span>
+  </button>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

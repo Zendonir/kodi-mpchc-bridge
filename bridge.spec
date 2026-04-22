@@ -23,7 +23,7 @@ a = Analysis(
     ["main.py"],
     pathex=["."],
     binaries=[],
-    datas=[],
+    datas=[('bridge/static', 'bridge/static')],
     hiddenimports=[
         # asyncio internals
         "asyncio",
