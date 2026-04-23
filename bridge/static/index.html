@@ -18,89 +18,104 @@
   <button class="mob-hamburger" onclick="toggleMobileMenu()" title="Menu">&#9776;</button>
 </header>
 
+<div id="mob-overlay" onclick="toggleMobileMenu(false)"></div>
+
 <!-- ── Three-column layout ──────────────────────────────────────────────── -->
-<div id="layout">
+<div id="layout" class="no-playlist">
 
   <!-- ── Left sidebar (nav#sidebar) ──────────────────────────────────── -->
   <nav id="sidebar">
 
-    <!-- Logo + status -->
+    <!-- Logo + status (full width) -->
     <div class="sidebar-logo">
-      <img src="/static/logo.png" class="kodi-icon" alt="logo" onerror="this.style.display='none'">
+      <img src="/static/logo.png" class="kodi-icon" alt="K" onerror="this.src='/static/logo.svg'">
       <div class="logo-info">
         <span class="logo-text">kodi-mpchc-bridge</span>
         <span id="status-badge" class="status-badge"></span>
       </div>
     </div>
 
-    <!-- Section: STEUERUNG -->
-    <div class="card-hdr" data-i18n="card_controls"></div>
+    <!-- Two-column body -->
+    <div class="sidebar-cols">
 
-    <!-- Row: -1min, +1min -->
-    <div class="ctrl-row">
-      <button onclick="cmd('skip_backward')" data-i18n="btn_skip_back"></button>
-      <button onclick="cmd('skip_forward')"  data-i18n="btn_skip_fwd"></button>
-    </div>
+      <!-- ── Left column: STEUERUNG · NAVIGATION · KEYBOARD ── -->
+      <div class="sidebar-col-l">
 
-    <!-- Row: custom seek + -10s / +10s -->
-    <div class="ctrl-row seek-row">
-      <button onclick="cmd('seek_backward_small')" data-i18n="btn_seek_back"></button>
-      <button onclick="seekCustom(-1)" data-i18n="btn_seek_minus"></button>
-      <input id="seek-secs" type="number" value="30" min="1" max="7200">
-      <span class="seek-unit">s</span>
-      <button onclick="seekCustom(1)" data-i18n="btn_seek_plus"></button>
-      <button onclick="cmd('seek_forward_small')"  data-i18n="btn_seek_fwd"></button>
-    </div>
+        <div class="card-hdr" data-i18n="card_controls"></div>
 
-    <!-- Row: play/pause, stop -->
-    <div class="ctrl-row">
-      <button onclick="cmd('play_pause')">&#x23EF; Play/Pause</button>
-      <button onclick="cmd('stop')">&#x23F9; Stop</button>
-    </div>
+        <div class="ctrl-section-label" data-i18n="lbl_time_jump"></div>
+        <div class="ctrl-row" id="ep-nav-row" style="display:none">
+          <button id="btn-prev-ep" onclick="prevEpisode()" data-i18n="btn_prev_ep" disabled></button>
+          <button id="btn-next-ep" onclick="nextEpisode()" data-i18n="btn_next_ep" disabled></button>
+        </div>
+        <div class="seek-row">
+          <button onclick="cmd('prev_chapter')">&#x23EE;</button>
+          <button onclick="seekCustom(-1)">&#x23EA;</button>
+          <input id="seek-secs" type="number" value="30" min="1" max="7200">
+          <span class="seek-unit">s</span>
+          <button onclick="seekCustom(1)">&#x23E9;</button>
+          <button onclick="cmd('next_chapter')">&#x23ED;</button>
+        </div>
 
-    <!-- D-pad + side nav buttons -->
-    <div class="nav-area">
-      <div class="dpad">
-        <button class="dpad-up"    onclick="cmd('navigate_up')"     data-i18n-title="nav_up">&#x25B2;</button>
-        <button class="dpad-left"  onclick="cmd('navigate_left')"   data-i18n-title="nav_left">&#x25C4;</button>
-        <button class="dpad-ok ok" onclick="cmd('navigate_select')" data-i18n-title="nav_ok">OK</button>
-        <button class="dpad-right" onclick="cmd('navigate_right')"  data-i18n-title="nav_right">&#x25BA;</button>
-        <button class="dpad-down"  onclick="cmd('navigate_down')"   data-i18n-title="nav_down">&#x25BC;</button>
-      </div>
-      <div class="nav-side">
-        <button onclick="cmd('navigate_back')"  data-i18n="btn_back"></button>
-        <button onclick="cmd('navigate_home')"  data-i18n="btn_home"></button>
-        <button onclick="cmd('context_menu')"   data-i18n="btn_menu"></button>
-        <button onclick="cmd('show_info')"      data-i18n="btn_info"></button>
-        <button id="btn-watched" onclick="cmd('toggle_watched')" data-i18n="btn_watched" style="display:none"></button>
-        <button id="btn-prev-ep" onclick="prevEpisode()" data-i18n="btn_prev_ep" style="display:none" disabled></button>
-        <button id="btn-next-ep" onclick="nextEpisode()" data-i18n="btn_next_ep" style="display:none" disabled></button>
-      </div>
-    </div>
+        <div class="ctrl-section-label" data-i18n="lbl_playback"></div>
+        <div class="ctrl-row">
+          <button onclick="cmd('play_pause')">&#x23EF; Play/Pause</button>
+          <button onclick="cmd('stop')">&#x23F9; Stop</button>
+        </div>
 
-    <div class="kbd-hint" data-i18n-html="kbd_hint"></div>
+        <div class="card-hdr" data-i18n="card_navigation"></div>
+        <div class="dpad">
+          <button class="dpad-up"    onclick="cmd('navigate_up')"     data-i18n-title="nav_up">&#x25B2;</button>
+          <button class="dpad-left"  onclick="cmd('navigate_left')"   data-i18n-title="nav_left">&#x25C4;</button>
+          <button class="dpad-ok ok" onclick="cmd('navigate_select')" data-i18n-title="nav_ok">OK</button>
+          <button class="dpad-right" onclick="cmd('navigate_right')"  data-i18n-title="nav_right">&#x25BA;</button>
+          <button class="dpad-down"  onclick="cmd('navigate_down')"   data-i18n-title="nav_down">&#x25BC;</button>
+        </div>
 
-    <div class="sep"></div>
+        <div class="card-hdr" data-i18n="card_keyboard"></div>
+        <table class="kbd-table">
+          <tr><td><kbd>↑↓←→</kbd></td><td data-i18n="kbh_navigate"></td></tr>
+          <tr><td><kbd>Enter</kbd></td><td data-i18n="kbh_ok"></td></tr>
+          <tr><td><kbd>Esc</kbd></td><td data-i18n="kbh_back"></td></tr>
+          <tr><td><kbd>Space</kbd></td><td data-i18n="kbh_playpause"></td></tr>
+          <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td data-i18n="kbh_seek"></td></tr>
+        </table>
 
-    <!-- System buttons -->
-    <div class="ctrl-row">
-      <button onclick="cmd('fullscreen')" data-i18n="btn_fullscreen"></button>
-      <button onclick="restartConfirm()"  class="btn-danger" data-i18n="btn_restart_pc"></button>
-      <button onclick="shutdownConfirm()" class="btn-danger" data-i18n="btn_shutdown"></button>
-    </div>
+      </div><!-- .sidebar-col-l -->
 
-    <!-- Kiosk buttons (hidden by default, shown when kiosk API responds) -->
-    <div class="ctrl-row" id="kiosk-btns" style="display:none">
-      <button id="btn-kiosk-kodi"    onclick="kioskCmd('kodi')"    class="btn-kiosk-kodi"    data-i18n="btn_kiosk_kodi"></button>
-      <button id="btn-kiosk-windows" onclick="kioskCmd('windows')"                            data-i18n="btn_kiosk_windows"></button>
-      <button id="btn-kiosk-restart" onclick="kioskCmd('restart')" class="btn-amber"          data-i18n="btn_kiosk_restart"></button>
-    </div>
+      <!-- ── Right column: AKTIONEN · POWER · SYSTEM ── -->
+      <div class="sidebar-col-r">
 
-    <!-- Log + Settings -->
-    <div class="ctrl-row">
-      <button onclick="toggleLogs()"     class="btn-blue" data-i18n="btn_logs"></button>
-      <button onclick="toggleSettings()" class="btn-blue" data-i18n="btn_settings"></button>
-    </div>
+        <div class="card-hdr" data-i18n="card_actions"></div>
+        <div class="nav-side">
+          <button onclick="cmd('navigate_back')"  data-i18n="btn_back"></button>
+          <button onclick="cmd('navigate_home')"  data-i18n="btn_home"></button>
+          <button onclick="cmd('context_menu')"   data-i18n="btn_menu"></button>
+          <button onclick="cmd('show_info')"      data-i18n="btn_info"></button>
+          <button id="btn-watched" onclick="cmd('toggle_watched')" data-i18n="btn_watched" style="display:none"></button>
+        </div>
+
+        <div class="card-hdr" data-i18n="card_power"></div>
+        <div class="nav-side">
+          <button onclick="cmd('fullscreen')" data-i18n="btn_fullscreen"></button>
+          <button onclick="restartConfirm()"  class="btn-danger" data-i18n="btn_restart_pc"></button>
+          <button onclick="shutdownConfirm()" class="btn-danger" data-i18n="btn_shutdown"></button>
+        </div>
+
+        <div class="card-hdr" data-i18n="card_system"></div>
+        <div class="nav-side" id="kiosk-btns" style="display:none">
+          <button id="btn-kiosk-kodi"    onclick="kioskCmd('kodi')"    class="btn-kiosk-kodi"    data-i18n="btn_kiosk_kodi"></button>
+          <button id="btn-kiosk-windows" onclick="kioskCmd('windows')"                            data-i18n="btn_kiosk_windows"></button>
+          <button id="btn-kiosk-restart" onclick="kioskCmd('restart')" class="btn-amber"          data-i18n="btn_kiosk_restart"></button>
+        </div>
+        <div class="nav-side">
+          <button onclick="toggleLogs()"     class="btn-blue" data-i18n="btn_logs"></button>
+          <button onclick="toggleSettings()" class="btn-blue" data-i18n="btn_settings"></button>
+        </div>
+
+      </div><!-- .sidebar-col-r -->
+
+    </div><!-- .sidebar-cols -->
 
   </nav><!-- #sidebar -->
 
@@ -124,7 +139,6 @@
           <div class="meta-row meta-bottom-row">
             <span class="meta-label" data-i18n="lbl_year"></span>
             <span id="m-year">&#x2014;</span>
-            <span id="m-datetime" class="meta-dt"></span>
           </div>
         </div>
       </div>
@@ -169,7 +183,7 @@
         <span class="track-label" data-i18n="lbl_current_subtitle"></span>
         <select id="sel-subtitle" onchange="cmd('subtitle_track', parseInt(this.value))"></select>
       </div>
-      <div class="track-row" id="chapter-row" style="display:none">
+      <div class="track-row" id="chapter-row">
         <span class="track-label" data-i18n="lbl_current_chapter"></span>
         <select id="sel-chapter" onchange="cmd('chapter', parseInt(this.value))"></select>
       </div>
@@ -247,6 +261,25 @@
         </div>
       </div>
 
+      <!-- UI Language override -->
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="lbl_ui_language"></div>
+        <select id="sel-lang" onchange="setLanguage(this.value)">
+          <option value="" data-i18n="opt_lang_auto"></option>
+          <option value="de">Deutsch</option>
+          <option value="en">English</option>
+          <option value="fr">Français</option>
+          <option value="es">Español</option>
+          <option value="it">Italiano</option>
+        </select>
+      </div>
+
+      <!-- External player toggle -->
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="lbl_ext_player"></div>
+        <button id="btn-ext-player" onclick="toggleExternalPlayer()" style="width:100%"></button>
+      </div>
+
       <!-- Boot target / Kiosk -->
       <div class="settings-section">
         <div class="settings-section-title" data-i18n="lbl_boot_target"></div>
@@ -279,37 +312,43 @@
 
 </div><!-- #layout -->
 
-<!-- ── Mobile fixed bottom bar ──────────────────────────────────────────── -->
+<!-- ── Mobile fixed bottom bar (3 tabs) ─────────────────────────────────── -->
 <div id="mob-footer">
-  <button onclick="cmd('fullscreen')" class="mob-foot-btn">
-    <span class="mob-foot-icon">&#x26F6;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_fullscreen"></span>
-  </button>
-  <button onclick="restartConfirm()" class="mob-foot-btn mob-foot-danger">
-    <span class="mob-foot-icon">&#x23FB;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_restart_pc"></span>
-  </button>
-  <button id="mob-btn-kiosk-kodi" onclick="kioskCmd('kodi')" class="mob-foot-btn mob-foot-kodi" style="display:none">
-    <span class="mob-foot-icon">&#x25B6;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_kiosk_kodi"></span>
-  </button>
-  <button id="mob-btn-kiosk-windows" onclick="kioskCmd('windows')" class="mob-foot-btn" style="display:none">
-    <span class="mob-foot-icon">&#x1F5BC;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_kiosk_windows"></span>
-  </button>
-  <button id="mob-btn-kiosk-restart" onclick="kioskCmd('restart')" class="mob-foot-btn mob-foot-amber" style="display:none">
-    <span class="mob-foot-icon">&#x21BB;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_kiosk_restart"></span>
-  </button>
-  <button onclick="toggleSettings()" class="mob-foot-btn">
-    <span class="mob-foot-icon">&#x2699;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_settings"></span>
-  </button>
+  <div class="mob-tabs-bar">
+    <button class="mob-tab-btn active" onclick="mobSetTab(0)"></button>
+    <button class="mob-tab-btn" onclick="mobSetTab(1)"></button>
+  </div>
+
+  <!-- Tab 0: D-Pad + corner action buttons -->
+  <div class="mob-tab active" id="mob-tab-0">
+    <div class="mob-dpad">
+      <button class="mob-corner" onclick="cmd('navigate_back')">&#x21A9;</button>
+      <button onclick="cmd('navigate_up')">&#x25B2;</button>
+      <button class="mob-corner" onclick="cmd('show_info')">&#x2139;</button>
+      <button onclick="cmd('navigate_left')">&#x25C4;</button>
+      <button class="mob-dpad-ok" onclick="cmd('navigate_select')">OK</button>
+      <button onclick="cmd('navigate_right')">&#x25BA;</button>
+      <button class="mob-corner" onclick="cmd('navigate_home')">&#x2302;</button>
+      <button onclick="cmd('navigate_down')">&#x25BC;</button>
+      <button class="mob-corner" onclick="cmd('context_menu')">&#x2630;</button>
+    </div>
+  </div>
+
+  <!-- Tab 1: Playback -->
+  <div class="mob-tab" id="mob-tab-1">
+    <div class="mob-play-row">
+      <button id="mob-prev-ep" onclick="prevEpisode()" disabled>&#x23EE;</button>
+      <button onclick="cmd('prev_chapter')">&#x23EA;</button>
+      <button class="mob-playpause" onclick="cmd('play_pause')">&#x23EF;</button>
+      <button onclick="cmd('next_chapter')">&#x23E9;</button>
+      <button id="mob-next-ep" onclick="nextEpisode()" disabled>&#x23ED;</button>
+    </div>
+    <button class="mob-stop" onclick="cmd('stop')">&#x23F9; Stop</button>
+  </div>
 </div>
 
 <!-- ── Desktop bottom status bar ────────────────────────────────────────── -->
 <div id="bottom-bar">
-  <span id="bottom-datetime"></span>
   <span id="bottom-pages"></span>
 </div>
 

@@ -56,31 +56,7 @@ RECONNECT_DELAY = 0.5
 # Regex for status.html fields
 _RE_FIELD = re.compile(r'<p id="([^"]+)"[^>]*>([^<]*)</p>', re.DOTALL)
 
-# Base wm_command IDs for track selection via Win32
-_AUDIO_BASE = 50000
-_SUB_BASE = 50935
-
-# Win32 PostMessage for track selection (HTTP API silently ignores these IDs)
-_WM_COMMAND = 0x0111
 _MPCHC_CLASSES = ("MediaPlayerClassicW", "MPC-BE", "MPC-BE64")
-
-if sys.platform == "win32":
-    import ctypes as _ctypes
-    _user32: Any = _ctypes.windll.user32
-else:
-    _user32 = None
-
-
-def _post_wm_command(cmd_id: int) -> bool:
-    """Send WM_COMMAND directly to the MPC-HC window via Win32 PostMessageW."""
-    if _user32 is None:
-        return False
-    for cls in _MPCHC_CLASSES:
-        hwnd = _user32.FindWindowW(cls, None)
-        if hwnd:
-            _user32.PostMessageW(hwnd, _WM_COMMAND, cmd_id, 0)
-            return True
-    return False
 
 
 def _ms_to_hmsms(ms: int) -> str:
@@ -153,14 +129,9 @@ class MpcHcClient:
         return await self._get("/command.html", {"wm_command": -2, "volume": max(0, min(100, volume))})
 
     async def set_audio_track(self, target: int, current: int, total: int) -> bool:
-        """Cycle to audio track *target* using next/prev commands, or Win32 PostMessage."""
+        """Cycle to audio track *target* using next/prev commands."""
         if total <= 0:
             return False
-        cmd_id = _AUDIO_BASE + target
-        if _post_wm_command(cmd_id):
-            _LOG.info("AUDIO select: target=%d  → PostMessage wm_command=%d", target, cmd_id)
-            return True
-        # Fallback: cycle via HTTP next/prev
         steps_fwd = (target - current) % total
         steps_bwd = (current - target) % total
         if steps_fwd == 0:
@@ -174,29 +145,25 @@ class MpcHcClient:
         return True
 
     async def set_subtitle_track(self, target: int, current: int, total: int) -> bool:
-        """Cycle to subtitle track *target* using next/prev commands. target=-1 disables.
+        """Cycle to subtitle track *target* using next/prev commands. target=-1 disables subtitles.
 
-        MPC-HC's subtitle cycle has (total + 1) slots:
-          0, 1, ..., total-1, [No subtitles], 0, 1, ...
-        'No subtitles' (-1) maps to position *total* in the cycle.
+        MPC-HC subtitle cycle: 0 … total-1, then [No subtitles] = slot total.
         """
         if total <= 0:
-            _LOG.warning("SUB select: target=%s  current=%s  total=0  → DROPPED (no tracks)",
-                         "Off" if target < 0 else target, "Off" if current < 0 else current)
+            _LOG.warning("SUB select: target=%s  total=0  → DROPPED (no tracks)",
+                         "Off" if target < 0 else target)
             return False
 
-        cycle_len = total + 1
+        cycle_len = total + 1  # 0…total-1 + "Off" slot
         pos_current = total if current < 0 else current
-        pos_target = total if target < 0 else target
-
+        pos_target  = total if target  < 0 else target
         steps_fwd = (pos_target - pos_current) % cycle_len
         steps_bwd = (pos_current - pos_target) % cycle_len
-
         t_lbl = "Off" if target < 0 else str(target)
         c_lbl = "Off" if current < 0 else str(current)
 
         if steps_fwd == 0:
-            _LOG.info("SUB select: target=%s  current=%s  total=%d  → no-op (already selected)", t_lbl, c_lbl, total)
+            _LOG.info("SUB select: target=%s  current=%s  total=%d  → no-op", t_lbl, c_lbl, total)
             return True
 
         cmd, steps = (CMD_NEXT_SUBTITLE, steps_fwd) if steps_fwd <= steps_bwd else (CMD_PREV_SUBTITLE, steps_bwd)
@@ -206,6 +173,16 @@ class MpcHcClient:
             await self.send_command(cmd)
             await asyncio.sleep(0.05)
         return True
+
+    async def get_track_names(self) -> dict[str, str] | None:
+        """Fetch current audiotrack / subtitletrack names from MPC-HC status."""
+        fields = await self._fetch_status()
+        if fields is None:
+            return None
+        return {
+            "audiotrack":    fields.get("audiotrack", ""),
+            "subtitletrack": fields.get("subtitletrack", ""),
+        }
 
     async def send_key(self, vk_code: int, ctrl: bool = False, alt: bool = False) -> bool:
         """Send a keyboard message directly to the MPC-HC/MPC-BE window via Windows API.
@@ -263,22 +240,28 @@ class MpcHcClient:
         import sys
         if sys.platform != "win32":
             return
+        _NW = subprocess.CREATE_NO_WINDOW
         try:
             # Find PID listening on the MPC-HC port
             port = int(self._base.rsplit(":", 1)[-1])
             out = subprocess.check_output(
-                ["netstat", "-ano"], text=True, stderr=subprocess.DEVNULL
+                ["netstat", "-ano"], text=True, stderr=subprocess.DEVNULL,
+                creationflags=_NW,
             )
             for line in out.splitlines():
                 if f":{port}" in line and "LISTENING" in line:
                     pid = line.split()[-1]
-                    subprocess.run(["taskkill", "/f", "/pid", pid], capture_output=True)
+                    subprocess.run(
+                        ["taskkill", "/f", "/pid", pid],
+                        capture_output=True, creationflags=_NW,
+                    )
                     _LOG.info("MPC-HC closed (PID %s)", pid)
                     return
             # Fallback: kill by known exe names
             for name in ("mpc-hc64.exe", "mpc-hc.exe", "mpc-be64.exe", "mpc-be.exe"):
                 result = subprocess.run(
-                    ["taskkill", "/f", "/im", name], capture_output=True
+                    ["taskkill", "/f", "/im", name],
+                    capture_output=True, creationflags=_NW,
                 )
                 if result.returncode == 0:
                     _LOG.info("MPC-HC closed (%s)", name)

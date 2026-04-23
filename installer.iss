@@ -312,6 +312,19 @@ var
 // Safe to call at any point — does NOT use {app} (which is unavailable
 // until the install directory page has been confirmed).
 // --------------------------------------------------------------------------
+// Returns True when the Windows Explorer shell (taskbar) is already running.
+// Used to guard Exec('explorer.exe',...) calls: launching explorer.exe while
+// the shell is running opens a folder window instead of restarting the shell.
+// --------------------------------------------------------------------------
+function FindWindowW(lpClassName, lpWindowName: String): HWND;
+  external 'FindWindowW@user32.dll stdcall';
+
+function IsShellRunning: Boolean;
+begin
+  Result := FindWindowW('Shell_TrayWnd', '') <> 0;
+end;
+
+// --------------------------------------------------------------------------
 function GetInstalledDir: String;
 begin
   Result := '';
@@ -971,10 +984,12 @@ begin
     DelTree(ExpandConstant('{localappdata}\kodi-mpchc-bridge-rt'), True, True, True);
 
     // If bridge was registered as Windows shell, Explorer is not running → start it.
+    // Guard: only launch if the shell is not already running; calling explorer.exe
+    // while Explorer is running opens a folder window instead of restarting the shell.
     if RegQueryStringValue(HKCU,
         'Software\Microsoft\Windows NT\CurrentVersion\Winlogon',
         'Shell', ShellVal) then begin
-      if Pos(LowerCase('{#AppExe}'), LowerCase(ShellVal)) > 0 then
+      if (Pos(LowerCase('{#AppExe}'), LowerCase(ShellVal)) > 0) and (not IsShellRunning) then
         Exec('explorer.exe', '', '', SW_SHOW, ewNoWait, rc);
     end;
 
@@ -1019,10 +1034,12 @@ var
 begin
   // If bridge is registered as the Windows shell, start Explorer before
   // killing the bridge so the user keeps a usable desktop during the upgrade.
+  // Guard: only launch if the shell is not already running; calling explorer.exe
+  // while Explorer is running opens a folder window instead of restarting the shell.
   if RegQueryStringValue(HKCU,
       'Software\Microsoft\Windows NT\CurrentVersion\Winlogon',
       'Shell', ShellVal) then begin
-    if Pos(LowerCase('{#AppExe}'), LowerCase(ShellVal)) > 0 then begin
+    if (Pos(LowerCase('{#AppExe}'), LowerCase(ShellVal)) > 0) and (not IsShellRunning) then begin
       Exec('explorer.exe', '', '', SW_SHOW, ewNoWait, rc);
       Sleep(2000);  // give Explorer time to draw the desktop
     end;
