@@ -338,7 +338,7 @@ function renderTracks(){
     if(cHash!==_chHash){
       _chHash=cHash;
       selCh.innerHTML=chapters.length
-        ? chapters.map((ch,i)=>`<option value="${i}">${ch.name||('Chapter '+(i+1))}</option>`).join('')
+        ? chapters.map((ch,i)=>{const n=(ch.name||('Chapter '+(i+1))).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');return `<option value="${i}">${n}</option>`;}).join('')
         : '<option value="">—</option>';
     }
     selCh.value=chapters.length?String(curCh):'';

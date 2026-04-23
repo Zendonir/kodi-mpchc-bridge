@@ -409,9 +409,12 @@ class CommandRouter:
             target = int(value)
             cur = self._state.state.current_chapter
             delta = target - cur
+            ok = True
             for _ in range(abs(delta)):
-                await self._mpchc.send_command(CMD_NEXT_CHAPTER if delta > 0 else CMD_PREV_CHAPTER)
-            return True
+                ok = await self._mpchc.send_command(CMD_NEXT_CHAPTER if delta > 0 else CMD_PREV_CHAPTER)
+                if not ok:
+                    break
+            return ok
         elif cmd == "mpchc_next_audio":
             return await self._mpchc.send_command(CMD_NEXT_AUDIO)
         elif cmd == "mpchc_prev_audio":
