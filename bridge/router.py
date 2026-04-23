@@ -104,23 +104,18 @@ class CommandRouter:
         on_play_episode: "Callable | None" = None,
         on_kiosk_toggle: "Callable | None" = None,
         on_toggle_watched: "Callable | None" = None,
+        push_cb: "Callable | None" = None,
     ) -> None:
         self._state = state
         self._kodi = kodi
         self._mpchc = mpchc
-        # Optional async callback — called before MPC-HC is closed so the hub
-        # can immediately signal active_player=none (speeds up Kodi return).
         self._on_mpchc_stop = on_mpchc_stop
-        # Optional async callback — toggles external_player_enabled in config.
         self._on_toggle_ext_player = on_toggle_ext_player
-        # Optional async callback(direction) — plays next/prev episode from the
-        # season episode list currently in state.
         self._on_play_episode = on_play_episode
-        # Optional async callback — kiosk mode: kill Kodi / toggle Explorer.
-        # When None, the classic minimize/restore behaviour is used.
         self._on_kiosk_toggle = on_kiosk_toggle
-        # Optional async callback — toggle watched/unwatched in Kodi library.
         self._on_toggle_watched = on_toggle_watched
+        # Optional async callback — push state patches to WS clients immediately.
+        self._push_cb = push_cb
         # While the resume dialog is visible this is set to the dialog's
         # inject-key function.  All nav/stop commands are redirected there.
         self._dialog_handler: "Callable[[str], None] | None" = None
@@ -396,6 +391,8 @@ class CommandRouter:
             ok = await self._mpchc.set_audio_track(target, cur, total)
             if ok:
                 self._state.apply({"current_audio": target})
+                if self._push_cb:
+                    await self._push_cb({"current_audio": target})
             return ok
         elif cmd == "subtitle_track" and value is not None:
             target = int(value)
@@ -404,9 +401,18 @@ class CommandRouter:
             ok = await self._mpchc.set_subtitle_track(target, cur, total)
             if ok:
                 self._state.apply({"current_subtitle": target})
+                if self._push_cb:
+                    await self._push_cb({"current_subtitle": target})
             return ok
         elif cmd == "chapter" and value is not None:
             target = int(value)
+            chapters = self._state.state.chapters
+            if chapters and 0 <= target < len(chapters):
+                ch = chapters[target]
+                time_ms = ch.get("time_ms", 0) if isinstance(ch, dict) else getattr(ch, "time_ms", 0)
+                _LOG.info("Chapter seek: index=%d time_ms=%d", target, time_ms)
+                return await self._mpchc.seek(time_ms)
+            # Fallback: delta navigation when no chapter timestamps available
             cur = self._state.state.current_chapter
             delta = target - cur
             ok = True

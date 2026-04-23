@@ -506,6 +506,7 @@ class Hub:
             on_play_episode=self._play_episode_cmd,
             on_kiosk_toggle=self._toggle_kiosk_mode,
             on_toggle_watched=self._toggle_watched,
+            push_cb=self._push,
         )
 
         self._server = BridgeServer(

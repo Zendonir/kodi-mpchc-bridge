@@ -174,25 +174,35 @@ class MpcHcClient:
         return True
 
     async def set_subtitle_track(self, target: int, current: int, total: int) -> bool:
-        """Cycle to subtitle track *target* using next/prev commands. target=-1 disables.
+        """Select subtitle track *target*. target=-1 disables subtitles.
 
-        MPC-HC's subtitle cycle has (total + 1) slots:
-          0, 1, ..., total-1, [No subtitles], 0, 1, ...
-        'No subtitles' (-1) maps to position *total* in the cycle.
+        Tries direct Win32 PostMessage (ID_SUBTITLES_TRACK_LIST + index) first,
+        then falls back to cycling via next/prev commands if PostMessage fails.
+        MPC-HC subtitle cycle: 0 … total-1, [No subtitles] = slot total.
         """
         if total <= 0:
             _LOG.warning("SUB select: target=%s  current=%s  total=0  → DROPPED (no tracks)",
                          "Off" if target < 0 else target, "Off" if current < 0 else current)
             return False
 
+        t_lbl = "Off" if target < 0 else str(target)
+
+        # Direct selection via Win32 PostMessage (same approach as audio tracks).
+        # Disabled subtitles (target=-1) → slot after last track = _SUB_BASE + total.
+        if target >= 0:
+            cmd_id = _SUB_BASE + target
+        else:
+            cmd_id = _SUB_BASE + total  # "Off" slot
+        if _post_wm_command(cmd_id):
+            _LOG.info("SUB select: target=%s → PostMessage wm_command=%d", t_lbl, cmd_id)
+            return True
+
+        # Fallback: cycle via next/prev
         cycle_len = total + 1
         pos_current = total if current < 0 else current
-        pos_target = total if target < 0 else target
-
+        pos_target  = total if target  < 0 else target
         steps_fwd = (pos_target - pos_current) % cycle_len
         steps_bwd = (pos_current - pos_target) % cycle_len
-
-        t_lbl = "Off" if target < 0 else str(target)
         c_lbl = "Off" if current < 0 else str(current)
 
         if steps_fwd == 0:
@@ -201,7 +211,7 @@ class MpcHcClient:
 
         cmd, steps = (CMD_NEXT_SUBTITLE, steps_fwd) if steps_fwd <= steps_bwd else (CMD_PREV_SUBTITLE, steps_bwd)
         direction = "NEXT" if cmd == CMD_NEXT_SUBTITLE else "PREV"
-        _LOG.info("SUB select: target=%s  current=%s  total=%d  → %s x%d", t_lbl, c_lbl, total, direction, steps)
+        _LOG.info("SUB select: target=%s  current=%s  total=%d  → %s x%d (fallback cycle)", t_lbl, c_lbl, total, direction, steps)
         for _ in range(steps):
             await self.send_command(cmd)
             await asyncio.sleep(0.05)
