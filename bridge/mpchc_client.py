@@ -174,6 +174,16 @@ class MpcHcClient:
             await asyncio.sleep(0.05)
         return True
 
+    async def get_track_names(self) -> dict[str, str] | None:
+        """Fetch current audiotrack / subtitletrack names from MPC-HC status."""
+        fields = await self._fetch_status()
+        if fields is None:
+            return None
+        return {
+            "audiotrack":    fields.get("audiotrack", ""),
+            "subtitletrack": fields.get("subtitletrack", ""),
+        }
+
     async def send_key(self, vk_code: int, ctrl: bool = False, alt: bool = False) -> bool:
         """Send a keyboard message directly to the MPC-HC/MPC-BE window via Windows API.
 

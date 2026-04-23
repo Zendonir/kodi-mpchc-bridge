@@ -7,6 +7,7 @@ player (Kodi or MPC-HC) based on which is currently active.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sys
 from typing import TYPE_CHECKING, Callable
@@ -105,6 +106,7 @@ class CommandRouter:
         on_kiosk_toggle: "Callable | None" = None,
         on_toggle_watched: "Callable | None" = None,
         push_cb: "Callable | None" = None,
+        on_track_change: "Callable | None" = None,
     ) -> None:
         self._state = state
         self._kodi = kodi
@@ -114,8 +116,9 @@ class CommandRouter:
         self._on_play_episode = on_play_episode
         self._on_kiosk_toggle = on_kiosk_toggle
         self._on_toggle_watched = on_toggle_watched
-        # Optional async callback — push state patches to WS clients immediately.
         self._push_cb = push_cb
+        # Called after a manual track change: suppresses poll resync + schedules 3s sync
+        self._on_track_change = on_track_change
         # While the resume dialog is visible this is set to the dialog's
         # inject-key function.  All nav/stop commands are redirected there.
         self._dialog_handler: "Callable[[str], None] | None" = None
@@ -390,9 +393,10 @@ class CommandRouter:
             total = len(self._state.state.audio_tracks)
             ok = await self._mpchc.set_audio_track(target, cur, total)
             if ok:
-                self._state.apply({"current_audio": target})
                 if self._push_cb:
                     await self._push_cb({"current_audio": target})
+                if self._on_track_change:
+                    asyncio.create_task(self._on_track_change())
             return ok
         elif cmd == "subtitle_track" and value is not None:
             target = int(value)
@@ -400,9 +404,10 @@ class CommandRouter:
             total = len(self._state.state.subtitle_tracks)
             ok = await self._mpchc.set_subtitle_track(target, cur, total)
             if ok:
-                self._state.apply({"current_subtitle": target})
                 if self._push_cb:
                     await self._push_cb({"current_subtitle": target})
+                if self._on_track_change:
+                    asyncio.create_task(self._on_track_change())
             return ok
         elif cmd == "chapter" and value is not None:
             target = int(value)
