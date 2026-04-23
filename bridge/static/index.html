@@ -49,12 +49,12 @@
           <button id="btn-next-ep" onclick="nextEpisode()" data-i18n="btn_next_ep" disabled></button>
         </div>
         <div class="seek-row">
-          <button onclick="cmd('skip_backward')">&#x23EE;</button>
+          <button onclick="cmd('prev_chapter')">&#x23EE;</button>
           <button onclick="seekCustom(-1)">&#x23EA;</button>
           <input id="seek-secs" type="number" value="30" min="1" max="7200">
           <span class="seek-unit">s</span>
           <button onclick="seekCustom(1)">&#x23E9;</button>
-          <button onclick="cmd('skip_forward')">&#x23ED;</button>
+          <button onclick="cmd('next_chapter')">&#x23ED;</button>
         </div>
 
         <div class="ctrl-section-label" data-i18n="lbl_playback"></div>
@@ -260,6 +260,19 @@
           <label><input type="radio" name="art_music" value="fanart"
             onchange="saveArtMode('music_art_mode',this)"><span data-i18n="opt_art_fanart"></span></label>
         </div>
+      </div>
+
+      <!-- UI Language override -->
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="lbl_ui_language"></div>
+        <select id="sel-lang" onchange="setLanguage(this.value)">
+          <option value="" data-i18n="opt_lang_auto"></option>
+          <option value="de">Deutsch</option>
+          <option value="en">English</option>
+          <option value="fr">Français</option>
+          <option value="es">Español</option>
+          <option value="it">Italiano</option>
+        </select>
       </div>
 
       <!-- External player toggle -->

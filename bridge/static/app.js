@@ -1,5 +1,6 @@
 // ── i18n ─────────────────────────────────────────────────────────────────────
-const _LANG = (navigator.language || 'en').slice(0,2).toLowerCase();
+const _LANG_OVERRIDE = localStorage.getItem('bridge_lang') || '';
+const _LANG = _LANG_OVERRIDE || (navigator.language || 'en').slice(0,2).toLowerCase();
 const _TR = {
   en:{
     status_connecting:'Connecting…',status_connected:'● Connected',
@@ -17,6 +18,7 @@ const _TR = {
     confirm_shutdown:'Shut down PC in 10 seconds?',
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Restart Kodi',
     btn_prev_ep:'⏮ Prev Ep',btn_next_ep:'Next Ep ⏭',
+    lbl_ui_language:'UI Language',opt_lang_auto:'Auto (System)',
     btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Settings',
     card_navigation:'Navigation',card_actions:'Actions',card_power:'Power',
     card_system:'Start & System',card_keyboard:'Keyboard',
@@ -58,7 +60,8 @@ const _TR = {
     confirm_restart:'PC in 10 Sekunden neu starten?',
     confirm_shutdown:'PC in 10 Sekunden herunterfahren?',
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Kodi neustarten',
-    btn_prev_ep:'⏮ Zurück',btn_next_ep:'Weiter ⏭',
+    btn_prev_ep:'⏮ Vorh. Folge',btn_next_ep:'Nächste Folge ⏭',
+    lbl_ui_language:'UI-Sprache',opt_lang_auto:'Auto (System)',
     btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Einstellungen',
     card_navigation:'Navigation',card_actions:'Aktionen',card_power:'Power',
     card_system:'Start & System',card_keyboard:'Tastatur',
@@ -97,7 +100,8 @@ const _TR = {
     confirm_restart:'Redémarrer le système dans 10 secondes ?',
     confirm_shutdown:'Éteindre le système dans 10 secondes ?',
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Relancer Kodi',
-    btn_prev_ep:'⏮ Préc',btn_next_ep:'Suiv ⏭',
+    btn_prev_ep:'⏮ Épisode préc.',btn_next_ep:'Épisode suiv. ⏭',
+    lbl_ui_language:'Langue UI',opt_lang_auto:'Auto (Système)',
     btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Paramètres',
     lbl_year:'Année',lbl_tv_show:'Série',lbl_season:'Saison',lbl_episode:'Épisode',
     lbl_volume:'Volume',lbl_muted:'Muet',lbl_shuffle:'Aléatoire',lbl_repeat:'Répéter',
@@ -117,7 +121,8 @@ const _TR = {
     confirm_restart:'¿Reiniciar el sistema en 10 segundos?',
     confirm_shutdown:'¿Apagar el sistema en 10 segundos?',
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Reiniciar Kodi',
-    btn_prev_ep:'⏮ Anterior',btn_next_ep:'Siguiente ⏭',
+    btn_prev_ep:'⏮ Ep. anterior',btn_next_ep:'Ep. siguiente ⏭',
+    lbl_ui_language:'Idioma UI',opt_lang_auto:'Auto (Sistema)',
     btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Ajustes',
     lbl_year:'Año',lbl_tv_show:'Serie',lbl_season:'Temporada',lbl_episode:'Episodio',
     lbl_volume:'Volumen',lbl_muted:'Silencio',lbl_shuffle:'Aleatorio',lbl_repeat:'Repetir',
@@ -137,7 +142,8 @@ const _TR = {
     confirm_restart:'Riavviare il sistema tra 10 secondi?',
     confirm_shutdown:'Spegnere il sistema tra 10 secondi?',
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Riavvia Kodi',
-    btn_prev_ep:'⏮ Prec',btn_next_ep:'Succ ⏭',
+    btn_prev_ep:'⏮ Ep. prec.',btn_next_ep:'Ep. succ. ⏭',
+    lbl_ui_language:'Lingua UI',opt_lang_auto:'Auto (Sistema)',
     btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Impostazioni',
     lbl_year:'Anno',lbl_tv_show:'Serie',lbl_season:'Stagione',lbl_episode:'Episodio',
     lbl_volume:'Volume',lbl_muted:'Muto',lbl_shuffle:'Casuale',lbl_repeat:'Ripeti',
@@ -153,7 +159,15 @@ function t(k){ return _T[k] || k; }
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
   document.querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = t(el.dataset.i18nHtml); });
   document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
+  const sl = document.getElementById('sel-lang');
+  if (sl) sl.value = _LANG_OVERRIDE;
 })();
+
+function setLanguage(lang) {
+  if (lang) localStorage.setItem('bridge_lang', lang);
+  else localStorage.removeItem('bridge_lang');
+  location.reload();
+}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let state = {};
