@@ -39,11 +39,13 @@ kbd{background:#0a1220;border:1px solid var(--line);border-radius:8px;padding:3p
 
 #mob-hdr{display:none}
 #mob-overlay{display:none}
-#layout{display:grid;grid-template-columns:360px minmax(0,1fr) 420px;gap:18px;align-items:start}
+#layout{display:grid;grid-template-columns:360px minmax(0,1fr) 590px;gap:18px;align-items:start}
+#layout.no-playlist{grid-template-columns:360px minmax(0,1fr)}
 #sidebar,#main-content,#panel-season{min-width:0}
 #sidebar{background:linear-gradient(180deg,rgba(14,22,37,.96),rgba(8,13,23,.96));border:1px solid var(--line);border-radius:30px;padding:22px;box-shadow:var(--shadow);position:sticky;top:18px;backdrop-filter:blur(14px)}
 .sidebar-logo{display:flex;align-items:center;gap:14px;margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--line)}
 .kodi-icon{width:42px;height:42px;object-fit:contain;filter:drop-shadow(0 6px 12px rgba(61,160,255,.2))}
+.sidebar-logo .kodi-icon{width:84px;height:84px}
 .logo-info,.mob-logo-info{display:flex;flex-direction:column;gap:3px;min-width:0}
 .logo-text,.mob-logo{font-size:1.7rem;font-weight:800;letter-spacing:-.03em;line-height:1.05}
 .status-badge,.mob-status-text{display:inline-flex;align-items:center;gap:8px;font-size:.93rem;color:#cfe6ff}
@@ -141,7 +143,8 @@ kbd{background:#0a1220;border:1px solid var(--line);border-radius:8px;padding:3p
 .mob-foot-icon{font-size:1.15rem}.mob-foot-lbl{font-size:.73rem;text-align:center;line-height:1.1}
 
 @media (max-width:1400px){
-  #layout{grid-template-columns:340px minmax(0,1fr) 360px}
+  #layout{grid-template-columns:340px minmax(0,1fr) 504px}
+  #layout.no-playlist{grid-template-columns:340px minmax(0,1fr)}
   .playback-meta{grid-template-columns:150px minmax(0,1fr)}
   .artwork{width:150px;height:220px}
 }

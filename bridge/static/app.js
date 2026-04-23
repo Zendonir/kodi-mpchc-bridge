@@ -382,8 +382,10 @@ function renderSeasonEpisodes(){
   if(!card||!hdr||!list) return;
 
   const eps=state.season_episodes;
+  const layout=document.getElementById('layout');
   if(!eps||!eps.length){
     card.style.display='none';
+    if(layout) layout.classList.add('no-playlist');
     _epRenderedLen=-1; _epRenderedIdx=-2;
     document.getElementById('bottom-pages').textContent='';
     const epRow=document.getElementById('ep-nav-row');
@@ -391,6 +393,7 @@ function renderSeasonEpisodes(){
     return;
   }
   card.style.display='';
+  if(layout) layout.classList.remove('no-playlist');
 
   const season=(eps[0]&&eps[0].season)||state.season||'';
   const show=state.tv_show||'';
