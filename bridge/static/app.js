@@ -39,6 +39,8 @@ const _TR = {
     lbl_kodi_exe:'Kodi path:',lbl_boot_target:'Boot target',
     opt_boot_kodi:'Kodi — hide Explorer on startup',
     opt_boot_windows:'Windows — normal desktop',
+    lbl_ext_player:'External player',
+    btn_ext_player_on:'⏏ MPC-HC (extern)',btn_ext_player_off:'▶ Kodi (intern)',
     val_yes:'Yes',val_no:'No',val_of:'of',
   },
   de:{
@@ -79,6 +81,8 @@ const _TR = {
     lbl_kodi_exe:'Kodi-Pfad:',lbl_boot_target:'Boot-Ziel',
     opt_boot_kodi:'Kodi — Explorer beim Start verstecken',
     opt_boot_windows:'Windows — normaler Desktop',
+    lbl_ext_player:'Externer Player',
+    btn_ext_player_on:'⏏ MPC-HC (extern)',btn_ext_player_off:'▶ Kodi (intern)',
     val_yes:'Ja',val_no:'Nein',val_of:'von',
   },
   fr:{
@@ -97,6 +101,8 @@ const _TR = {
     btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Paramètres',
     lbl_year:'Année',lbl_tv_show:'Série',lbl_season:'Saison',lbl_episode:'Épisode',
     lbl_volume:'Volume',lbl_muted:'Muet',lbl_shuffle:'Aléatoire',lbl_repeat:'Répéter',
+    lbl_ext_player:'Lecteur externe',
+    btn_ext_player_on:'⏏ MPC-HC (externe)',btn_ext_player_off:'▶ Kodi (interne)',
     val_yes:'Oui',val_no:'Non',val_of:'sur',
   },
   es:{
@@ -115,6 +121,8 @@ const _TR = {
     btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Ajustes',
     lbl_year:'Año',lbl_tv_show:'Serie',lbl_season:'Temporada',lbl_episode:'Episodio',
     lbl_volume:'Volumen',lbl_muted:'Silencio',lbl_shuffle:'Aleatorio',lbl_repeat:'Repetir',
+    lbl_ext_player:'Reproductor externo',
+    btn_ext_player_on:'⏏ MPC-HC (externo)',btn_ext_player_off:'▶ Kodi (interno)',
     val_yes:'Sí',val_no:'No',val_of:'de',
   },
   it:{
@@ -133,6 +141,8 @@ const _TR = {
     btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Impostazioni',
     lbl_year:'Anno',lbl_tv_show:'Serie',lbl_season:'Stagione',lbl_episode:'Episodio',
     lbl_volume:'Volume',lbl_muted:'Muto',lbl_shuffle:'Casuale',lbl_repeat:'Ripeti',
+    lbl_ext_player:'Lettore esterno',
+    btn_ext_player_on:'⏏ MPC-HC (esterno)',btn_ext_player_off:'▶ Kodi (interno)',
     val_yes:'Sì',val_no:'No',val_of:'di',
   },
 };
@@ -198,6 +208,17 @@ function seekByClick(e){
 }
 function restartConfirm(){ if(confirm(t('confirm_restart'))) cmd('system_restart'); }
 function shutdownConfirm(){ if(confirm(t('confirm_shutdown'))) cmd('system_shutdown'); }
+function toggleExternalPlayer(){
+  cmd('toggle_external_player');
+}
+function _updateExtPlayerBtn(){
+  const btn=document.getElementById('btn-ext-player');
+  if(!btn) return;
+  const on=state.external_player_enabled!==false;
+  btn.textContent=on?t('btn_ext_player_on'):t('btn_ext_player_off');
+  btn.classList.toggle('btn-blue', on);
+  btn.classList.toggle('btn-kiosk-kodi', !on);
+}
 function kioskCmd(mode){
   fetch('/api/kiosk/'+mode,{method:'POST'}).catch(()=>{});
   setTimeout(updateKioskStatus,4000);
@@ -595,6 +616,7 @@ function renderAll(){
   renderTracks();
   renderSeasonEpisodes();
   updateWatchedBtn();
+  _updateExtPlayerBtn();
 }
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────

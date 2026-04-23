@@ -1183,6 +1183,11 @@ class Hub:
             self._disable_ext_player_xml()
 
         await self._push({"external_player_enabled": new_val})
+
+        # Restart Kodi so it re-reads playercorefactory.xml immediately.
+        if self._config.cfg.kodi_exe_path:
+            _LOG.info("Restarting Kodi to apply playercorefactory.xml change…")
+            await self.restart_kodi()
         return True
 
     def _disable_ext_player_xml(self) -> None:

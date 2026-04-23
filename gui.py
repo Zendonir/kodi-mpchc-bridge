@@ -45,8 +45,11 @@ class TrayApp:
         self._config_dir = config_dir
         self._tray_running = False   # last known bridge status
 
-        # Hidden tkinter root — only used for after() callbacks + dialogs
+        # Hidden tkinter root — only used for after() callbacks + dialogs.
+        # Set alpha=0 before withdraw so the window never appears visually,
+        # even for the single frame between Tk() creation and withdraw().
         self._root = tk.Tk()
+        self._root.wm_attributes('-alpha', 0)
         self._root.withdraw()
         self._root.protocol("WM_DELETE_WINDOW", self._do_quit)
 
