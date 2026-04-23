@@ -336,7 +336,10 @@ let _audioHash='', _subHash='', _chHash='';
 function renderTracks(){
   const audio=state.audio_tracks||[], sub=state.subtitle_tracks||[];
   const curA=state.current_audio??0, curS=state.current_subtitle??-1;
-  const curCh=state.current_chapter??0, chapters=state.chapters||[];
+  const chapters=state.chapters||[];
+  const posMs=(state.position||0)*1000;
+  let curCh=0;
+  for(let i=0;i<chapters.length;i++){if((chapters[i].time_ms||0)<=posMs)curCh=i;else break;}
 
   // Audio select — only rebuild options when list changes
   const aHash=JSON.stringify(audio);

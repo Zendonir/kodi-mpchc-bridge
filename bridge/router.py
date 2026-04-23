@@ -361,8 +361,29 @@ class CommandRouter:
             await self._mpchc.close()
             return True
         elif cmd == "next_chapter":
+            chapters = self._state.state.chapters
+            if chapters:
+                cur_ms = int(self._state.state.position * 1000)
+                for ch in chapters:
+                    t_ms = ch.get("time_ms", 0) if isinstance(ch, dict) else getattr(ch, "time_ms", 0)
+                    if t_ms > cur_ms + 500:
+                        _LOG.info("next_chapter: seek to time_ms=%d", t_ms)
+                        return await self._mpchc.seek(t_ms)
+                return True  # already at last chapter
             return await self._mpchc.send_command(CMD_NEXT_CHAPTER)
         elif cmd == "prev_chapter":
+            chapters = self._state.state.chapters
+            if chapters:
+                cur_ms = int(self._state.state.position * 1000)
+                target_ms = 0
+                for ch in chapters:
+                    t_ms = ch.get("time_ms", 0) if isinstance(ch, dict) else getattr(ch, "time_ms", 0)
+                    if t_ms < cur_ms - 3000:
+                        target_ms = t_ms
+                    else:
+                        break
+                _LOG.info("prev_chapter: seek to time_ms=%d", target_ms)
+                return await self._mpchc.seek(target_ms)
             return await self._mpchc.send_command(CMD_PREV_CHAPTER)
         elif cmd == "skip_forward":
             return await self._mpchc.send_command(CMD_SKIP_FORWARD)
