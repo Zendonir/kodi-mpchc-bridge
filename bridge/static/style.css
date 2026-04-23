@@ -144,6 +144,7 @@ kbd{background:#0a1220;border:1px solid var(--line);border-radius:8px;padding:3p
 .mob-dpad{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;width:min(228px,96%);margin:0 auto}
 .mob-dpad button,.mob-dpad span{min-height:44px}
 .mob-dpad-ok{background:var(--accent)!important}
+.mob-corner{background:rgba(255,255,255,.06)!important;font-size:.95rem;color:var(--muted)}
 .mob-play-row{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:6px}
 .mob-playpause{background:var(--accent)!important}
 .mob-stop{width:100%}

@@ -615,7 +615,7 @@ function mobSetTab(n){
   footer.addEventListener('touchstart',e=>{_tx=e.touches[0].clientX;},{passive:true});
   footer.addEventListener('touchend',e=>{
     const dx=e.changedTouches[0].clientX-_tx;
-    if(Math.abs(dx)>44) mobSetTab(Math.max(0,Math.min(2,_mobTab+(dx<0?1:-1))));
+    if(Math.abs(dx)>44) mobSetTab(Math.max(0,Math.min(1,_mobTab+(dx<0?1:-1))));
   },{passive:true});
 })();
 

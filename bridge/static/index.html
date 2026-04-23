@@ -317,17 +317,20 @@
   <div class="mob-tabs-bar">
     <button class="mob-tab-btn active" onclick="mobSetTab(0)"></button>
     <button class="mob-tab-btn" onclick="mobSetTab(1)"></button>
-    <button class="mob-tab-btn" onclick="mobSetTab(2)"></button>
   </div>
 
-  <!-- Tab 0: D-Pad navigation -->
+  <!-- Tab 0: D-Pad + corner action buttons -->
   <div class="mob-tab active" id="mob-tab-0">
     <div class="mob-dpad">
-      <span></span><button onclick="cmd('navigate_up')">&#x25B2;</button><span></span>
+      <button class="mob-corner" onclick="cmd('navigate_back')">&#x21A9;</button>
+      <button onclick="cmd('navigate_up')">&#x25B2;</button>
+      <button class="mob-corner" onclick="cmd('show_info')">&#x2139;</button>
       <button onclick="cmd('navigate_left')">&#x25C4;</button>
       <button class="mob-dpad-ok" onclick="cmd('navigate_select')">OK</button>
       <button onclick="cmd('navigate_right')">&#x25BA;</button>
-      <span></span><button onclick="cmd('navigate_down')">&#x25BC;</button><span></span>
+      <button class="mob-corner" onclick="cmd('navigate_home')">&#x2302;</button>
+      <button onclick="cmd('navigate_down')">&#x25BC;</button>
+      <button class="mob-corner" onclick="cmd('context_menu')">&#x2630;</button>
     </div>
   </div>
 
@@ -341,16 +344,6 @@
       <button id="mob-next-ep" onclick="nextEpisode()" disabled>&#x23ED;</button>
     </div>
     <button class="mob-stop" onclick="cmd('stop')">&#x23F9; Stop</button>
-  </div>
-
-  <!-- Tab 2: Back / Home / Menu / Info -->
-  <div class="mob-tab" id="mob-tab-2">
-    <div class="mob-action-row">
-      <button onclick="cmd('navigate_back')" data-i18n="btn_back"></button>
-      <button onclick="cmd('navigate_home')" data-i18n="btn_home"></button>
-      <button onclick="cmd('context_menu')" data-i18n="btn_menu"></button>
-      <button onclick="cmd('show_info')" data-i18n="btn_info"></button>
-    </div>
   </div>
 </div>
 
