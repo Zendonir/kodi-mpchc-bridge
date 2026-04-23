@@ -263,22 +263,28 @@ class MpcHcClient:
         import sys
         if sys.platform != "win32":
             return
+        _NW = subprocess.CREATE_NO_WINDOW
         try:
             # Find PID listening on the MPC-HC port
             port = int(self._base.rsplit(":", 1)[-1])
             out = subprocess.check_output(
-                ["netstat", "-ano"], text=True, stderr=subprocess.DEVNULL
+                ["netstat", "-ano"], text=True, stderr=subprocess.DEVNULL,
+                creationflags=_NW,
             )
             for line in out.splitlines():
                 if f":{port}" in line and "LISTENING" in line:
                     pid = line.split()[-1]
-                    subprocess.run(["taskkill", "/f", "/pid", pid], capture_output=True)
+                    subprocess.run(
+                        ["taskkill", "/f", "/pid", pid],
+                        capture_output=True, creationflags=_NW,
+                    )
                     _LOG.info("MPC-HC closed (PID %s)", pid)
                     return
             # Fallback: kill by known exe names
             for name in ("mpc-hc64.exe", "mpc-hc.exe", "mpc-be64.exe", "mpc-be.exe"):
                 result = subprocess.run(
-                    ["taskkill", "/f", "/im", name], capture_output=True
+                    ["taskkill", "/f", "/im", name],
+                    capture_output=True, creationflags=_NW,
                 )
                 if result.returncode == 0:
                     _LOG.info("MPC-HC closed (%s)", name)
