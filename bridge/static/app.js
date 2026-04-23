@@ -273,17 +273,6 @@ function updatePlaybackCard(){
   const yr = document.getElementById('m-year');
   if(yr) yr.textContent = state.year ? String(state.year) : '—';
 
-  // Datetime (current local time)
-  const now=new Date();
-  const dtStr=String(now.getDate()).padStart(2,'0')+'.'
-    +String(now.getMonth()+1).padStart(2,'0')+'.'
-    +String(now.getFullYear()).slice(2)+', '
-    +pad2(now.getHours())+':'+pad2(now.getMinutes());
-  const dt=document.getElementById('m-datetime');
-  if(dt) dt.textContent='📅 '+dtStr;
-  const bd=document.getElementById('bottom-datetime');
-  if(bd) bd.textContent='📅 '+dtStr;
-
   // Progress bar
   const fill = document.getElementById('progress-fill');
   if(fill) fill.style.width = (dur>0 ? (pos/dur*100).toFixed(2) : 0)+'%';
@@ -493,6 +482,10 @@ function renderSeasonEpisodes(){
   const nB=document.getElementById('btn-next-ep');
   if(pB) pB.disabled=idx<=0;
   if(nB) nB.disabled=idx<0||idx>=eps.length-1;
+  const mPB=document.getElementById('mob-prev-ep');
+  const mNB=document.getElementById('mob-next-ep');
+  if(mPB) mPB.disabled=idx<=0;
+  if(mNB) mNB.disabled=idx<0||idx>=eps.length-1;
 
   const bpEl=document.getElementById('bottom-pages');
   if(bpEl) bpEl.textContent=pc>1?('Seite '+((_epPage+1)+' von '+pc)):'';
@@ -512,10 +505,6 @@ async function updateKioskStatus(){
     const s=await fetch('/api/kiosk/status').then(r=>r.json());
     const kb=document.getElementById('kiosk-btns');
     if(kb) kb.style.display='';
-    // mobile buttons
-    ['mob-btn-kiosk-kodi','mob-btn-kiosk-windows','mob-btn-kiosk-restart'].forEach(id=>{
-      const b=document.getElementById(id); if(b) b.style.display='';
-    });
     const bK=document.getElementById('btn-kiosk-kodi');
     const bW=document.getElementById('btn-kiosk-windows');
     if(bK) bK.style.background=s.kodi_running&&s.explorer_hidden?'#1a5c2a':'#1a3d1a';
@@ -611,6 +600,24 @@ document.addEventListener('keydown',e=>{
     Backspace:'navigate_back',' ':'play_pause'};
   if(map[e.key]){e.preventDefault();cmd(map[e.key]);}
 });
+
+// ── Mobile footer tabs ────────────────────────────────────────────────────────
+let _mobTab=0;
+function mobSetTab(n){
+  document.querySelectorAll('.mob-tab').forEach((t,i)=>t.classList.toggle('active',i===n));
+  document.querySelectorAll('.mob-tab-btn').forEach((b,i)=>b.classList.toggle('active',i===n));
+  _mobTab=n;
+}
+(function(){
+  const footer=document.getElementById('mob-footer');
+  if(!footer) return;
+  let _tx=0;
+  footer.addEventListener('touchstart',e=>{_tx=e.touches[0].clientX;},{passive:true});
+  footer.addEventListener('touchend',e=>{
+    const dx=e.changedTouches[0].clientX-_tx;
+    if(Math.abs(dx)>44) mobSetTab(Math.max(0,Math.min(2,_mobTab+(dx<0?1:-1))));
+  },{passive:true});
+})();
 
 // ── Mobile menu toggle ────────────────────────────────────────────────────────
 function toggleMobileMenu(force){

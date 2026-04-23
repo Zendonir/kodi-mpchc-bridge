@@ -139,7 +139,6 @@
           <div class="meta-row meta-bottom-row">
             <span class="meta-label" data-i18n="lbl_year"></span>
             <span id="m-year">&#x2014;</span>
-            <span id="m-datetime" class="meta-dt"></span>
           </div>
         </div>
       </div>
@@ -313,37 +312,50 @@
 
 </div><!-- #layout -->
 
-<!-- ── Mobile fixed bottom bar ──────────────────────────────────────────── -->
+<!-- ── Mobile fixed bottom bar (3 tabs) ─────────────────────────────────── -->
 <div id="mob-footer">
-  <button onclick="cmd('fullscreen')" class="mob-foot-btn">
-    <span class="mob-foot-icon">&#x26F6;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_fullscreen"></span>
-  </button>
-  <button onclick="restartConfirm()" class="mob-foot-btn mob-foot-danger">
-    <span class="mob-foot-icon">&#x23FB;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_restart_pc"></span>
-  </button>
-  <button id="mob-btn-kiosk-kodi" onclick="kioskCmd('kodi')" class="mob-foot-btn mob-foot-kodi" style="display:none">
-    <span class="mob-foot-icon">&#x25B6;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_kiosk_kodi"></span>
-  </button>
-  <button id="mob-btn-kiosk-windows" onclick="kioskCmd('windows')" class="mob-foot-btn" style="display:none">
-    <span class="mob-foot-icon">&#x1F5BC;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_kiosk_windows"></span>
-  </button>
-  <button id="mob-btn-kiosk-restart" onclick="kioskCmd('restart')" class="mob-foot-btn mob-foot-amber" style="display:none">
-    <span class="mob-foot-icon">&#x21BB;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_kiosk_restart"></span>
-  </button>
-  <button onclick="toggleSettings()" class="mob-foot-btn">
-    <span class="mob-foot-icon">&#x2699;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_settings"></span>
-  </button>
+  <div class="mob-tabs-bar">
+    <button class="mob-tab-btn active" onclick="mobSetTab(0)"></button>
+    <button class="mob-tab-btn" onclick="mobSetTab(1)"></button>
+    <button class="mob-tab-btn" onclick="mobSetTab(2)"></button>
+  </div>
+
+  <!-- Tab 0: D-Pad navigation -->
+  <div class="mob-tab active" id="mob-tab-0">
+    <div class="mob-dpad">
+      <span></span><button onclick="cmd('navigate_up')">&#x25B2;</button><span></span>
+      <button onclick="cmd('navigate_left')">&#x25C4;</button>
+      <button class="mob-dpad-ok" onclick="cmd('navigate_select')">OK</button>
+      <button onclick="cmd('navigate_right')">&#x25BA;</button>
+      <span></span><button onclick="cmd('navigate_down')">&#x25BC;</button><span></span>
+    </div>
+  </div>
+
+  <!-- Tab 1: Playback -->
+  <div class="mob-tab" id="mob-tab-1">
+    <div class="mob-play-row">
+      <button id="mob-prev-ep" onclick="prevEpisode()" disabled>&#x23EE;</button>
+      <button onclick="cmd('prev_chapter')">&#x23EA;</button>
+      <button class="mob-playpause" onclick="cmd('play_pause')">&#x23EF;</button>
+      <button onclick="cmd('next_chapter')">&#x23E9;</button>
+      <button id="mob-next-ep" onclick="nextEpisode()" disabled>&#x23ED;</button>
+    </div>
+    <button class="mob-stop" onclick="cmd('stop')">&#x23F9; Stop</button>
+  </div>
+
+  <!-- Tab 2: Back / Home / Menu / Info -->
+  <div class="mob-tab" id="mob-tab-2">
+    <div class="mob-action-row">
+      <button onclick="cmd('navigate_back')" data-i18n="btn_back"></button>
+      <button onclick="cmd('navigate_home')" data-i18n="btn_home"></button>
+      <button onclick="cmd('context_menu')" data-i18n="btn_menu"></button>
+      <button onclick="cmd('show_info')" data-i18n="btn_info"></button>
+    </div>
+  </div>
 </div>
 
 <!-- ── Desktop bottom status bar ────────────────────────────────────────── -->
 <div id="bottom-bar">
-  <span id="bottom-datetime"></span>
   <span id="bottom-pages"></span>
 </div>
 
