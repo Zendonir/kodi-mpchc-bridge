@@ -16,7 +16,7 @@ const _TR = {
     confirm_restart:'Schedule a system restart in 10 seconds?',
     confirm_shutdown:'Shut down PC in 10 seconds?',
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Restart Kodi',
-    btn_prev_ep:'← Back',btn_next_ep:'Next →',
+    btn_prev_ep:'⏮ Prev Ep',btn_next_ep:'Next Ep ⏭',
     btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Settings',
     card_navigation:'Navigation',card_actions:'Actions',card_power:'Power',
     card_system:'Start & System',card_keyboard:'Keyboard',
@@ -56,7 +56,7 @@ const _TR = {
     confirm_restart:'PC in 10 Sekunden neu starten?',
     confirm_shutdown:'PC in 10 Sekunden herunterfahren?',
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Kodi neustarten',
-    btn_prev_ep:'← Zurück',btn_next_ep:'Weiter →',
+    btn_prev_ep:'⏮ Zurück',btn_next_ep:'Weiter ⏭',
     btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Einstellungen',
     card_navigation:'Navigation',card_actions:'Aktionen',card_power:'Power',
     card_system:'Start & System',card_keyboard:'Tastatur',
@@ -386,10 +386,8 @@ function renderSeasonEpisodes(){
     card.style.display='none';
     _epRenderedLen=-1; _epRenderedIdx=-2;
     document.getElementById('bottom-pages').textContent='';
-    const pB=document.getElementById('btn-prev-ep');
-    const nB=document.getElementById('btn-next-ep');
-    if(pB) pB.style.display='none';
-    if(nB) nB.style.display='none';
+    const epRow=document.getElementById('ep-nav-row');
+    if(epRow) epRow.style.display='none';
     return;
   }
   card.style.display='';
@@ -447,11 +445,13 @@ function renderSeasonEpisodes(){
     };
   }
 
-  // Sidebar prev/next episode buttons — show when episodes exist, disable at boundaries
+  // Episode nav row — show when episodes exist, disable at boundaries
+  const epRow=document.getElementById('ep-nav-row');
+  if(epRow) epRow.style.display='';
   const pB=document.getElementById('btn-prev-ep');
   const nB=document.getElementById('btn-next-ep');
-  if(pB){ pB.style.display=''; pB.disabled=idx<=0; }
-  if(nB){ nB.style.display=''; nB.disabled=idx<0||idx>=eps.length-1; }
+  if(pB) pB.disabled=idx<=0;
+  if(nB) nB.disabled=idx<0||idx>=eps.length-1;
 
   const bpEl=document.getElementById('bottom-pages');
   if(bpEl) bpEl.textContent=pc>1?('Seite '+((_epPage+1)+' von '+pc)):'';

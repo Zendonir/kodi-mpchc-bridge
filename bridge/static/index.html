@@ -48,12 +48,16 @@
           <button onclick="cmd('skip_backward')" data-i18n="btn_skip_back"></button>
           <button onclick="cmd('skip_forward')"  data-i18n="btn_skip_fwd"></button>
         </div>
+        <div class="ctrl-row" id="ep-nav-row" style="display:none">
+          <button id="btn-prev-ep" onclick="prevEpisode()" data-i18n="btn_prev_ep" disabled></button>
+          <button id="btn-next-ep" onclick="nextEpisode()" data-i18n="btn_next_ep" disabled></button>
+        </div>
         <div class="seek-row">
           <button onclick="cmd('seek_backward_small')" data-i18n="btn_seek_back"></button>
-          <button onclick="seekCustom(-1)" data-i18n="btn_seek_minus"></button>
+          <button onclick="seekCustom(-1)">&#x23EE;</button>
           <input id="seek-secs" type="number" value="30" min="1" max="7200">
           <span class="seek-unit">s</span>
-          <button onclick="seekCustom(1)" data-i18n="btn_seek_plus"></button>
+          <button onclick="seekCustom(1)">&#x23ED;</button>
           <button onclick="cmd('seek_forward_small')"  data-i18n="btn_seek_fwd"></button>
         </div>
 
@@ -93,8 +97,6 @@
           <button onclick="cmd('context_menu')"   data-i18n="btn_menu"></button>
           <button onclick="cmd('show_info')"      data-i18n="btn_info"></button>
           <button id="btn-watched" onclick="cmd('toggle_watched')" data-i18n="btn_watched" style="display:none"></button>
-          <button id="btn-prev-ep" onclick="prevEpisode()" data-i18n="btn_prev_ep" style="display:none" disabled></button>
-          <button id="btn-next-ep" onclick="nextEpisode()" data-i18n="btn_next_ep" style="display:none" disabled></button>
         </div>
 
         <div class="card-hdr" data-i18n="card_power"></div>

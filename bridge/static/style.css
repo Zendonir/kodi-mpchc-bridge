@@ -55,10 +55,12 @@ kbd{background:#0a1220;border:1px solid var(--line);border-radius:8px;padding:3p
 .card,.season-card, #card-season{background:linear-gradient(180deg,rgba(14,21,35,.96),rgba(9,14,24,.96));border:1px solid var(--line);border-radius:28px;padding:22px;box-shadow:var(--shadow);backdrop-filter:blur(14px)}
 .card-hdr{font-size:.92rem;text-transform:uppercase;letter-spacing:.1em;font-weight:800;color:var(--blue);margin-bottom:14px}
 .ctrl-section-label,.settings-section-title{font-size:.76rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted-2);font-weight:800;margin:4px 0 2px}
-.ctrl-row,.nav-side,.seek-row,.log-controls,.track-row,.kodi-exe-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.seek-row{grid-template-columns:auto auto minmax(72px,84px) auto auto auto;align-items:center}
-.seek-unit{color:var(--muted);text-align:center}
-.nav-side button,.ctrl-row button,.seek-row button{min-height:48px}
+.ctrl-row,.nav-side,.seek-row,.log-controls,.track-row,.kodi-exe-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.seek-row{grid-template-columns:auto auto minmax(56px,72px) auto auto auto;align-items:center;gap:5px}
+.seek-unit{color:var(--muted);text-align:center;font-size:.82rem}
+#sidebar button{padding:8px 10px;font-size:.84rem;min-height:36px}
+.nav-side button,.ctrl-row button{min-height:38px}
+.seek-row button{min-height:34px;padding:6px 8px}
 .btn-danger{background:linear-gradient(180deg,rgba(115,26,41,.95),rgba(67,16,25,.95));border-color:rgba(255,93,108,.25)}
 .btn-blue{background:linear-gradient(180deg,rgba(21,63,120,.95),rgba(15,40,78,.95));border-color:rgba(61,160,255,.25)}
 .btn-amber{background:linear-gradient(180deg,rgba(108,74,16,.95),rgba(62,40,8,.95));border-color:rgba(247,183,49,.25)}
