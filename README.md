@@ -4,6 +4,16 @@ A lightweight Windows bridge that connects **Kodi** and **MPC-HC** (clsid2 fork)
 
 ---
 
+## Screenshots
+
+![Web UI — Desktop](docs/screenshots/desktop.png)
+
+![Web UI — Mobile](docs/screenshots/mobile.png)
+
+![Settings](docs/screenshots/settings.png)
+
+---
+
 ## Features
 
 ### Playback & Control
@@ -70,8 +80,9 @@ A lightweight Windows bridge that connects **Kodi** and **MPC-HC** (clsid2 fork)
 - **Headless mode** — `--headless` flag, no tray icon (suitable for Launcher4Kodi / kiosk shells)
 - **Single-instance guard** — named mutex prevents duplicate tray icons
 - **Rotating log file** — `kodi-bridge.log` (2 MB × 3 backups)
-- **Multilanguage UI** — browser locale auto-detected: 🇬🇧 EN · 🇩🇪 DE · 🇫🇷 FR · 🇪🇸 ES · 🇮🇹 IT
-- **System restart** — schedules Windows restart in 10 s via `shutdown.exe`
+- **Multilanguage UI** — browser locale auto-detected: 🇬🇧 EN · 🇩🇪 DE · 🇫🇷 FR · 🇪🇸 ES · 🇮🇹 IT; override via Settings dropdown (stored per browser in `localStorage`)
+- **System restart / shutdown** — schedules Windows restart or shutdown in 10 s via `shutdown.exe`
+- **Boot target** — control whether Kodi auto-launches on next bridge start ("Kodi" / "Windows") via web UI dropdown or `boot_target` API command; state pushed to all clients in real-time
 
 ---
 
@@ -178,6 +189,9 @@ For a fully shell-less setup set `shell_mode = true` and add `kodi-bridge.exe` a
 { "cmd": "toggle_external_player" }
 { "cmd": "kodi_windows" }                     // minimize/restore Kodi or kiosk toggle
 { "cmd": "system_restart" }                   // Windows restart in 10 s
+{ "cmd": "system_shutdown" }                  // Windows shutdown in 10 s
+{ "cmd": "boot_target", "value": "kodi" }     // "kodi" | "windows" — persisted to config
+{ "cmd": "toggle_watched" }                   // toggle watched/unwatched in Kodi library
 { "cmd": "mpchc_next_audio" }                 // MPC-HC only
 { "cmd": "mpchc_prev_audio" }                 // MPC-HC only
 ```
@@ -249,7 +263,10 @@ GET  /api/kiosk/status    — { "kodi_running": bool, "explorer_hidden": bool }
 | `artwork_url` | string | Cover art URL (proxied through bridge) |
 | `season_episodes` | array | Full episode list for current season |
 | `playlist_index` | int | 0-based index of current episode in list (−1 = unknown) |
+| `media_id` | int | Kodi library `movieid` or `episodeid` (0 = not in library) |
+| `playcount` | int | Kodi playcount (0 = unwatched, >0 = watched) |
 | `external_player_enabled` | bool | Whether external player is currently active |
+| `boot_target` | `"kodi"` \| `"windows"` | Whether Kodi auto-launches on next bridge start |
 
 ---
 
