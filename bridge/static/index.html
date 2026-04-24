@@ -18,8 +18,10 @@
   <button class="mob-hamburger" onclick="toggleMobileMenu()" title="Menu">&#9776;</button>
 </header>
 
+<div id="mob-overlay" onclick="toggleMobileMenu(false)"></div>
+
 <!-- ── Three-column layout ──────────────────────────────────────────────── -->
-<div id="layout">
+<div id="layout" class="no-playlist">
 
   <!-- ── Left sidebar (nav#sidebar) ──────────────────────────────────── -->
   <nav id="sidebar">
@@ -42,17 +44,17 @@
         <div class="card-hdr" data-i18n="card_controls"></div>
 
         <div class="ctrl-section-label" data-i18n="lbl_time_jump"></div>
-        <div class="ctrl-row">
-          <button onclick="cmd('skip_backward')" data-i18n="btn_skip_back"></button>
-          <button onclick="cmd('skip_forward')"  data-i18n="btn_skip_fwd"></button>
+        <div class="ctrl-row" id="ep-nav-row" style="display:none">
+          <button id="btn-prev-ep" onclick="prevEpisode()" data-i18n="btn_prev_ep" disabled></button>
+          <button id="btn-next-ep" onclick="nextEpisode()" data-i18n="btn_next_ep" disabled></button>
         </div>
         <div class="seek-row">
-          <button onclick="cmd('seek_backward_small')" data-i18n="btn_seek_back"></button>
-          <button onclick="seekCustom(-1)" data-i18n="btn_seek_minus"></button>
+          <button onclick="cmd('prev_chapter')">&#x23EE;</button>
+          <button onclick="seekCustom(-1)">&#x23EA;</button>
           <input id="seek-secs" type="number" value="30" min="1" max="7200">
           <span class="seek-unit">s</span>
-          <button onclick="seekCustom(1)" data-i18n="btn_seek_plus"></button>
-          <button onclick="cmd('seek_forward_small')"  data-i18n="btn_seek_fwd"></button>
+          <button onclick="seekCustom(1)">&#x23E9;</button>
+          <button onclick="cmd('next_chapter')">&#x23ED;</button>
         </div>
 
         <div class="ctrl-section-label" data-i18n="lbl_playback"></div>
@@ -91,8 +93,6 @@
           <button onclick="cmd('context_menu')"   data-i18n="btn_menu"></button>
           <button onclick="cmd('show_info')"      data-i18n="btn_info"></button>
           <button id="btn-watched" onclick="cmd('toggle_watched')" data-i18n="btn_watched" style="display:none"></button>
-          <button id="btn-prev-ep" onclick="prevEpisode()" data-i18n="btn_prev_ep" style="display:none" disabled></button>
-          <button id="btn-next-ep" onclick="nextEpisode()" data-i18n="btn_next_ep" style="display:none" disabled></button>
         </div>
 
         <div class="card-hdr" data-i18n="card_power"></div>
@@ -139,7 +139,6 @@
           <div class="meta-row meta-bottom-row">
             <span class="meta-label" data-i18n="lbl_year"></span>
             <span id="m-year">&#x2014;</span>
-            <span id="m-datetime" class="meta-dt"></span>
           </div>
         </div>
       </div>
@@ -262,15 +261,32 @@
         </div>
       </div>
 
+      <!-- UI Language override -->
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="lbl_ui_language"></div>
+        <select id="sel-lang" onchange="setLanguage(this.value)">
+          <option value="" data-i18n="opt_lang_auto"></option>
+          <option value="de">Deutsch</option>
+          <option value="en">English</option>
+          <option value="fr">Français</option>
+          <option value="es">Español</option>
+          <option value="it">Italiano</option>
+        </select>
+      </div>
+
+      <!-- External player toggle -->
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="lbl_ext_player"></div>
+        <button id="btn-ext-player" onclick="toggleExternalPlayer()" style="width:100%"></button>
+      </div>
+
       <!-- Boot target / Kiosk -->
       <div class="settings-section">
         <div class="settings-section-title" data-i18n="lbl_boot_target"></div>
-        <div class="radio-group" style="margin-bottom:10px">
-          <label><input type="radio" name="boot_target" value="kodi"
-            onchange="saveBootTarget(this)"><span data-i18n="opt_boot_kodi"></span></label>
-          <label><input type="radio" name="boot_target" value="windows"
-            onchange="saveBootTarget(this)"><span data-i18n="opt_boot_windows"></span></label>
-        </div>
+        <select id="sel-boot-target" onchange="cmd('boot_target', this.value)" style="margin-bottom:10px">
+          <option value="kodi" data-i18n="opt_boot_kodi"></option>
+          <option value="windows" data-i18n="opt_boot_windows"></option>
+        </select>
         <div class="kodi-exe-row">
           <label class="kodi-exe-label" data-i18n="lbl_kodi_exe"></label>
           <input type="text" id="inp_kodi_exe" class="kodi-exe-input"
@@ -294,37 +310,8 @@
 
 </div><!-- #layout -->
 
-<!-- ── Mobile fixed bottom bar ──────────────────────────────────────────── -->
-<div id="mob-footer">
-  <button onclick="cmd('fullscreen')" class="mob-foot-btn">
-    <span class="mob-foot-icon">&#x26F6;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_fullscreen"></span>
-  </button>
-  <button onclick="restartConfirm()" class="mob-foot-btn mob-foot-danger">
-    <span class="mob-foot-icon">&#x23FB;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_restart_pc"></span>
-  </button>
-  <button id="mob-btn-kiosk-kodi" onclick="kioskCmd('kodi')" class="mob-foot-btn mob-foot-kodi" style="display:none">
-    <span class="mob-foot-icon">&#x25B6;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_kiosk_kodi"></span>
-  </button>
-  <button id="mob-btn-kiosk-windows" onclick="kioskCmd('windows')" class="mob-foot-btn" style="display:none">
-    <span class="mob-foot-icon">&#x1F5BC;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_kiosk_windows"></span>
-  </button>
-  <button id="mob-btn-kiosk-restart" onclick="kioskCmd('restart')" class="mob-foot-btn mob-foot-amber" style="display:none">
-    <span class="mob-foot-icon">&#x21BB;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_kiosk_restart"></span>
-  </button>
-  <button onclick="toggleSettings()" class="mob-foot-btn">
-    <span class="mob-foot-icon">&#x2699;</span>
-    <span class="mob-foot-lbl" data-i18n="btn_settings"></span>
-  </button>
-</div>
-
 <!-- ── Desktop bottom status bar ────────────────────────────────────────── -->
 <div id="bottom-bar">
-  <span id="bottom-datetime"></span>
   <span id="bottom-pages"></span>
 </div>
 

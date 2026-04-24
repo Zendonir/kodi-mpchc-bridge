@@ -7,6 +7,7 @@ player (Kodi or MPC-HC) based on which is currently active.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sys
 from typing import TYPE_CHECKING, Callable
@@ -104,23 +105,22 @@ class CommandRouter:
         on_play_episode: "Callable | None" = None,
         on_kiosk_toggle: "Callable | None" = None,
         on_toggle_watched: "Callable | None" = None,
+        push_cb: "Callable | None" = None,
+        on_track_change: "Callable | None" = None,
+        on_set_boot_target: "Callable | None" = None,
     ) -> None:
         self._state = state
         self._kodi = kodi
         self._mpchc = mpchc
-        # Optional async callback — called before MPC-HC is closed so the hub
-        # can immediately signal active_player=none (speeds up Kodi return).
         self._on_mpchc_stop = on_mpchc_stop
-        # Optional async callback — toggles external_player_enabled in config.
         self._on_toggle_ext_player = on_toggle_ext_player
-        # Optional async callback(direction) — plays next/prev episode from the
-        # season episode list currently in state.
         self._on_play_episode = on_play_episode
-        # Optional async callback — kiosk mode: kill Kodi / toggle Explorer.
-        # When None, the classic minimize/restore behaviour is used.
         self._on_kiosk_toggle = on_kiosk_toggle
-        # Optional async callback — toggle watched/unwatched in Kodi library.
         self._on_toggle_watched = on_toggle_watched
+        self._push_cb = push_cb
+        # Called after a manual track change: suppresses poll resync + schedules 3s sync
+        self._on_track_change = on_track_change
+        self._on_set_boot_target = on_set_boot_target
         # While the resume dialog is visible this is set to the dialog's
         # inject-key function.  All nav/stop commands are redirected there.
         self._dialog_handler: "Callable[[str], None] | None" = None
@@ -184,6 +184,12 @@ class CommandRouter:
             _LOG.info("CMD %-22s → system (toggle external player)", cmd)
             if self._on_toggle_ext_player:
                 return await self._on_toggle_ext_player()
+            return False
+
+        if cmd == "boot_target" and value is not None:
+            _LOG.info("CMD %-22s → system (boot_target=%s)", cmd, value)
+            if self._on_set_boot_target:
+                return await self._on_set_boot_target(str(value))
             return False
 
         if cmd == "kodi_windows":
@@ -363,8 +369,29 @@ class CommandRouter:
             await self._mpchc.close()
             return True
         elif cmd == "next_chapter":
+            chapters = self._state.state.chapters
+            if chapters:
+                cur_ms = int(self._state.state.position * 1000)
+                for ch in chapters:
+                    t_ms = ch.get("time_ms", 0) if isinstance(ch, dict) else getattr(ch, "time_ms", 0)
+                    if t_ms > cur_ms + 500:
+                        _LOG.info("next_chapter: seek to time_ms=%d", t_ms)
+                        return await self._mpchc.seek(t_ms)
+                return True  # already at last chapter
             return await self._mpchc.send_command(CMD_NEXT_CHAPTER)
         elif cmd == "prev_chapter":
+            chapters = self._state.state.chapters
+            if chapters:
+                cur_ms = int(self._state.state.position * 1000)
+                target_ms = 0
+                for ch in chapters:
+                    t_ms = ch.get("time_ms", 0) if isinstance(ch, dict) else getattr(ch, "time_ms", 0)
+                    if t_ms < cur_ms - 3000:
+                        target_ms = t_ms
+                    else:
+                        break
+                _LOG.info("prev_chapter: seek to time_ms=%d", target_ms)
+                return await self._mpchc.seek(target_ms)
             return await self._mpchc.send_command(CMD_PREV_CHAPTER)
         elif cmd == "skip_forward":
             return await self._mpchc.send_command(CMD_SKIP_FORWARD)
@@ -395,7 +422,10 @@ class CommandRouter:
             total = len(self._state.state.audio_tracks)
             ok = await self._mpchc.set_audio_track(target, cur, total)
             if ok:
-                self._state.apply({"current_audio": target})
+                if self._push_cb:
+                    await self._push_cb({"current_audio": target})
+                if self._on_track_change:
+                    asyncio.create_task(self._on_track_change())
             return ok
         elif cmd == "subtitle_track" and value is not None:
             target = int(value)
@@ -403,15 +433,28 @@ class CommandRouter:
             total = len(self._state.state.subtitle_tracks)
             ok = await self._mpchc.set_subtitle_track(target, cur, total)
             if ok:
-                self._state.apply({"current_subtitle": target})
+                if self._push_cb:
+                    await self._push_cb({"current_subtitle": target})
+                if self._on_track_change:
+                    asyncio.create_task(self._on_track_change())
             return ok
         elif cmd == "chapter" and value is not None:
             target = int(value)
+            chapters = self._state.state.chapters
+            if chapters and 0 <= target < len(chapters):
+                ch = chapters[target]
+                time_ms = ch.get("time_ms", 0) if isinstance(ch, dict) else getattr(ch, "time_ms", 0)
+                _LOG.info("Chapter seek: index=%d time_ms=%d", target, time_ms)
+                return await self._mpchc.seek(time_ms)
+            # Fallback: delta navigation when no chapter timestamps available
             cur = self._state.state.current_chapter
             delta = target - cur
+            ok = True
             for _ in range(abs(delta)):
-                await self._mpchc.send_command(CMD_NEXT_CHAPTER if delta > 0 else CMD_PREV_CHAPTER)
-            return True
+                ok = await self._mpchc.send_command(CMD_NEXT_CHAPTER if delta > 0 else CMD_PREV_CHAPTER)
+                if not ok:
+                    break
+            return ok
         elif cmd == "mpchc_next_audio":
             return await self._mpchc.send_command(CMD_NEXT_AUDIO)
         elif cmd == "mpchc_prev_audio":
