@@ -99,6 +99,7 @@ class UnifiedState:
 
     # --- bridge config reflected in state (for remote UI) ---
     external_player_enabled: bool = True
+    boot_target: str = "kodi"  # "kodi" | "windows"
 
     # --- Season episode list (populated when MPC-HC plays an episode) ---
     season_episodes: list[dict] = field(default_factory=list)

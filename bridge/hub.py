@@ -480,6 +480,9 @@ class Hub:
         # trigger twice for the same file.  Reset whenever the filepath changes.
         self._autonext_triggered: bool = False
         self._explorer_hidden: bool = False  # True while kiosk mode has Explorer hidden
+        # Monotonic deadline until which poll-based track resync is suppressed
+        # (set after a manual audio/subtitle selection to avoid mid-cycle flicker)
+        self._suppress_track_sync_until: float = 0.0
 
         cfg = config.cfg
 
@@ -506,6 +509,9 @@ class Hub:
             on_play_episode=self._play_episode_cmd,
             on_kiosk_toggle=self._toggle_kiosk_mode,
             on_toggle_watched=self._toggle_watched,
+            push_cb=self._push,
+            on_track_change=self._on_track_change,
+            on_set_boot_target=self._set_boot_target,
         )
 
         self._server = BridgeServer(
@@ -561,8 +567,12 @@ class Hub:
                     "kiosk mode skipped (configure kodi_exe_path in settings)"
                 )
 
-        # Push initial external_player_enabled so remote UIs get correct state
-        await self._push({"external_player_enabled": cfg.external_player_enabled})
+        # Push initial external_player_enabled and boot_target so remote UIs get correct state
+        _boot_target = "kodi" if (cfg.hide_explorer or cfg.shell_mode) else "windows"
+        await self._push({
+            "external_player_enabled": cfg.external_player_enabled,
+            "boot_target": _boot_target,
+        })
         if cfg.external_player_enabled:
             if cfg.mpchc_exe_path:
                 _LOG.info("External player: exe=%r  resume=%s", cfg.mpchc_exe_path, cfg.resume_enabled)
@@ -765,16 +775,19 @@ class Hub:
                 if not t.cancelled() and t.exception() else None
             )
 
-        # Resolve track name changes on subsequent polls (ongoing resync)
+        # Resolve track name changes on subsequent polls (ongoing resync).
+        # Suppressed for 3 s after a manual selection to avoid mid-cycle flicker.
+        _now = asyncio.get_running_loop().time()
+        _track_cooldown = _now < self._suppress_track_sync_until
         if audiotrack_name is not None and "current_audio" not in updates:
             audio_tracks = self._state.state.audio_tracks
-            if audio_tracks:
+            if audio_tracks and not _track_cooldown:
                 idx = _match_track(audio_tracks, audiotrack_name)
                 updates["current_audio"] = idx
                 _LOG.debug("MPC-HC audiotrack resync: %r → %d", audiotrack_name, idx)
         if subtitletrack_name is not None and "current_subtitle" not in updates:
             sub_tracks = self._state.state.subtitle_tracks
-            if sub_tracks:
+            if sub_tracks and not _track_cooldown:
                 idx = _match_track(sub_tracks, subtitletrack_name) if subtitletrack_name else -1
                 updates["current_subtitle"] = idx
                 _LOG.info("SUB resync: MPC-HC reports %r → resolved to index %d", subtitletrack_name, idx)
@@ -1013,6 +1026,43 @@ class Hub:
             await self._server.push_patch(patch)
 
     # ------------------------------------------------------------------
+    # Manual track-change cooldown + deferred real sync
+    # ------------------------------------------------------------------
+    async def _on_track_change(self) -> None:
+        """Called after a manual audio/subtitle selection.
+
+        Suppresses poll-based track resync for 3 s so mid-cycling polls
+        don't overwrite the optimistic UI value with intermediate states.
+        After 3.1 s fetches the real MPC-HC track state and pushes a correction.
+        """
+        loop = asyncio.get_running_loop()
+        self._suppress_track_sync_until = loop.time() + 3.0
+        asyncio.create_task(self._sync_tracks_after(3.1))
+
+    async def _sync_tracks_after(self, delay: float) -> None:
+        """Wait *delay* seconds then push the actual MPC-HC audio/subtitle tracks."""
+        await asyncio.sleep(delay)
+        names = await self._mpchc.get_track_names()
+        if not names:
+            return
+        patch: dict = {}
+        audio_tracks = self._state.state.audio_tracks
+        sub_tracks   = self._state.state.subtitle_tracks
+        a_name = names.get("audiotrack", "")
+        s_name = names.get("subtitletrack", "")
+        if audio_tracks:
+            patch["current_audio"] = _match_track(audio_tracks, a_name)
+        if sub_tracks is not None:
+            patch["current_subtitle"] = _match_track(sub_tracks, s_name) if s_name else -1
+        if patch:
+            _LOG.info(
+                "Track sync after 3s: audio=%r → %s  sub=%r → %s",
+                a_name, patch.get("current_audio"),
+                s_name, patch.get("current_subtitle"),
+            )
+            await self._push(patch)
+
+    # ------------------------------------------------------------------
     # Kiosk mode — Toggle Kodi / Windows desktop
     # ------------------------------------------------------------------
     async def _toggle_kiosk_mode(self) -> bool:
@@ -1183,6 +1233,11 @@ class Hub:
             self._disable_ext_player_xml()
 
         await self._push({"external_player_enabled": new_val})
+
+        # Restart Kodi so it re-reads playercorefactory.xml immediately.
+        if self._config.cfg.kodi_exe_path:
+            _LOG.info("Restarting Kodi to apply playercorefactory.xml change…")
+            await self.restart_kodi()
         return True
 
     def _disable_ext_player_xml(self) -> None:
@@ -1233,6 +1288,20 @@ class Hub:
                 "Ext. player toggle ON but mpchc_exe_path not configured — "
                 "playercorefactory.xml was NOT written"
             )
+
+    # ------------------------------------------------------------------
+    # Boot target — controls whether Kodi auto-launches on next start
+    # ------------------------------------------------------------------
+    async def _set_boot_target(self, value: str) -> bool:
+        if value == "kodi":
+            self._config.update({"hide_explorer": True})
+        else:
+            # Clear both flags so neither condition in hub.start() fires
+            self._config.update({"hide_explorer": False, "shell_mode": False})
+        _LOG.info("Boot target set to %r (hide_explorer=%s, shell_mode=%s)",
+                  value, self._config.cfg.hide_explorer, self._config.cfg.shell_mode)
+        await self._push({"boot_target": value})
+        return True
 
     # ------------------------------------------------------------------
     # Immediate MPC-HC stop signal (called by router on explicit stop/back)

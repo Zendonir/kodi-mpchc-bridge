@@ -1,5 +1,6 @@
 // ── i18n ─────────────────────────────────────────────────────────────────────
-const _LANG = (navigator.language || 'en').slice(0,2).toLowerCase();
+const _LANG_OVERRIDE = localStorage.getItem('bridge_lang') || '';
+const _LANG = _LANG_OVERRIDE || (navigator.language || 'en').slice(0,2).toLowerCase();
 const _TR = {
   en:{
     status_connecting:'Connecting…',status_connected:'● Connected',
@@ -12,13 +13,19 @@ const _TR = {
     btn_seek_minus:'⏪ s',btn_seek_plus:'s ⏩',
     btn_back:'← Back',btn_home:'⌂ Home',btn_menu:'☰ Menu',
     btn_info:'ℹ Info',btn_watched:'☆ Unwatched',btn_watched_on:'★ Watched',
-    btn_fullscreen:'⛶ Fullscreen',btn_restart_pc:'⏻ Restart PC',
+    btn_fullscreen:'⛶ Fullscreen',btn_restart_pc:'⏻ Restart PC',btn_shutdown:'⏻ Shutdown',
     confirm_restart:'Schedule a system restart in 10 seconds?',
+    confirm_shutdown:'Shut down PC in 10 seconds?',
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Restart Kodi',
-    btn_prev_ep:'← Back',btn_next_ep:'Next →',
-    btn_logs:'\U0001f4cb Log',btn_log_refresh:'↻',btn_settings:'⚙ Settings',
+    btn_prev_ep:'⏮ Prev Ep',btn_next_ep:'Next Ep ⏭',
+    lbl_ui_language:'UI Language',opt_lang_auto:'Auto (System)',
+    btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Settings',
+    card_navigation:'Navigation',card_actions:'Actions',card_power:'Power',
+    card_system:'Start & System',card_keyboard:'Keyboard',
+    lbl_time_jump:'Time jump',lbl_playback:'Playback',
+    kbh_navigate:'navigate',kbh_ok:'OK',kbh_back:'Back',
+    kbh_playpause:'Play/Pause',kbh_seek:'custom seek',
     nav_up:'Up',nav_down:'Down',nav_left:'Left',nav_right:'Right',nav_ok:'OK (Enter)',
-    kbd_hint:'Keyboard: <kbd>↑↓←→</kbd> navigate &nbsp;<kbd>Enter</kbd> OK &nbsp;<kbd>Esc</kbd> Back &nbsp;<kbd>Space</kbd> Play/Pause',
     lbl_active_player:'Player',lbl_state:'Status',lbl_title:'Title',
     lbl_artist:'Artist',lbl_album:'Album',lbl_media_type:'Type',
     lbl_position:'Position',lbl_duration:'Duration',lbl_volume:'Volume',
@@ -34,6 +41,8 @@ const _TR = {
     lbl_kodi_exe:'Kodi path:',lbl_boot_target:'Boot target',
     opt_boot_kodi:'Kodi — hide Explorer on startup',
     opt_boot_windows:'Windows — normal desktop',
+    lbl_ext_player:'External player',
+    btn_ext_player_on:'⏏ MPC-HC (extern)',btn_ext_player_off:'▶ Kodi (intern)',
     val_yes:'Yes',val_no:'No',val_of:'of',
   },
   de:{
@@ -47,13 +56,19 @@ const _TR = {
     btn_seek_minus:'⏪ s',btn_seek_plus:'s ⏩',
     btn_back:'← Zurück',btn_home:'⌂ Home',btn_menu:'☰ Menü',
     btn_info:'ℹ Info',btn_watched:'☆ Ungesehen',btn_watched_on:'★ Gesehen',
-    btn_fullscreen:'⛶ Vollbild',btn_restart_pc:'⏻ PC neu starten',
+    btn_fullscreen:'⛶ Vollbild',btn_restart_pc:'⏻ PC neu starten',btn_shutdown:'⏻ Herunterfahren',
     confirm_restart:'PC in 10 Sekunden neu starten?',
-    btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Kodi Windows',btn_kiosk_restart:'Kodi neustarten',
-    btn_prev_ep:'← Zurück',btn_next_ep:'Weiter →',
-    btn_logs:'\U0001f4cb Log',btn_log_refresh:'↻',btn_settings:'⚙ Einstellungen',
+    confirm_shutdown:'PC in 10 Sekunden herunterfahren?',
+    btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Kodi neustarten',
+    btn_prev_ep:'⏮ Vorh. Folge',btn_next_ep:'Nächste Folge ⏭',
+    lbl_ui_language:'UI-Sprache',opt_lang_auto:'Auto (System)',
+    btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Einstellungen',
+    card_navigation:'Navigation',card_actions:'Aktionen',card_power:'Power',
+    card_system:'Start & System',card_keyboard:'Tastatur',
+    lbl_time_jump:'Zeit springen',lbl_playback:'Wiedergabe',
+    kbh_navigate:'navigieren',kbh_ok:'OK',kbh_back:'Zurück',
+    kbh_playpause:'Play/Pause',kbh_seek:'freier Sprung',
     nav_up:'Hoch',nav_down:'Runter',nav_left:'Links',nav_right:'Rechts',nav_ok:'OK (Enter)',
-    kbd_hint:'Tastatur: <kbd>↑↓←→</kbd> navigieren &nbsp;<kbd>Enter</kbd> OK &nbsp;<kbd>Esc</kbd> Zurück &nbsp;<kbd>Leertaste</kbd> Play/Pause',
     lbl_active_player:'Player',lbl_state:'Status',lbl_title:'Titel',
     lbl_artist:'Interpret',lbl_album:'Album',lbl_media_type:'Typ',
     lbl_position:'Position',lbl_duration:'Dauer',lbl_volume:'Lautstärke',
@@ -69,6 +84,8 @@ const _TR = {
     lbl_kodi_exe:'Kodi-Pfad:',lbl_boot_target:'Boot-Ziel',
     opt_boot_kodi:'Kodi — Explorer beim Start verstecken',
     opt_boot_windows:'Windows — normaler Desktop',
+    lbl_ext_player:'Externer Player',
+    btn_ext_player_on:'⏏ MPC-HC (extern)',btn_ext_player_off:'▶ Kodi (intern)',
     val_yes:'Ja',val_no:'Nein',val_of:'von',
   },
   fr:{
@@ -79,13 +96,17 @@ const _TR = {
     card_logs:'Bridge Log',card_settings:'Paramètres',
     btn_back:'← Retour',btn_home:'⌂ Accueil',btn_menu:'☰ Menu',
     btn_info:'ℹ Infos',btn_watched:'☆ Non vu',btn_watched_on:'★ Vu',
-    btn_fullscreen:'⛶ Plein écran',btn_restart_pc:'⏻ Redémarrer',
+    btn_fullscreen:'⛶ Plein écran',btn_restart_pc:'⏻ Redémarrer',btn_shutdown:'⏻ Éteindre',
     confirm_restart:'Redémarrer le système dans 10 secondes ?',
+    confirm_shutdown:'Éteindre le système dans 10 secondes ?',
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Relancer Kodi',
-    btn_prev_ep:'⏮ Préc',btn_next_ep:'Suiv ⏭',
-    btn_logs:'\U0001f4cb Journal',btn_log_refresh:'↻',btn_settings:'⚙ Paramètres',
+    btn_prev_ep:'⏮ Épisode préc.',btn_next_ep:'Épisode suiv. ⏭',
+    lbl_ui_language:'Langue UI',opt_lang_auto:'Auto (Système)',
+    btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Paramètres',
     lbl_year:'Année',lbl_tv_show:'Série',lbl_season:'Saison',lbl_episode:'Épisode',
     lbl_volume:'Volume',lbl_muted:'Muet',lbl_shuffle:'Aléatoire',lbl_repeat:'Répéter',
+    lbl_ext_player:'Lecteur externe',
+    btn_ext_player_on:'⏏ MPC-HC (externe)',btn_ext_player_off:'▶ Kodi (interne)',
     val_yes:'Oui',val_no:'Non',val_of:'sur',
   },
   es:{
@@ -96,13 +117,17 @@ const _TR = {
     card_logs:'Bridge Log',card_settings:'Ajustes',
     btn_back:'← Volver',btn_home:'⌂ Inicio',btn_menu:'☰ Menú',
     btn_info:'ℹ Info',btn_watched:'☆ No visto',btn_watched_on:'★ Visto',
-    btn_fullscreen:'⛶ Pantalla completa',btn_restart_pc:'⏻ Reiniciar',
+    btn_fullscreen:'⛶ Pantalla completa',btn_restart_pc:'⏻ Reiniciar',btn_shutdown:'⏻ Apagar',
     confirm_restart:'¿Reiniciar el sistema en 10 segundos?',
+    confirm_shutdown:'¿Apagar el sistema en 10 segundos?',
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Reiniciar Kodi',
-    btn_prev_ep:'⏮ Anterior',btn_next_ep:'Siguiente ⏭',
-    btn_logs:'\U0001f4cb Log',btn_log_refresh:'↻',btn_settings:'⚙ Ajustes',
+    btn_prev_ep:'⏮ Ep. anterior',btn_next_ep:'Ep. siguiente ⏭',
+    lbl_ui_language:'Idioma UI',opt_lang_auto:'Auto (Sistema)',
+    btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Ajustes',
     lbl_year:'Año',lbl_tv_show:'Serie',lbl_season:'Temporada',lbl_episode:'Episodio',
     lbl_volume:'Volumen',lbl_muted:'Silencio',lbl_shuffle:'Aleatorio',lbl_repeat:'Repetir',
+    lbl_ext_player:'Reproductor externo',
+    btn_ext_player_on:'⏏ MPC-HC (externo)',btn_ext_player_off:'▶ Kodi (interno)',
     val_yes:'Sí',val_no:'No',val_of:'de',
   },
   it:{
@@ -113,13 +138,17 @@ const _TR = {
     card_logs:'Bridge Log',card_settings:'Impostazioni',
     btn_back:'← Indietro',btn_home:'⌂ Home',btn_menu:'☰ Menu',
     btn_info:'ℹ Info',btn_watched:'☆ Non visto',btn_watched_on:'★ Visto',
-    btn_fullscreen:'⛶ Schermo intero',btn_restart_pc:'⏻ Riavvia',
+    btn_fullscreen:'⛶ Schermo intero',btn_restart_pc:'⏻ Riavvia',btn_shutdown:'⏻ Spegni',
     confirm_restart:'Riavviare il sistema tra 10 secondi?',
+    confirm_shutdown:'Spegnere il sistema tra 10 secondi?',
     btn_kiosk_kodi:'Kodi',btn_kiosk_windows:'Windows',btn_kiosk_restart:'Riavvia Kodi',
-    btn_prev_ep:'⏮ Prec',btn_next_ep:'Succ ⏭',
-    btn_logs:'\U0001f4cb Log',btn_log_refresh:'↻',btn_settings:'⚙ Impostazioni',
+    btn_prev_ep:'⏮ Ep. prec.',btn_next_ep:'Ep. succ. ⏭',
+    lbl_ui_language:'Lingua UI',opt_lang_auto:'Auto (Sistema)',
+    btn_logs:'Log',btn_log_refresh:'↻',btn_settings:'⚙ Impostazioni',
     lbl_year:'Anno',lbl_tv_show:'Serie',lbl_season:'Stagione',lbl_episode:'Episodio',
     lbl_volume:'Volume',lbl_muted:'Muto',lbl_shuffle:'Casuale',lbl_repeat:'Ripeti',
+    lbl_ext_player:'Lettore esterno',
+    btn_ext_player_on:'⏏ MPC-HC (esterno)',btn_ext_player_off:'▶ Kodi (interno)',
     val_yes:'Sì',val_no:'No',val_of:'di',
   },
 };
@@ -130,7 +159,15 @@ function t(k){ return _T[k] || k; }
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
   document.querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = t(el.dataset.i18nHtml); });
   document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
+  const sl = document.getElementById('sel-lang');
+  if (sl) sl.value = _LANG_OVERRIDE;
 })();
+
+function setLanguage(lang) {
+  if (lang) localStorage.setItem('bridge_lang', lang);
+  else localStorage.removeItem('bridge_lang');
+  location.reload();
+}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let state = {};
@@ -184,23 +221,30 @@ function seekByClick(e){
   if(dur>0) cmd('seek_relative', Math.round(pct*dur - (state.position||0)));
 }
 function restartConfirm(){ if(confirm(t('confirm_restart'))) cmd('system_restart'); }
+function shutdownConfirm(){ if(confirm(t('confirm_shutdown'))) cmd('system_shutdown'); }
+function toggleExternalPlayer(){
+  cmd('toggle_external_player');
+}
+function _updateExtPlayerBtn(){
+  const btn=document.getElementById('btn-ext-player');
+  if(!btn) return;
+  const on=state.external_player_enabled!==false;
+  btn.textContent=on?t('btn_ext_player_on'):t('btn_ext_player_off');
+  btn.classList.toggle('btn-blue', on);
+  btn.classList.toggle('btn-kiosk-kodi', !on);
+}
 function kioskCmd(mode){
   fetch('/api/kiosk/'+mode,{method:'POST'}).catch(()=>{});
   setTimeout(updateKioskStatus,4000);
 }
 function playEpisode(fp){
+  document.body.classList.remove('menu-open');
   fetch('/api/external_play',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filepath:fp})}).catch(()=>{});
 }
 let _epPage=0;
 const _epPageSize=18;
-function prevEpisode(){
-  if(_epPage>0){ _epPage--; _epRenderedLen=-1; renderSeasonEpisodes(); }
-}
-function nextEpisode(){
-  const eps=state.season_episodes||[];
-  const pc=Math.max(1,Math.ceil(eps.length/_epPageSize));
-  if(_epPage<pc-1){ _epPage++; _epRenderedLen=-1; renderSeasonEpisodes(); }
-}
+function prevEpisode(){ cmd('prev_episode'); }
+function nextEpisode(){ cmd('next_episode'); }
 
 // ── Playback card ─────────────────────────────────────────────────────────────
 let _lastArtUrl = '';
@@ -228,17 +272,6 @@ function updatePlaybackCard(){
   // Year
   const yr = document.getElementById('m-year');
   if(yr) yr.textContent = state.year ? String(state.year) : '—';
-
-  // Datetime (current local time)
-  const now=new Date();
-  const dtStr=String(now.getDate()).padStart(2,'0')+'.'
-    +String(now.getMonth()+1).padStart(2,'0')+'.'
-    +String(now.getFullYear()).slice(2)+', '
-    +pad2(now.getHours())+':'+pad2(now.getMinutes());
-  const dt=document.getElementById('m-datetime');
-  if(dt) dt.textContent='📅 '+dtStr;
-  const bd=document.getElementById('bottom-datetime');
-  if(bd) bd.textContent='📅 '+dtStr;
 
   // Progress bar
   const fill = document.getElementById('progress-fill');
@@ -288,11 +321,14 @@ function renderTable(id, keys){
 }
 
 // ── Track selects ─────────────────────────────────────────────────────────────
-let _audioHash='', _subHash='';
+let _audioHash='', _subHash='', _chHash='';
 function renderTracks(){
   const audio=state.audio_tracks||[], sub=state.subtitle_tracks||[];
   const curA=state.current_audio??0, curS=state.current_subtitle??-1;
-  const curCh=state.current_chapter??0, chapters=state.chapters||[];
+  const chapters=state.chapters||[];
+  const posMs=(state.position||0)*1000;
+  let curCh=0;
+  for(let i=0;i<chapters.length;i++){if((chapters[i].time_ms||0)<=posMs)curCh=i;else break;}
 
   // Audio select — only rebuild options when list changes
   const aHash=JSON.stringify(audio);
@@ -322,14 +358,18 @@ function renderTracks(){
     selS.disabled=sub.length===0;
   }
 
-  // Chapter text
-  const chEl=document.getElementById('chapter-display');
-  if(chEl){
-    if(chapters.length && curCh>=0 && curCh<chapters.length){
-      chEl.textContent=chapters[curCh].name||('Chapter '+(curCh+1));
-    } else {
-      chEl.textContent='—';
+  // Chapter select — always visible; disabled when no chapter data
+  const selCh=document.getElementById('sel-chapter');
+  if(selCh){
+    const cHash=JSON.stringify(chapters);
+    if(cHash!==_chHash){
+      _chHash=cHash;
+      selCh.innerHTML=chapters.length
+        ? chapters.map((ch,i)=>{const n=(ch.name||('Chapter '+(i+1))).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');return `<option value="${i}">${n}</option>`;}).join('')
+        : '<option value="">—</option>';
     }
+    selCh.value=chapters.length?String(curCh):'';
+    selCh.disabled=chapters.length===0;
   }
 }
 
@@ -369,13 +409,18 @@ function renderSeasonEpisodes(){
   if(!card||!hdr||!list) return;
 
   const eps=state.season_episodes;
+  const layout=document.getElementById('layout');
   if(!eps||!eps.length){
     card.style.display='none';
+    if(layout) layout.classList.add('no-playlist');
     _epRenderedLen=-1; _epRenderedIdx=-2;
     document.getElementById('bottom-pages').textContent='';
+    const epRow=document.getElementById('ep-nav-row');
+    if(epRow) epRow.style.display='none';
     return;
   }
   card.style.display='';
+  if(layout) layout.classList.remove('no-playlist');
 
   const season=(eps[0]&&eps[0].season)||state.season||'';
   const show=state.tv_show||'';
@@ -430,11 +475,13 @@ function renderSeasonEpisodes(){
     };
   }
 
+  // Episode nav row — show when episodes exist, disable at boundaries
+  const epRow=document.getElementById('ep-nav-row');
+  if(epRow) epRow.style.display='';
   const pB=document.getElementById('btn-prev-ep');
   const nB=document.getElementById('btn-next-ep');
-  if(pB) pB.disabled=_epPage<=0;
-  if(nB) nB.disabled=_epPage>=pc-1;
-
+  if(pB) pB.disabled=idx<=0;
+  if(nB) nB.disabled=idx<0||idx>=eps.length-1;
   const bpEl=document.getElementById('bottom-pages');
   if(bpEl) bpEl.textContent=pc>1?('Seite '+((_epPage+1)+' von '+pc)):'';
 
@@ -453,10 +500,6 @@ async function updateKioskStatus(){
     const s=await fetch('/api/kiosk/status').then(r=>r.json());
     const kb=document.getElementById('kiosk-btns');
     if(kb) kb.style.display='';
-    // mobile buttons
-    ['mob-btn-kiosk-kodi','mob-btn-kiosk-windows','mob-btn-kiosk-restart'].forEach(id=>{
-      const b=document.getElementById(id); if(b) b.style.display='';
-    });
     const bK=document.getElementById('btn-kiosk-kodi');
     const bW=document.getElementById('btn-kiosk-windows');
     if(bK) bK.style.background=s.kodi_running&&s.explorer_hidden?'#1a5c2a':'#1a3d1a';
@@ -469,6 +512,7 @@ updateKioskStatus();
 // ── Log viewer ────────────────────────────────────────────────────────────────
 let _logAutoTimer=null;
 function toggleLogs(){
+  if(window.innerWidth<=900) document.body.classList.remove('menu-open');
   const card=document.getElementById('card-logs');
   if(!card) return;
   const vis=card.style.display!=='none';
@@ -505,6 +549,7 @@ async function fetchLogs(){
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 function toggleSettings(){
+  if(window.innerWidth<=900) document.body.classList.remove('menu-open');
   const card=document.getElementById('card-settings');
   if(!card) return;
   const vis=card.style.display!=='none';
@@ -524,12 +569,13 @@ function syncSettingsUI(cfg){
   Object.keys(modeMap).forEach(name=>{
     document.querySelectorAll('input[name="'+name+'"]').forEach(r=>{r.checked=r.value===modeMap[name];});
   });
-  const bootVal=cfg.hide_explorer?'kodi':'windows';
-  document.querySelectorAll('input[name="boot_target"]').forEach(r=>{r.checked=r.value===bootVal;});
   const inp=document.getElementById('inp_kodi_exe');
   if(inp) inp.value=cfg.kodi_exe_path||'';
 }
-function saveBootTarget(radio){ saveKioskSetting('hide_explorer',radio.value==='kodi'); }
+function _updateBootTargetSelect(){
+  const sel=document.getElementById('sel-boot-target');
+  if(sel && state.boot_target) sel.value=state.boot_target;
+}
 function saveKioskSetting(key,val){
   const body={}; body[key]=val;
   fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).catch(()=>{});
@@ -552,9 +598,17 @@ document.addEventListener('keydown',e=>{
 });
 
 // ── Mobile menu toggle ────────────────────────────────────────────────────────
-function toggleMobileMenu(){ toggleLogs(); }
+function toggleMobileMenu(force){
+  const body=document.body;
+  const willOpen = typeof force==='boolean' ? force : !body.classList.contains('menu-open');
+  body.classList.toggle('menu-open', willOpen);
+}
 
-window.addEventListener('resize',()=>{_ensureSeasonPlacement();});
+
+window.addEventListener('resize',()=>{
+  _ensureSeasonPlacement();
+  if(window.innerWidth>900) document.body.classList.remove('menu-open');
+});
 
 // ── renderAll ────────────────────────────────────────────────────────────────
 function renderAll(){
@@ -564,6 +618,8 @@ function renderAll(){
   renderTracks();
   renderSeasonEpisodes();
   updateWatchedBtn();
+  _updateExtPlayerBtn();
+  _updateBootTargetSelect();
 }
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
