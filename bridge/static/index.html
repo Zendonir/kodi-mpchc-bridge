@@ -283,7 +283,7 @@
       <!-- Boot target / Kiosk -->
       <div class="settings-section">
         <div class="settings-section-title" data-i18n="lbl_boot_target"></div>
-        <select id="sel-boot-target" onchange="cmd('boot_target', this.value)" style="margin-bottom:10px">
+        <select id="sel-boot-target" onchange="bootTargetCmd(this.value)" style="margin-bottom:10px">
           <option value="kodi" data-i18n="opt_boot_kodi"></option>
           <option value="windows" data-i18n="opt_boot_windows"></option>
         </select>

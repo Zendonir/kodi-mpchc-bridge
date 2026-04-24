@@ -233,9 +233,26 @@ function _updateExtPlayerBtn(){
   btn.classList.toggle('btn-blue', on);
   btn.classList.toggle('btn-kiosk-kodi', !on);
 }
+let _kioskCooldown=false;
+function _kioskLock(){
+  _kioskCooldown=true;
+  const els=document.querySelectorAll('#kiosk-btns button,#sel-boot-target');
+  els.forEach(e=>e.disabled=true);
+  setTimeout(()=>{
+    _kioskCooldown=false;
+    els.forEach(e=>e.disabled=false);
+    updateKioskStatus();
+  },6000);
+}
 function kioskCmd(mode){
+  if(_kioskCooldown) return;
+  _kioskLock();
   fetch('/api/kiosk/'+mode,{method:'POST'}).catch(()=>{});
-  setTimeout(updateKioskStatus,4000);
+}
+function bootTargetCmd(val){
+  if(_kioskCooldown) return;
+  _kioskLock();
+  cmd('boot_target',val);
 }
 function playEpisode(fp){
   document.body.classList.remove('menu-open');
@@ -573,6 +590,7 @@ function syncSettingsUI(cfg){
   if(inp) inp.value=cfg.kodi_exe_path||'';
 }
 function _updateBootTargetSelect(){
+  if(_kioskCooldown) return;
   const sel=document.getElementById('sel-boot-target');
   if(sel && state.boot_target) sel.value=state.boot_target;
 }
