@@ -1122,6 +1122,7 @@ class Hub:
 
         _focus_kodi_window()
         _LOG.info("switch_to_kodi: kodi_running_before=%s", kodi_running)
+        await self._push({"boot_target": "kodi"})
         return True
 
     async def switch_to_windows(self) -> bool:
@@ -1154,6 +1155,7 @@ class Hub:
             _set_explorer_visible(True)
             self._explorer_hidden = False
         _LOG.info("switch_to_windows: Explorer restored, Kodi killed")
+        await self._push({"boot_target": "windows"})
         return True
 
     async def restart_kodi(self) -> bool:
@@ -1295,11 +1297,17 @@ class Hub:
     async def _set_boot_target(self, value: str) -> bool:
         if value == "kodi":
             self._config.update({"hide_explorer": True})
+            _LOG.info("Boot target → kodi (hide_explorer=True)")
+            # Apply immediately: switch to Kodi now if not already there
+            if not self._explorer_hidden:
+                await self.switch_to_kodi()
         else:
             # Clear both flags so neither condition in hub.start() fires
             self._config.update({"hide_explorer": False, "shell_mode": False})
-        _LOG.info("Boot target set to %r (hide_explorer=%s, shell_mode=%s)",
-                  value, self._config.cfg.hide_explorer, self._config.cfg.shell_mode)
+            _LOG.info("Boot target → windows (hide_explorer=False, shell_mode=False)")
+            # Apply immediately: show Windows desktop now if currently in kiosk mode
+            if self._explorer_hidden:
+                await self.switch_to_windows()
         await self._push({"boot_target": value})
         return True
 
