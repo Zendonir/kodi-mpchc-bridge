@@ -1350,15 +1350,10 @@ class Hub:
             self._config.update({"hide_explorer": False, "shell_mode": False})
             _LOG.info("Boot target → windows (hide_explorer=False, shell_mode=False saved)")
             if sys.platform == "win32":
-                # Remove bridge from Windows shell registry so Explorer becomes
-                # the shell on next login (safe no-op if key was never set)
-                _remove_shell_registry()
-                # Ensure an autostart scheduled task exists so the bridge still
-                # launches on next login (previously shell-mode had no task)
-                _ensure_autostart_task()
-                # Start Explorer immediately if it is not running
+                import subprocess
+                # Start Explorer first — if the bridge is the shell Explorer is
+                # not running and the user would have no desktop otherwise.
                 if not _is_explorer_running():
-                    import subprocess
                     try:
                         subprocess.Popen(
                             ["explorer.exe"],
@@ -1367,6 +1362,12 @@ class Hub:
                         _LOG.info("Boot target: started explorer.exe")
                     except Exception as exc:
                         _LOG.warning("Boot target: failed to start explorer.exe: %s", exc)
+                # Remove bridge from Windows shell registry so Explorer becomes
+                # the shell on next login (safe no-op if key was never set)
+                _remove_shell_registry()
+                # Ensure an autostart scheduled task exists so the bridge still
+                # launches on next login (previously shell-mode had no task)
+                _ensure_autostart_task()
         await self._push({"boot_target": value})
         return True
 
