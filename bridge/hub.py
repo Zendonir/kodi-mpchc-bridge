@@ -227,6 +227,55 @@ def _is_explorer_running() -> bool:
         return True  # assume running to avoid double-start
 
 
+def _remove_shell_registry() -> None:
+    """Delete bridge's HKCU Winlogon Shell key so Explorer becomes shell again on next login."""
+    if sys.platform != "win32":
+        return
+    try:
+        import winreg
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows NT\CurrentVersion\Winlogon",
+            access=winreg.KEY_SET_VALUE,
+        ) as key:
+            winreg.DeleteValue(key, "Shell")
+        _LOG.info("Boot target: removed bridge shell registry key")
+    except FileNotFoundError:
+        pass  # key was not set — nothing to do
+    except Exception as exc:
+        _LOG.warning("Boot target: failed to remove shell registry key: %s", exc)
+
+
+def _ensure_autostart_task() -> None:
+    """Create KodiMpcHcBridge scheduled task so bridge autostarts on login (frozen mode only)."""
+    if sys.platform != "win32":
+        return
+    if not getattr(sys, "frozen", False):
+        return  # dev/source mode — no installed exe to register
+    import subprocess
+    exe = sys.executable
+    script = "\r\n".join([
+        f"$act = New-ScheduledTaskAction -Execute '{exe}'",
+        "$tri = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME",
+        "$pri = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited",
+        "$set = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero)"
+        " -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries",
+        "Register-ScheduledTask -TaskName 'KodiMpcHcBridge' -Action $act -Trigger $tri"
+        " -Principal $pri -Settings $set -Force -ErrorAction Stop",
+    ])
+    try:
+        subprocess.run(
+            ["powershell.exe", "-WindowStyle", "Hidden", "-NoProfile",
+             "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
+            creationflags=subprocess.CREATE_NO_WINDOW,
+            capture_output=True,
+            timeout=15.0,
+        )
+        _LOG.info("Boot target: autostart scheduled task created/updated")
+    except Exception as exc:
+        _LOG.warning("Boot target: failed to create autostart task: %s", exc)
+
+
 def _show_resume_dialog(
     position_sec: float,
     on_ready: "Any | None" = None,
@@ -1281,14 +1330,24 @@ class Hub:
         else:
             self._config.update({"hide_explorer": False, "shell_mode": False})
             _LOG.info("Boot target → windows (hide_explorer=False, shell_mode=False saved)")
-            # Start Explorer if not already running (non-destructive: does NOT kill Kodi)
-            if sys.platform == "win32" and not _is_explorer_running():
-                import subprocess
-                try:
-                    subprocess.Popen(["explorer.exe"])
-                    _LOG.info("Boot target: started explorer.exe")
-                except Exception as exc:
-                    _LOG.warning("Boot target: failed to start explorer.exe: %s", exc)
+            if sys.platform == "win32":
+                # Remove bridge from Windows shell registry so Explorer becomes
+                # the shell on next login (safe no-op if key was never set)
+                _remove_shell_registry()
+                # Ensure an autostart scheduled task exists so the bridge still
+                # launches on next login (previously shell-mode had no task)
+                _ensure_autostart_task()
+                # Start Explorer immediately if it is not running
+                if not _is_explorer_running():
+                    import subprocess
+                    try:
+                        subprocess.Popen(
+                            ["explorer.exe"],
+                            creationflags=subprocess.CREATE_NO_WINDOW,
+                        )
+                        _LOG.info("Boot target: started explorer.exe")
+                    except Exception as exc:
+                        _LOG.warning("Boot target: failed to start explorer.exe: %s", exc)
         await self._push({"boot_target": value})
         return True
 
