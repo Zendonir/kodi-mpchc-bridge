@@ -177,15 +177,15 @@
       <div class="card-hdr" data-i18n="card_tracks"></div>
       <div class="track-row">
         <span class="track-label" data-i18n="lbl_current_audio"></span>
-        <select id="sel-audio" onchange="cmd('audio_track', parseInt(this.value))"></select>
+        <select id="sel-audio" onchange="cmd('audio_track', parseInt(this.value))" disabled><option value="" data-i18n="opt_no_tracks"></option></select>
       </div>
       <div class="track-row">
         <span class="track-label" data-i18n="lbl_current_subtitle"></span>
-        <select id="sel-subtitle" onchange="cmd('subtitle_track', parseInt(this.value))"></select>
+        <select id="sel-subtitle" onchange="cmd('subtitle_track', parseInt(this.value))" disabled><option value="-1" data-i18n="opt_sub_off"></option></select>
       </div>
       <div class="track-row" id="chapter-row">
         <span class="track-label" data-i18n="lbl_current_chapter"></span>
-        <select id="sel-chapter" onchange="cmd('chapter', parseInt(this.value))"></select>
+        <select id="sel-chapter" onchange="cmd('chapter', parseInt(this.value))" disabled><option value="" data-i18n="opt_no_tracks"></option></select>
       </div>
     </div>
 

@@ -362,7 +362,7 @@ function renderTracks(){
         ? audio.map((tr,i)=>`<option value="${tr.pos}">${tr.label||('Track '+(i+1))}</option>`).join('')
         : `<option value="">${t('opt_no_tracks')}</option>`;
     }
-    selA.value=String(curA);
+    selA.value=audio.length?String(curA):'';
     selA.disabled=audio.length===0;
   }
 
