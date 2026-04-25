@@ -134,6 +134,11 @@ class UnifiedState:
             ]
         if not d["chapters"]:
             d["chapters"] = [{"pos": -1, "name": "—", "time_ms": 0}]
+        if not d["season_episodes"]:
+            d["season_episodes"] = [
+                {"episodeid": -1, "episode": 0, "title": "—", "file": "",
+                 "playcount": 0, "resume_pos": 0.0, "runtime": 0}
+            ]
         return d
 
 

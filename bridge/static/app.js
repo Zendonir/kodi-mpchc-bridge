@@ -434,9 +434,9 @@ function renderSeasonEpisodes(){
   const list=document.getElementById('ep-list');
   if(!card||!hdr||!list) return;
 
-  const eps=state.season_episodes;
+  const eps=(state.season_episodes||[]).filter(e=>e.episodeid!==-1);
   const layout=document.getElementById('layout');
-  if(!eps||!eps.length){
+  if(!eps.length){
     card.style.display='none';
     if(layout) layout.classList.add('no-playlist');
     _epRenderedLen=-1; _epRenderedIdx=-2;

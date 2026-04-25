@@ -1312,17 +1312,18 @@ class Hub:
     async def _set_boot_target(self, value: str) -> bool:
         if value == "kodi":
             self._config.update({"hide_explorer": True})
-            _LOG.info("Boot target → kodi (hide_explorer=True)")
-            # Apply immediately: switch to Kodi now if not already there
-            if not self._explorer_hidden:
-                await self.switch_to_kodi()
+            _LOG.info("Boot target → kodi (hide_explorer=True saved)")
         else:
-            # Clear both flags so neither condition in hub.start() fires
             self._config.update({"hide_explorer": False, "shell_mode": False})
-            _LOG.info("Boot target → windows (hide_explorer=False, shell_mode=False)")
-            # Apply immediately: show Windows desktop now if currently in kiosk mode
-            if self._explorer_hidden:
-                await self.switch_to_windows()
+            _LOG.info("Boot target → windows (hide_explorer=False, shell_mode=False saved)")
+            # Start Explorer if not already running (non-destructive: does NOT kill Kodi)
+            if sys.platform == "win32" and not _is_explorer_running():
+                import subprocess
+                try:
+                    subprocess.Popen(["explorer.exe"])
+                    _LOG.info("Boot target: started explorer.exe")
+                except Exception as exc:
+                    _LOG.warning("Boot target: failed to start explorer.exe: %s", exc)
         await self._push({"boot_target": value})
         return True
 
