@@ -121,16 +121,19 @@ class UnifiedState:
         """
         d = asdict(self)
         d.pop("filepath", None)
+        # Sentinel entries (pos=-1) signal "no tracks available" to external
+        # clients.  UC Remote integration drivers should map pos==-1 to
+        # entity state UNAVAILABLE on their entity_select entities.
         if not d["audio_tracks"]:
             d["audio_tracks"] = [
-                {"pos": -1, "label": "", "language": "", "codec": "", "channels": 0, "forced": False, "default": False}
+                {"pos": -1, "label": "—", "language": "", "codec": "", "channels": 0, "forced": False, "default": False}
             ]
         if not d["subtitle_tracks"]:
             d["subtitle_tracks"] = [
-                {"pos": -1, "label": "", "language": "", "codec": "", "forced": False, "default": False}
+                {"pos": -1, "label": "—", "language": "", "codec": "", "forced": False, "default": False}
             ]
         if not d["chapters"]:
-            d["chapters"] = [{"pos": -1, "name": "", "time_ms": 0}]
+            d["chapters"] = [{"pos": -1, "name": "—", "time_ms": 0}]
         return d
 
 
