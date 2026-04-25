@@ -59,7 +59,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 
 ; --- Misc ---
 AllowNoIcons=yes
-CloseApplications=force
+CloseApplications=no
 
 ; ============================================================
 ; Languages
