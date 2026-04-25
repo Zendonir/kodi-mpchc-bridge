@@ -113,9 +113,24 @@ class UnifiedState:
     filepath: str = ""
 
     def to_dict(self) -> dict:
-        """Return full state as a plain dict (filepath excluded)."""
+        """Return full state as a plain dict (filepath excluded).
+
+        Track arrays that are empty are replaced with a single sentinel entry
+        (pos=-1, empty label) so external remotes never receive bare ``[]``
+        and can always render at least a "no entries" placeholder.
+        """
         d = asdict(self)
         d.pop("filepath", None)
+        if not d["audio_tracks"]:
+            d["audio_tracks"] = [
+                {"pos": -1, "label": "", "language": "", "codec": "", "channels": 0, "forced": False, "default": False}
+            ]
+        if not d["subtitle_tracks"]:
+            d["subtitle_tracks"] = [
+                {"pos": -1, "label": "", "language": "", "codec": "", "forced": False, "default": False}
+            ]
+        if not d["chapters"]:
+            d["chapters"] = [{"pos": -1, "name": "", "time_ms": 0}]
         return d
 
 

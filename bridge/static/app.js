@@ -345,9 +345,13 @@ function renderTable(id, keys){
 // ── Track selects ─────────────────────────────────────────────────────────────
 let _audioHash='', _subHash='', _chHash='';
 function renderTracks(){
-  const audio=state.audio_tracks||[], sub=state.subtitle_tracks||[];
+  // Strip server-side sentinel entries (pos===-1) so the web UI
+  // renders its own translated "no entries" placeholder instead.
+  const _stripSentinel=arr=>(arr||[]).filter(t=>t.pos!==-1);
+  const audio=_stripSentinel(state.audio_tracks);
+  const sub=_stripSentinel(state.subtitle_tracks);
+  const chapters=_stripSentinel(state.chapters);
   const curA=state.current_audio??0, curS=state.current_subtitle??-1;
-  const chapters=state.chapters||[];
   const posMs=(state.position||0)*1000;
   let curCh=0;
   for(let i=0;i<chapters.length;i++){if((chapters[i].time_ms||0)<=posMs)curCh=i;else break;}
