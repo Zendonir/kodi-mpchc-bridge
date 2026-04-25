@@ -153,14 +153,9 @@ class MpcHcClient:
         return await self._get("/command.html", {"wm_command": -2, "volume": max(0, min(100, volume))})
 
     async def set_audio_track(self, target: int, current: int, total: int) -> bool:
-        """Cycle to audio track *target* using next/prev commands, or Win32 PostMessage."""
+        """Cycle to audio track *target* via HTTP next/prev commands."""
         if total <= 0:
             return False
-        cmd_id = _AUDIO_BASE + target
-        if _post_wm_command(cmd_id):
-            _LOG.info("AUDIO select: target=%d  → PostMessage wm_command=%d", target, cmd_id)
-            return True
-        # Fallback: cycle via HTTP next/prev
         steps_fwd = (target - current) % total
         steps_bwd = (current - target) % total
         if steps_fwd == 0:

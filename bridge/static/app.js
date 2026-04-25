@@ -44,6 +44,7 @@ const _TR = {
     lbl_ext_player:'External player',
     btn_ext_player_on:'⏏ MPC-HC (extern)',btn_ext_player_off:'▶ Kodi (intern)',
     val_yes:'Yes',val_no:'No',val_of:'of',
+    opt_no_tracks:'— None —',opt_sub_off:'— Off —',
   },
   de:{
     status_connecting:'Verbinde…',status_connected:'● Verbunden',
@@ -87,6 +88,7 @@ const _TR = {
     lbl_ext_player:'Externer Player',
     btn_ext_player_on:'⏏ MPC-HC (extern)',btn_ext_player_off:'▶ Kodi (intern)',
     val_yes:'Ja',val_no:'Nein',val_of:'von',
+    opt_no_tracks:'— Keine —',opt_sub_off:'— Aus —',
   },
   fr:{
     status_connecting:'Connexion…',status_connected:'● Connecté',
@@ -108,6 +110,7 @@ const _TR = {
     lbl_ext_player:'Lecteur externe',
     btn_ext_player_on:'⏏ MPC-HC (externe)',btn_ext_player_off:'▶ Kodi (interne)',
     val_yes:'Oui',val_no:'Non',val_of:'sur',
+    opt_no_tracks:'— Aucune —',opt_sub_off:'— Désactivé —',
   },
   es:{
     status_connecting:'Conectando…',status_connected:'● Conectado',
@@ -129,6 +132,7 @@ const _TR = {
     lbl_ext_player:'Reproductor externo',
     btn_ext_player_on:'⏏ MPC-HC (externo)',btn_ext_player_off:'▶ Kodi (interno)',
     val_yes:'Sí',val_no:'No',val_of:'de',
+    opt_no_tracks:'— Ninguna —',opt_sub_off:'— Desactivado —',
   },
   it:{
     status_connecting:'Connessione…',status_connected:'● Connesso',
@@ -150,6 +154,7 @@ const _TR = {
     lbl_ext_player:'Lettore esterno',
     btn_ext_player_on:'⏏ MPC-HC (esterno)',btn_ext_player_off:'▶ Kodi (interno)',
     val_yes:'Sì',val_no:'No',val_of:'di',
+    opt_no_tracks:'— Nessuna —',opt_sub_off:'— Disattivato —',
   },
 };
 const _T = Object.assign({}, _TR.en, _TR[_LANG] || {});
@@ -354,8 +359,8 @@ function renderTracks(){
     if(aHash!==_audioHash){
       _audioHash=aHash;
       selA.innerHTML=audio.length
-        ? audio.map((tr,i)=>`<option value="${i}">${tr.label||('Track '+(i+1))}</option>`).join('')
-        : '<option value="">—</option>';
+        ? audio.map((tr,i)=>`<option value="${tr.pos}">${tr.label||('Track '+(i+1))}</option>`).join('')
+        : `<option value="">${t('opt_no_tracks')}</option>`;
     }
     selA.value=String(curA);
     selA.disabled=audio.length===0;
@@ -367,8 +372,8 @@ function renderTracks(){
   if(selS){
     if(sHash!==_subHash){
       _subHash=sHash;
-      const opts=['<option value="-1">— Off —</option>'];
-      sub.forEach((tr,i)=>opts.push(`<option value="${i}">${tr.label||('Track '+(i+1))}</option>`));
+      const opts=[`<option value="-1">${t('opt_sub_off')}</option>`];
+      sub.forEach((tr,i)=>opts.push(`<option value="${tr.pos}">${tr.label||('Track '+(i+1))}</option>`));
       selS.innerHTML=opts.join('');
     }
     selS.value=String(curS);
@@ -382,8 +387,8 @@ function renderTracks(){
     if(cHash!==_chHash){
       _chHash=cHash;
       selCh.innerHTML=chapters.length
-        ? chapters.map((ch,i)=>{const n=(ch.name||('Chapter '+(i+1))).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');return `<option value="${i}">${n}</option>`;}).join('')
-        : '<option value="">—</option>';
+        ? chapters.map((ch,i)=>{const n=(ch.name||('Chapter '+(i+1))).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');return `<option value="${ch.pos}">${n}</option>`;}).join('')
+        : `<option value="">${t('opt_no_tracks')}</option>`;
     }
     selCh.value=chapters.length?String(curCh):'';
     selCh.disabled=chapters.length===0;

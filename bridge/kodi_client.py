@@ -1525,11 +1525,15 @@ class KodiClient:
         thumb = media.get("thumbnail", "") or ""
         updates["artwork_url"] = self._image_url(thumb) if thumb else ""
 
-        # Audio streams
+        # Pass file path as internal marker so hub can trigger bridge-proxied artwork fetch
+        updates["kodi_file"] = media.get("file", "") or ""
+
+        # Audio streams — use the stream's own index field so Player.SetAudioStream
+        # receives the correct selector even when Kodi's indices are non-sequential
         audio_streams = props.get("audiostreams", [])
         updates["audio_tracks"] = [
             {
-                "pos": i,
+                "pos": s.get("index", i),
                 "label": self._stream_label(s, "audio"),
                 "language": s.get("language", ""),
                 "codec": s.get("codec", ""),
@@ -1542,12 +1546,12 @@ class KodiClient:
         cur_audio = props.get("currentaudiostream", {})
         updates["current_audio"] = cur_audio.get("index", 0)
 
-        # Subtitles
+        # Subtitles — same: use subtitle's own index for Player.SetSubtitle
         subtitles = props.get("subtitles", [])
         sub_enabled = props.get("subtitleenabled", False)
         updates["subtitle_tracks"] = [
             {
-                "pos": i,
+                "pos": s.get("index", i),
                 "label": self._stream_label(s, "subtitle"),
                 "language": s.get("language", ""),
                 "codec": s.get("codec", ""),

@@ -480,6 +480,7 @@ class Hub:
         # trigger twice for the same file.  Reset whenever the filepath changes.
         self._autonext_triggered: bool = False
         self._explorer_hidden: bool = False  # True while kiosk mode has Explorer hidden
+        self._kodi_last_filepath: str = ""   # last file played by Kodi's internal player
         # Monotonic deadline until which poll-based track resync is suppressed
         # (set after a manual audio/subtitle selection to avoid mid-cycle flicker)
         self._suppress_track_sync_until: float = 0.0
@@ -992,6 +993,9 @@ class Hub:
     # Kodi state handler
     # ------------------------------------------------------------------
     async def _on_kodi_update(self, updates: dict[str, Any]) -> None:
+        # Always extract internal field before any filtering or push
+        kodi_file = updates.pop("kodi_file", "")
+
         if self._mpchc_active:
             # Filter: only volume/mute pass through while MPC-HC is playing
             filtered = {k: v for k, v in updates.items() if k in _KODI_PASSTHROUGH_WHILE_MPCHC}
@@ -1016,6 +1020,17 @@ class Hub:
             _LOG.debug("Kodi state: %s  pos=%.1fs", updates["state"], updates.get("position", 0))
 
         await self._push(updates)
+
+        # Fetch artwork + library metadata via bridge when Kodi starts a new file.
+        # This proxies artwork through /api/artwork (avoids direct Kodi HTTP access)
+        # and provides art-mode selection (poster/fanart/thumb), media_id, season list.
+        if kodi_file and kodi_file != self._kodi_last_filepath:
+            self._kodi_last_filepath = kodi_file
+            task = asyncio.get_running_loop().create_task(self._fetch_artwork(kodi_file))
+            task.add_done_callback(
+                lambda t: _LOG.warning("Kodi artwork task raised: %s", t.exception())
+                if not t.cancelled() and t.exception() else None
+            )
 
     # ------------------------------------------------------------------
     # Common push
