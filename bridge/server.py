@@ -64,6 +64,7 @@ class BridgeServer:
     def _setup_routes(self) -> None:
         self._app.router.add_get("/api/state", self._handle_state)
         self._app.router.add_post("/api/command", self._handle_command)
+        self._app.router.add_get("/api/command", self._handle_command_get)
         self._app.router.add_get("/api/config", self._handle_config_get)
         self._app.router.add_post("/api/config", self._handle_config_post)
         self._app.router.add_post("/api/external_play", self._handle_external_play)
@@ -146,6 +147,24 @@ class BridgeServer:
         if not cmd:
             return web.json_response({"error": "missing cmd"}, status=400)
 
+        ok = await self._router.dispatch(cmd, value)
+        return web.json_response({"ok": ok})
+
+    async def _handle_command_get(self, request: web.Request) -> web.Response:
+        """GET /api/command?cmd=play_pause&value=30  — browser-friendly shortcut."""
+        cmd = request.rel_url.query.get("cmd")
+        if not cmd:
+            return web.json_response({"error": "missing cmd"}, status=400)
+        raw = request.rel_url.query.get("value")
+        value: object = None
+        if raw is not None:
+            try:
+                value = int(raw)
+            except ValueError:
+                try:
+                    value = float(raw)
+                except ValueError:
+                    value = raw
         ok = await self._router.dispatch(cmd, value)
         return web.json_response({"ok": ok})
 
