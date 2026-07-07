@@ -609,6 +609,12 @@ class Hub:
 
         if new_active == "mpchc" and not self._mpchc_active:
             self._mpchc_active = True
+            # Fresh (re)activation: drop the remembered position/duration of the
+            # previous playback.  They still hold the END position of the last
+            # file — the auto-next check below must never combine them with the
+            # newly started file.
+            self._mpchc_last_position = 0.0
+            self._mpchc_last_duration = 0.0
             _filepath = updates.get("filepath", "")
             updates["media_type"] = _detect_media_type(_filepath)
             # Clear stale video / metadata from any previous player so the
@@ -674,6 +680,19 @@ class Hub:
                     lambda t: _LOG.warning("Kodi sync task raised: %s", t.exception())
                     if not t.cancelled() and t.exception() else None
                 )
+
+        # ── Reset stale position/duration when the file changes ──────────────
+        # Must happen BEFORE the tracking + auto-next blocks below.  Without
+        # this, _mpchc_last_position still holds the END position of the
+        # previous episode after a file switch (MPC-HC reports position=0 for
+        # the new file, which the ">0" filter below ignores).  Episodes of a
+        # season have near-identical lengths, so the auto-next check would see
+        # "≤ 5 s remaining" for the just-started episode and immediately skip
+        # ahead again — rippling through the whole playlist.
+        _fp_now = updates.get("filepath")
+        if _fp_now and _fp_now != self._last_filepath:
+            self._mpchc_last_position = 0.0
+            self._mpchc_last_duration = 0.0
 
         # Track position and duration from every MPC-HC poll (used for Kodi sync on stop).
         # Only update when the value is non-zero: MPC-HC reports position=0 when it
