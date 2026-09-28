@@ -124,6 +124,9 @@ class CommandRouter:
         # While the resume dialog is visible this is set to the dialog's
         # inject-key function.  All nav/stop commands are redirected there.
         self._dialog_handler: "Callable[[str], None] | None" = None
+        # Serialises audio/subtitle track changes — MPC-HC has one global
+        # track cycle, so two overlapping selections would corrupt each other.
+        self._track_lock = asyncio.Lock()
 
     def set_dialog_handler(self, handler: "Callable[[str], None] | None") -> None:
         """Register / unregister the active resume-dialog key-inject function.
@@ -417,27 +420,9 @@ class CommandRouter:
         elif cmd == "set_volume" and value is not None:
             return await self._mpchc.set_volume(int(value))
         elif cmd == "audio_track" and value is not None:
-            target = int(value)
-            cur = self._state.state.current_audio
-            total = len(self._state.state.audio_tracks)
-            ok = await self._mpchc.set_audio_track(target, cur, total)
-            if ok:
-                if self._push_cb:
-                    await self._push_cb({"current_audio": target})
-                if self._on_track_change:
-                    asyncio.create_task(self._on_track_change())
-            return ok
+            return await self._select_mpchc_track("audio", int(value))
         elif cmd == "subtitle_track" and value is not None:
-            target = int(value)
-            cur = self._state.state.current_subtitle
-            total = len(self._state.state.subtitle_tracks)
-            ok = await self._mpchc.set_subtitle_track(target, cur, total)
-            if ok:
-                if self._push_cb:
-                    await self._push_cb({"current_subtitle": target})
-                if self._on_track_change:
-                    asyncio.create_task(self._on_track_change())
-            return ok
+            return await self._select_mpchc_track("subtitle", int(value))
         elif cmd == "chapter" and value is not None:
             target = int(value)
             chapters = self._state.state.chapters
@@ -462,6 +447,120 @@ class CommandRouter:
         else:
             _LOG.debug("Unknown MPC-HC cmd: %s", cmd)
             return False
+
+    # ------------------------------------------------------------------
+    # MPC-HC track selection (verified)
+    # ------------------------------------------------------------------
+    async def _read_mpchc_track(self, kind: str, tracks: list) -> "int | None":
+        """
+        Ask MPC-HC which track is ACTUALLY active right now.
+        Returns the resolved 0-based index (-1 = subtitles off) or None
+        when MPC-HC is unreachable.
+        """
+        from bridge.mpchc_client import match_track
+        names = await self._mpchc.get_track_names()
+        if names is None:
+            return None
+        name = names.get("audiotrack" if kind == "audio" else "subtitletrack", "")
+        if kind == "subtitle":
+            return match_track(tracks, name) if name else -1
+        return match_track(tracks, name)
+
+    async def _verify_mpchc_track(
+        self, kind: str, tracks: list, target: int,
+        attempts: int = 3, delay: float = 0.35,
+    ) -> "tuple[bool, int | None]":
+        """
+        Poll MPC-HC until it reports *target* as the active track.
+        Returns (reached, last_seen_index).  last_seen_index is None only
+        when MPC-HC never answered.
+        """
+        seen: "int | None" = None
+        for _ in range(attempts):
+            await asyncio.sleep(delay)
+            idx = await self._read_mpchc_track(kind, tracks)
+            if idx is None:
+                continue
+            seen = idx
+            if idx == target:
+                return True, idx
+        return False, seen
+
+    async def _select_mpchc_track(self, kind: str, target: int) -> bool:
+        """
+        Select an MPC-HC audio/subtitle track — verified, race-free.
+
+        Strategy
+        --------
+        1. Absolute selection via Win32 WM_COMMAND (single message, does not
+           depend on knowing the currently active track), then read back what
+           MPC-HC reports.
+        2. If that did not land on the target (ID ranges differ between
+           builds, window not found, non-Windows): fall back to relative
+           NEXT/PREV cycling — computed from the index MPC-HC actually
+           reports, NOT from possibly-stale state — and verify again.
+        3. Push the index MPC-HC really ended up on, never an unverified
+           optimistic value.
+        """
+        if kind == "audio":
+            tracks = self._state.state.audio_tracks
+            state_cur, field = self._state.state.current_audio, "current_audio"
+        else:
+            tracks = self._state.state.subtitle_tracks
+            state_cur, field = self._state.state.current_subtitle, "current_subtitle"
+        total = len(tracks)
+        min_target = -1 if kind == "subtitle" else 0
+        if total <= 0 or not (min_target <= target < total):
+            _LOG.warning(
+                "%s select: target=%d out of range (total=%d) — dropped",
+                kind.upper(), target, total,
+            )
+            return False
+
+        async with self._track_lock:
+            # Suppress poll-based resync so intermediate states don't flicker
+            if self._on_track_change:
+                asyncio.create_task(self._on_track_change())
+
+            # ── 1. Absolute selection (Win32), then verify ────────────────
+            seen: "int | None" = None
+            if target >= 0 and self._mpchc.select_track_direct(kind, target):
+                ok, seen = await self._verify_mpchc_track(kind, tracks, target)
+                if ok:
+                    if self._push_cb:
+                        await self._push_cb({field: target})
+                    _LOG.info("%s select: target=%d reached via direct WM_COMMAND",
+                              kind.upper(), target)
+                    return True
+                _LOG.info(
+                    "%s select: direct WM_COMMAND landed on %s — falling back to cycling",
+                    kind.upper(), seen,
+                )
+
+            # ── 2. Fallback: cycle from the VERIFIED current index ────────
+            cur = seen
+            if cur is None:
+                cur = await self._read_mpchc_track(kind, tracks)
+            if cur is None:
+                cur = state_cur  # MPC-HC unreachable — last resort
+            if self._on_track_change:
+                asyncio.create_task(self._on_track_change())  # extend suppression
+            if kind == "audio":
+                await self._mpchc.set_audio_track(target, cur, total)
+            else:
+                await self._mpchc.set_subtitle_track(target, cur, total)
+            ok, seen = await self._verify_mpchc_track(kind, tracks, target)
+
+            # ── 3. Push what MPC-HC actually reports ──────────────────────
+            final = target if ok else seen
+            if final is not None and self._push_cb:
+                await self._push_cb({field: final})
+            if not ok:
+                _LOG.warning(
+                    "%s select: target=%d NOT verified (MPC-HC reports %s)",
+                    kind.upper(), target, seen,
+                )
+            return ok
 
     # ------------------------------------------------------------------
     # MPC-HC navigation / keyboard commands

@@ -23,7 +23,7 @@ from bridge.browse import KodiBrowser
 from bridge.config import ConfigManager
 from bridge.kodi_client import KodiClient
 from bridge.mkv_parser import parse_mkv, tracks_to_dicts
-from bridge.mpchc_client import MpcHcClient
+from bridge.mpchc_client import MpcHcClient, match_track as _match_track
 from bridge.router import CommandRouter
 from bridge.server import BridgeServer
 from bridge.state import StateManager
@@ -225,66 +225,6 @@ def _is_explorer_running() -> bool:
         return "explorer.exe" in out.stdout.lower()
     except Exception:
         return True  # assume running to avoid double-start
-
-
-def _match_track(tracks: list[dict], current_name: str) -> int:
-    """
-    Match MPC-HC's current track string against parsed MKV track list.
-    Returns 0-based index, or -1 for 'No subtitles'.
-    """
-    if not current_name or not tracks:
-        return 0
-    cur = current_name.lower()
-
-    # "S: No subtitles" — no active subtitle track
-    if "no subtitles" in cur:
-        return -1
-
-    # MPC-HC's virtual auto-forced track — match our synthetic "Forced (auto)" entry
-    if "forced subtitles" in cur:
-        for t in tracks:
-            if t.get("label", "").lower() == "forced (auto)":
-                return t["pos"]
-        return 0
-
-    lang_m = re.search(r'\[([a-z]{3})\]', cur)
-    cur_lang = lang_m.group(1) if lang_m else ""
-    _CODEC_HINTS = {
-        "truehd": "A_TRUEHD", "eac3": "A_EAC3", "e-ac3": "A_EAC3",
-        "dts-hd": "A_DTS", "dts": "A_DTS",
-        "ac3": "A_AC3", "aac": "A_AAC", "flac": "A_FLAC",
-        "mp3": "A_MPEG", "opus": "A_OPUS", "vorbis": "A_VORBIS",
-        "vobsub": "S_VOBSUB", "ass": "S_TEXT/ASS",
-        "subrip": "S_TEXT/UTF8", "pgs": "S_HDMV/PGS",
-    }
-    cur_codec = ""
-    for hint, codec in _CODEC_HINTS.items():
-        if hint in cur:
-            cur_codec = codec
-            break
-
-    # Whether the MPC-HC name marks this as a forced track
-    name_is_forced = "[forced]" in cur
-
-    best_pos, best_score = 0, -1
-    for t in tracks:
-        score = 0
-        if cur_lang and t.get("language", "").lower() == cur_lang:
-            score += 10
-        if cur_codec and t.get("codec", "").upper().startswith(cur_codec.upper().split("/")[0]):
-            score += 5
-        if t.get("label") and t["label"].lower() in cur:
-            score += 3
-        # Forced flag: strongly reward an exact forced/non-forced match,
-        # penalise a mismatch so forced tracks don't steal non-forced slots.
-        track_is_forced = t.get("forced", False)
-        if name_is_forced == track_is_forced:
-            score += 8
-        else:
-            score -= 4
-        if score > best_score:
-            best_score, best_pos = score, t["pos"]
-    return best_pos
 
 
 def _show_resume_dialog(
@@ -611,6 +551,12 @@ class Hub:
 
         if new_active == "mpchc" and not self._mpchc_active:
             self._mpchc_active = True
+            # Fresh (re)activation: drop the remembered position/duration of the
+            # previous playback.  They still hold the END position of the last
+            # file — the auto-next check below must never combine them with the
+            # newly started file.
+            self._mpchc_last_position = 0.0
+            self._mpchc_last_duration = 0.0
             _filepath = updates.get("filepath", "")
             updates["media_type"] = _detect_media_type(_filepath)
             # Clear stale video / metadata from any previous player so the
@@ -676,6 +622,19 @@ class Hub:
                     lambda t: _LOG.warning("Kodi sync task raised: %s", t.exception())
                     if not t.cancelled() and t.exception() else None
                 )
+
+        # ── Reset stale position/duration when the file changes ──────────────
+        # Must happen BEFORE the tracking + auto-next blocks below.  Without
+        # this, _mpchc_last_position still holds the END position of the
+        # previous episode after a file switch (MPC-HC reports position=0 for
+        # the new file, which the ">0" filter below ignores).  Episodes of a
+        # season have near-identical lengths, so the auto-next check would see
+        # "≤ 5 s remaining" for the just-started episode and immediately skip
+        # ahead again — rippling through the whole playlist.
+        _fp_now = updates.get("filepath")
+        if _fp_now and _fp_now != self._last_filepath:
+            self._mpchc_last_position = 0.0
+            self._mpchc_last_duration = 0.0
 
         # Track position and duration from every MPC-HC poll (used for Kodi sync on stop).
         # Only update when the value is non-zero: MPC-HC reports position=0 when it
@@ -1054,7 +1013,11 @@ class Hub:
         """
         loop = asyncio.get_running_loop()
         self._suppress_track_sync_until = loop.time() + 3.0
-        asyncio.create_task(self._sync_tracks_after(3.1))
+        _task = asyncio.create_task(self._sync_tracks_after(3.1))
+        _task.add_done_callback(
+            lambda t: _LOG.warning("Deferred track sync raised: %s", t.exception())
+            if not t.cancelled() and t.exception() else None
+        )
 
     async def _sync_tracks_after(self, delay: float) -> None:
         """Wait *delay* seconds then push the actual MPC-HC audio/subtitle tracks."""
