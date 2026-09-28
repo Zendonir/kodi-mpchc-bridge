@@ -44,10 +44,16 @@ jobs:
       - name: Determine version
         id: version
         shell: bash
+        env:
+          # Passed via env (not inlined into the script) so the input is data, not code.
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [[ -n "${{ inputs.version }}" ]]; then
-            ver="${{ inputs.version }}"
-            ver="${ver#v}"
+          if [[ -n "$INPUT_VERSION" ]]; then
+            ver="${INPUT_VERSION#v}"
+            if [[ ! "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+              echo "::error::Invalid version '$INPUT_VERSION' (expected e.g. 1.2.3)"
+              exit 1
+            fi
             echo "tag=v$ver" >> "$GITHUB_OUTPUT"
           elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
             ver="${GITHUB_REF#refs/tags/v}"
@@ -174,6 +180,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
+          # A new tag is created on the commit that was built (not the default branch).
+          target_commitish: ${{ github.sha }}
           name: "Kodi ↔ MPC-HC Bridge ${{ steps.version.outputs.tag }}"
           body: |
             ## Kodi ↔ MPC-HC Bridge ${{ steps.version.outputs.tag }}
