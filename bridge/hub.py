@@ -19,6 +19,7 @@ import re
 import sys
 from typing import Any
 
+from bridge.browse import KodiBrowser
 from bridge.config import ConfigManager
 from bridge.kodi_client import KodiClient
 from bridge.mkv_parser import parse_mkv, tracks_to_dicts
@@ -527,6 +528,7 @@ class Hub:
             on_kiosk_windows=self.switch_to_windows,
             on_kiosk_restart=self.restart_kodi,
             on_kiosk_status=self._kiosk_status,
+            browser=KodiBrowser(self._kodi),
         )
 
     # ------------------------------------------------------------------

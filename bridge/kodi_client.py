@@ -149,6 +149,17 @@ class KodiClient:
             _LOG.warning("Kodi HTTP RPC failed: %s — %s: %s", method, type(exc).__name__, exc)
             return None
 
+    async def rpc(self, method: str, params: dict | None = None) -> Any:
+        """Public JSON-RPC entry point (used by the media browser).
+
+        Returns the ``result`` payload, or ``None`` on error/timeout.
+        """
+        return await self._call(method, params)
+
+    def image_url(self, kodi_url: str) -> str:
+        """Public wrapper around :meth:`_image_url` (Kodi image proxy URL)."""
+        return self._image_url(kodi_url)
+
     async def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession()

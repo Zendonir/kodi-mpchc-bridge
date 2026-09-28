@@ -44,6 +44,7 @@ class BridgeServer:
         on_kiosk_windows=None,
         on_kiosk_restart=None,
         on_kiosk_status=None,
+        browser=None,
     ) -> None:
         self._state = state_manager
         self._router = router
@@ -56,6 +57,7 @@ class BridgeServer:
         self._on_kiosk_windows = on_kiosk_windows
         self._on_kiosk_restart = on_kiosk_restart
         self._on_kiosk_status = on_kiosk_status
+        self._browser = browser
         self._ws_clients: set[web.WebSocketResponse] = set()
         self._app = web.Application()
         self._runner: web.AppRunner | None = None
@@ -73,6 +75,9 @@ class BridgeServer:
         self._app.router.add_get("/api/ws", self._handle_ws)
         self._app.router.add_get("/api/artwork", self._handle_artwork)
         self._app.router.add_get("/api/logs", self._handle_logs)
+        self._app.router.add_get("/api/browse", self._handle_browse)
+        self._app.router.add_post("/api/browse/play", self._handle_browse_play)
+        self._app.router.add_get("/api/image", self._handle_image)
         self._app.router.add_post("/api/kiosk/kodi", self._handle_kiosk_kodi)
         self._app.router.add_post("/api/kiosk/windows", self._handle_kiosk_windows)
         self._app.router.add_post("/api/kiosk/restart", self._handle_kiosk_restart)
@@ -284,6 +289,43 @@ class BridgeServer:
         if not self._artwork_data:
             return web.Response(status=404, text="no artwork")
         return web.Response(body=self._artwork_data, content_type=self._artwork_ct)
+
+    async def _handle_browse(self, request: web.Request) -> web.Response:
+        """GET /api/browse?id=root — Kodi favourites / PVR / add-ons listing."""
+        if self._browser is None:
+            return web.json_response({"error": "browser not configured"}, status=501)
+        folder = await self._browser.browse(request.rel_url.query.get("id", "root"))
+        if folder is None:
+            return web.json_response({"error": "not found"}, status=404)
+        return web.json_response(folder)
+
+    async def _handle_browse_play(self, request: web.Request) -> web.Response:
+        """POST /api/browse/play {"id": "channel/12"} — start a browse item."""
+        if self._browser is None:
+            return web.json_response({"error": "browser not configured"}, status=501)
+        try:
+            body = await request.json()
+        except Exception:
+            return web.json_response({"error": "invalid JSON"}, status=400)
+        item_id = str(body.get("id") or "").strip()
+        if not item_id:
+            return web.json_response({"error": "missing id"}, status=400)
+        ok = await self._browser.play(item_id)
+        return web.json_response({"ok": ok}, status=200 if ok else 502)
+
+    async def _handle_image(self, request: web.Request) -> web.Response:
+        """GET /api/image?url=<kodi art path> — thumbnail proxy for browse items."""
+        if self._browser is None:
+            return web.Response(status=501, text="browser not configured")
+        result = await self._browser.image(request.rel_url.query.get("url", ""))
+        if not result:
+            return web.Response(status=404, text="no image")
+        data, content_type = result
+        return web.Response(
+            body=data,
+            content_type=content_type,
+            headers={"Cache-Control": "max-age=3600"},
+        )
 
     async def _handle_logs(self, request: web.Request) -> web.Response:
         """GET /api/logs?limit=50&level=INFO&search=keyword — last N log records."""

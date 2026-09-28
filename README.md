@@ -31,6 +31,7 @@ A lightweight Windows bridge that connects **Kodi** and **MPC-HC** (clsid2 fork)
 - **Rich TV episode info** — series title, season, episode number, season/episode counts ("Episode 5 of 15 · Season 2 of 3"), episode rating
 - **Music metadata** — artist, album
 - **Track details** — language, codec, channels, forced/default flags for audio and subtitle tracks; chapter timestamps
+- **Clean labels** — Kodi formatting tags (`[B]`, `[COLOR …]`, `[CR]`, …) are stripped from titles, episode names, chapters and track labels before they are pushed
 
 ### Cover Art
 - **Kodi library artwork** — fetches from Kodi's texture cache with configurable mode per media type:
@@ -71,6 +72,7 @@ A lightweight Windows bridge that connects **Kodi** and **MPC-HC** (clsid2 fork)
 ### Server & API
 - **WebSocket push** — real-time state updates; `state_full` on connect, `state_patch` on every change
 - **REST API** — full HTTP API (see [API](#api) section)
+- **Media browser API** — Kodi favourites, Live TV / Radio channels (with Now/Next EPG) and video / music add-ons for remote media browsers
 - **In-browser log viewer** — filterable by level (DEBUG / INFO / WARNING / ERROR) and keyword, with auto-refresh
 - **Built-in web UI** — dark-theme control and monitoring page served on the bridge port
 - **Keyboard shortcuts in web UI** — arrow keys, Enter, Esc, Space, `[`/`]` for custom seek
@@ -226,6 +228,27 @@ POST /api/kiosk/windows   — kill Kodi, restore Explorer
 POST /api/kiosk/restart   — kill Kodi and relaunch
 GET  /api/kiosk/status    — { "kodi_running": bool, "explorer_hidden": bool }
 ```
+
+### Media browser endpoints
+
+```
+GET  /api/browse?id=root           — folder listing (root, favourites, pvr/tv, pvr/tv/<group>,
+                                     pvr/radio, pvr/radio/<group>, addons/video, addons/audio)
+POST /api/browse/play {"id": "…"}  — start an item: channel/<id>, addon/<addonid>,
+                                     file/<path> (media favourite), window/<window>/<param>
+GET  /api/image?url=<kodi art>     — thumbnail proxy for browse items (via Kodi's image proxy)
+```
+
+A listing looks like:
+
+```json
+{ "id": "pvr/tv/2", "title": "Live-TV", "items": [
+  { "id": "channel/7", "title": "1. Das Erste", "subtitle": "Jetzt: Tagesschau | Danach: Tatort",
+    "kind": "channel", "thumbnail": "/api/image?url=image%3A%2F%2F…", "can_play": true, "can_browse": false } ] }
+```
+
+Empty or unavailable roots (no PVR backend, no favourites, …) are omitted from `root`.
+Ids longer than 255 characters are skipped (UC Remote limit); thumbnail URLs are relative to the bridge.
 
 ---
 
