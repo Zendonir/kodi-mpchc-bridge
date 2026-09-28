@@ -89,7 +89,12 @@ class KodiClient:
         self._running = True
         self._task = asyncio.create_task(self._connect_loop(), name="kodi-ws")
 
-    async def stop(self) -> None:
+    async def shutdown(self) -> None:
+        """Stop the connection loop and close the session.
+
+        Named ``shutdown`` (not ``stop``) so it is not shadowed by the
+        ``stop()`` playback command further down in this class.
+        """
         self._running = False
         if self._poll_task:
             self._poll_task.cancel()
@@ -1615,7 +1620,6 @@ class KodiClient:
     @staticmethod
     def _stream_label(stream: dict, kind: str) -> str:
         lang = stream.get("language", "und") or "und"
-        name = stream.get("name", "") or ""
         codec = (stream.get("codec", "") or "").upper()
         if kind == "audio":
             ch = stream.get("channels", 0)

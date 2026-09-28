@@ -201,7 +201,6 @@ def _read_element_id(data: bytes, pos: int) -> tuple[int, int]:
     elif first & 0x40:
         return struct.unpack_from(">H", data, pos)[0], pos + 2
     elif first & 0x20:
-        val = struct.unpack_from(">I", data, pos)[0] & 0x00FFFFFF
         return (data[pos] << 16) | (data[pos + 1] << 8) | data[pos + 2], pos + 3
     elif first & 0x10:
         return struct.unpack_from(">I", data, pos)[0], pos + 4

@@ -598,7 +598,7 @@ class Hub:
         if cfg.shell_mode or self._explorer_hidden:
             _set_explorer_visible(True)
             self._explorer_hidden = False
-        await self._kodi.stop()
+        await self._kodi.shutdown()
         await self._mpchc.stop()
         await self._server.stop()
         _LOG.info("Hub stopped")

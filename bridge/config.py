@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, fields
 import dataclasses
 
 _LOG = logging.getLogger(__name__)

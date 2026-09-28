@@ -352,7 +352,7 @@ class CommandRouter:
     # ------------------------------------------------------------------
     async def _handle_mpchc(self, cmd: str, value: object) -> bool:
         from bridge.mpchc_client import (
-            CMD_PLAY_PAUSE, CMD_STOP, CMD_NEXT_CHAPTER, CMD_PREV_CHAPTER,
+            CMD_PLAY_PAUSE, CMD_NEXT_CHAPTER, CMD_PREV_CHAPTER,
             CMD_SKIP_FORWARD, CMD_SKIP_BACKWARD,
             CMD_SEEK_FORWARD_SMALL, CMD_SEEK_BACKWARD_SMALL,
             CMD_VOLUME_UP, CMD_VOLUME_DOWN, CMD_MUTE,

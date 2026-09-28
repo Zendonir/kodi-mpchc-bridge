@@ -285,7 +285,8 @@ def main() -> None:
     # wenn Autostart + manueller Start kollidieren.
     if sys.platform == "win32":
         import ctypes
-        _mutex = ctypes.windll.kernel32.CreateMutexW(
+        # Keep the handle referenced for the process lifetime (holds the lock).
+        _mutex = ctypes.windll.kernel32.CreateMutexW(  # noqa: F841
             None, True, "Global\\KodiMpcHcBridgeMutex"
         )
         if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
