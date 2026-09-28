@@ -15,6 +15,11 @@ on:
       - "requirements.txt"
       - ".github/workflows/release.yml"
   workflow_dispatch:  # manual trigger from GitHub UI
+    inputs:
+      version:
+        description: "Version to release (e.g. 0.3.0). Creates tag v<version> from the selected branch. Leave empty for a dev build."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -40,7 +45,11 @@ jobs:
         id: version
         shell: bash
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          if [[ -n "${{ inputs.version }}" ]]; then
+            ver="${{ inputs.version }}"
+            ver="${ver#v}"
+            echo "tag=v$ver" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
             ver="${GITHUB_REF#refs/tags/v}"
             echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
           elif [[ "${{ github.ref }}" == refs/heads/release/v* ]]; then
@@ -199,7 +208,7 @@ jobs:
             - Kodi with web server enabled (port 8080) + WebSocket (port 9090)
             - MPC-HC (clsid2 fork) with web interface enabled (port 13579)
           draft: false
-          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') && inputs.version == '' }}
           files: |
             dist/kodi-mpchc-bridge-setup-${{ steps.version.outputs.ver }}.exe
             dist/kodi-mpchc-bridge-setup-${{ steps.version.outputs.ver }}.exe.sha256
