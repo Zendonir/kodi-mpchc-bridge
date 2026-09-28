@@ -340,13 +340,63 @@ Editable via **tray → Settings**, the **web UI Settings card**, or directly wi
 ## Building from source
 
 ```bat
-pip install aiohttp yarl Pillow pystray pyinstaller
+pip install aiohttp yarl Pillow pystray
+:: Build PyInstaller's bootloader yourself (fewer antivirus false positives,
+:: needs Visual Studio Build Tools) — or use "pip install pyinstaller" instead
+set PYINSTALLER_COMPILE_BOOTLOADER=1
+pip install --no-binary pyinstaller pyinstaller
+set BRIDGE_VERSION=1.2.3
 pyinstaller bridge.spec
 :: Installer (requires Inno Setup 6)
-iscc /DAppVersion=1.2.3 installer.iss
+iscc /DAppVersion=1.2.3 /DAppVersionNumeric=1.2.3.0 installer.iss
 ```
 
-Output: `dist\kodi-bridge.exe` and `dist\kodi-mpchc-bridge-setup-1.2.3.exe`
+Output: `dist\kodi-bridge\kodi-bridge.exe` and `dist\kodi-mpchc-bridge-setup-1.2.3.exe`
+
+---
+
+## Microsoft Defender
+
+Unsigned PyInstaller apps are sometimes flagged by Microsoft Defender
+(typically `Trojan:Win32/Wacatac…!ml` — the `!ml` suffix means a
+machine-learning guess, not a real signature). The bridge also does things
+that look unusual to heuristics: it can replace the Windows shell, restart
+Explorer and send keystrokes to MPC-HC.
+
+To reduce false positives the release build:
+
+- compiles PyInstaller's bootloader itself instead of using the prebuilt one,
+- does not use UPX compression,
+- embeds an icon and full version information in `kodi-bridge.exe` and the installer,
+- publishes a SHA256 checksum next to every installer,
+- signs the exe and the installer when code signing is configured (see below).
+
+**If Defender still removes the bridge**
+
+1. Restore it: *Windows Security → Virus & threat protection → Protection history* → select the entry → *Actions → Allow*.
+2. Add an exclusion for the install folder (PowerShell as administrator):
+   ```powershell
+   Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\Programs\kodi-mpchc-bridge"
+   ```
+3. Report the false positive to Microsoft so it is fixed for everyone:
+   <https://www.microsoft.com/wdsi/filesubmission> → *Software developer* (or *Home customer*) →
+   upload the installer or `kodi-bridge.exe` → *Incorrectly detected as malware*.
+
+**Enabling code signing (maintainers)**
+
+The release workflow signs with [Azure Artifact Signing](https://learn.microsoft.com/azure/artifact-signing/)
+when these are configured in the GitHub repository (*Settings → Secrets and variables → Actions*):
+
+| Type | Name | Value |
+|------|------|-------|
+| Variable | `SIGNING_ENDPOINT` | Account endpoint, e.g. `https://weu.codesigning.azure.net/` |
+| Variable | `SIGNING_ACCOUNT` | Signing account name |
+| Variable | `SIGNING_PROFILE` | Certificate profile name |
+| Secret | `AZURE_TENANT_ID` | Tenant of the app registration |
+| Secret | `AZURE_CLIENT_ID` | App registration with the *Artifact Signing Certificate Profile Signer* role |
+| Secret | `AZURE_CLIENT_SECRET` | Client secret of that app registration |
+
+Without `SIGNING_ENDPOINT` the signing steps are skipped and the build is unchanged.
 
 ---
 

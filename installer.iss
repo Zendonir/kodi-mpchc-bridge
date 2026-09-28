@@ -14,6 +14,11 @@
 #ifndef AppVersion
   #define AppVersion "0.0.0-dev"
 #endif
+; Numeric version for the Windows version resource (x.y.z.w), e.g.
+;   iscc /DAppVersion=1.2.3 /DAppVersionNumeric=1.2.3.0 installer.iss
+#ifndef AppVersionNumeric
+  #define AppVersionNumeric "0.0.0.0"
+#endif
 
 #define AppName      "Kodi-MPC-HC Bridge"
 #define AppPublisher "kodi-mpchc-bridge"
@@ -49,8 +54,19 @@ OutputBaseFilename=kodi-mpchc-bridge-setup-{#AppVersion}
 Compression=lzma2/ultra64
 SolidCompression=yes
 
+; --- Version resource (Eigenschaften → Details; reduces AV false positives) ---
+VersionInfoVersion={#AppVersionNumeric}
+VersionInfoProductVersion={#AppVersionNumeric}
+VersionInfoTextVersion={#AppVersion}
+VersionInfoProductTextVersion={#AppVersion}
+VersionInfoCompany={#AppPublisher}
+VersionInfoProductName={#AppName}
+VersionInfoDescription={#AppName} Setup
+VersionInfoCopyright=Zendonir - {#AppURL}
+
 ; --- Appearance ---
 WizardStyle=modern
+SetupIconFile=bridge.ico
 UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName}
 

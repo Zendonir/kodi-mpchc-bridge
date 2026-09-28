@@ -6,6 +6,14 @@ on:
       - "v*"          # triggered by tags like v1.0.0
     branches:
       - "release/v*"  # triggered by release branches (when tag push is unavailable)
+  pull_request:       # build-only check (no release) for changes to the build
+    branches: [main]
+    paths:
+      - "bridge.spec"
+      - "installer.iss"
+      - "bridge.ico"
+      - "requirements.txt"
+      - ".github/workflows/release.yml"
   workflow_dispatch:  # manual trigger from GitHub UI
 
 permissions:
@@ -27,22 +35,7 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
-      # ── Dependencies ────────────────────────────────────────────────────────
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install aiohttp yarl Pillow pystray pyinstaller
-
-      # ── Build onedir dist\kodi-bridge\ ──────────────────────────────────────
-      - name: Build kodi-bridge
-        run: pyinstaller bridge.spec
-
-      # ── Smoke-test: exe starts and prints help ────────────────────────────
-      - name: Smoke-test exe
-        run: dist\kodi-bridge\kodi-bridge.exe --help
-        shell: cmd
-
-      # ── Determine version ───────────────────────────────────────────────────
+      # ── Determine version (needed for the exe version resource) ────────────
       - name: Determine version
         id: version
         shell: bash
@@ -50,17 +43,64 @@ jobs:
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             ver="${GITHUB_REF#refs/tags/v}"
             echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-            echo "ver=$ver" >> "$GITHUB_OUTPUT"
           elif [[ "${{ github.ref }}" == refs/heads/release/v* ]]; then
             branch="${GITHUB_REF#refs/heads/release/}"
             ver="${branch#v}"
             echo "tag=$branch" >> "$GITHUB_OUTPUT"
-            echo "ver=$ver" >> "$GITHUB_OUTPUT"
           else
             short=$(git rev-parse --short HEAD)
+            ver="0.0.0-dev-$short"
             echo "tag=dev-$short" >> "$GITHUB_OUTPUT"
-            echo "ver=0.0.0-dev-$short" >> "$GITHUB_OUTPUT"
           fi
+          echo "ver=$ver" >> "$GITHUB_OUTPUT"
+          # Numeric x.y.z.w for Windows version resources ("1.2.3-rc1" → 1.2.3.0)
+          IFS=. read -r a b c d <<< "$(echo "${ver%%-*}" | tr -cd '0-9.')"
+          echo "ver_num=${a:-0}.${b:-0}.${c:-0}.${d:-0}" >> "$GITHUB_OUTPUT"
+
+      # ── Dependencies ────────────────────────────────────────────────────────
+      # PyInstaller is installed from source with its bootloader compiled on
+      # this runner. The prebuilt bootloader from the PyPI wheel is shared by
+      # a lot of malware, which makes Microsoft Defender flag PyInstaller apps
+      # (Wacatac/!ml false positives); a self-built one has no known signature.
+      - name: Install dependencies (PyInstaller with self-built bootloader)
+        env:
+          PYINSTALLER_COMPILE_BOOTLOADER: "1"
+        run: |
+          python -m pip install --upgrade pip wheel
+          pip install aiohttp yarl Pillow pystray
+          pip install --no-binary pyinstaller --no-cache-dir pyinstaller
+
+      # ── Build onedir dist\kodi-bridge\ ──────────────────────────────────────
+      - name: Build kodi-bridge
+        env:
+          BRIDGE_VERSION: ${{ steps.version.outputs.ver }}
+        run: pyinstaller bridge.spec
+
+      # ── Smoke-test: exe starts and prints help ────────────────────────────
+      - name: Smoke-test exe
+        run: dist\kodi-bridge\kodi-bridge.exe --help
+        shell: cmd
+
+      # ── Optional code signing (Azure Artifact Signing) ──────────────────────
+      # Enabled when the repository variable SIGNING_ENDPOINT is set. Setup:
+      #   Variables: SIGNING_ENDPOINT, SIGNING_ACCOUNT, SIGNING_PROFILE
+      #   Secrets:   AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET
+      # Signed binaries are by far the most effective protection against
+      # antivirus false positives.
+      - name: Sign kodi-bridge.exe
+        if: ${{ vars.SIGNING_ENDPOINT != '' && github.event_name != 'pull_request' }}
+        uses: azure/artifact-signing-action@v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.SIGNING_PROFILE }}
+          files: ${{ github.workspace }}\dist\kodi-bridge\kodi-bridge.exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
 
       # ── Install Inno Setup ──────────────────────────────────────────────────
       - name: Install Inno Setup
@@ -69,11 +109,46 @@ jobs:
 
       # ── Build installer ─────────────────────────────────────────────────────
       - name: Build installer
-        run: iscc /DAppVersion=${{ steps.version.outputs.ver }} installer.iss
+        run: iscc /DAppVersion=${{ steps.version.outputs.ver }} /DAppVersionNumeric=${{ steps.version.outputs.ver_num }} installer.iss
         shell: cmd
+
+      - name: Sign installer
+        if: ${{ vars.SIGNING_ENDPOINT != '' && github.event_name != 'pull_request' }}
+        uses: azure/artifact-signing-action@v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.SIGNING_PROFILE }}
+          files: ${{ github.workspace }}\dist\kodi-mpchc-bridge-setup-${{ steps.version.outputs.ver }}.exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      # ── Checksum (lets users verify the download / submit it to Microsoft) ──
+      - name: SHA256 checksum
+        id: checksum
+        shell: bash
+        run: |
+          cd dist
+          file="kodi-mpchc-bridge-setup-${{ steps.version.outputs.ver }}.exe"
+          sha256sum "$file" > "$file.sha256"
+          echo "sha256=$(cut -d' ' -f1 "$file.sha256")" >> "$GITHUB_OUTPUT"
+          cat "$file.sha256"
+
+      # ── PR builds: keep the installer as a workflow artifact for testing ───
+      - name: Upload installer (pull request)
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: kodi-mpchc-bridge-setup-${{ steps.version.outputs.ver }}
+          path: dist/kodi-mpchc-bridge-setup-*.exe*
 
       # ── Create GitHub Release ────────────────────────────────────────────────
       - name: Create release
+        if: ${{ github.event_name != 'pull_request' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
@@ -100,6 +175,12 @@ jobs:
             ### Bridge port
             Default: **13590** (TCP inbound — firewall rule is set up by the installer)
 
+            ### SHA256
+            `${{ steps.checksum.outputs.sha256 }}`
+
+            > If Microsoft Defender flags the installer, please report it as a false positive at
+            > https://www.microsoft.com/wdsi/filesubmission — see the README ("Microsoft Defender").
+
             ### Requirements
             - Windows 10 / 11 (64-bit)
             - Kodi with web server enabled (port 8080) + WebSocket (port 9090)
@@ -108,5 +189,6 @@ jobs:
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
           files: |
             dist/kodi-mpchc-bridge-setup-${{ steps.version.outputs.ver }}.exe
+            dist/kodi-mpchc-bridge-setup-${{ steps.version.outputs.ver }}.exe.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
