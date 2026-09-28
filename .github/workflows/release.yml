@@ -70,6 +70,19 @@ jobs:
           pip install aiohttp yarl Pillow pystray
           pip install --no-binary pyinstaller --no-cache-dir pyinstaller
 
+      # Fail the build if PyInstaller still ships a prebuilt bootloader: the
+      # PE link timestamp of a freshly compiled runw.exe is from this run.
+      - name: Verify self-built bootloader
+        shell: python
+        run: |
+          import os, sys, time, pefile, PyInstaller
+          path = os.path.join(os.path.dirname(PyInstaller.__file__), "bootloader", "Windows-64bit-intel", "runw.exe")
+          stamp = pefile.PE(path, fast_load=True).FILE_HEADER.TimeDateStamp
+          age_h = (time.time() - stamp) / 3600
+          print(f"{path}: linked {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(stamp))} UTC ({age_h:.1f} h ago)")
+          if age_h > 6:
+              sys.exit("Bootloader was not compiled in this run (prebuilt runw.exe) — check the PyInstaller install step")
+
       # ── Build onedir dist\kodi-bridge\ ──────────────────────────────────────
       - name: Build kodi-bridge
         env:
