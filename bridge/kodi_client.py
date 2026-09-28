@@ -89,7 +89,12 @@ class KodiClient:
         self._running = True
         self._task = asyncio.create_task(self._connect_loop(), name="kodi-ws")
 
-    async def stop(self) -> None:
+    async def shutdown(self) -> None:
+        """Stop the connection loop and close the session.
+
+        Named ``shutdown`` (not ``stop``) so it is not shadowed by the
+        ``stop()`` playback command further down in this class.
+        """
         self._running = False
         if self._poll_task:
             self._poll_task.cancel()
@@ -148,6 +153,17 @@ class KodiClient:
         except Exception as exc:
             _LOG.warning("Kodi HTTP RPC failed: %s — %s: %s", method, type(exc).__name__, exc)
             return None
+
+    async def rpc(self, method: str, params: dict | None = None) -> Any:
+        """Public JSON-RPC entry point (used by the media browser).
+
+        Returns the ``result`` payload, or ``None`` on error/timeout.
+        """
+        return await self._call(method, params)
+
+    def image_url(self, kodi_url: str) -> str:
+        """Public wrapper around :meth:`_image_url` (Kodi image proxy URL)."""
+        return self._image_url(kodi_url)
 
     async def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -1604,7 +1620,6 @@ class KodiClient:
     @staticmethod
     def _stream_label(stream: dict, kind: str) -> str:
         lang = stream.get("language", "und") or "und"
-        name = stream.get("name", "") or ""
         codec = (stream.get("codec", "") or "").upper()
         if kind == "audio":
             ch = stream.get("channels", 0)

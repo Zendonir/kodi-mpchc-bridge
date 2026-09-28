@@ -8,8 +8,60 @@ for WebSocket push to connected clients.
 from __future__ import annotations
 
 import copy
+import re
 from dataclasses import asdict, dataclass, field
 from typing import Any
+
+# Kodi BBCode-style formatting tags used by skins, scrapers and addons in
+# labels, e.g. "[B]Title[/B]" or "[COLOR red]Live[/COLOR]".  [CR] is a line
+# break and is replaced by a space so words are not glued together.
+_KODI_CR_RE = re.compile(r"\[CR\]", re.IGNORECASE)
+_KODI_BBCODE_RE = re.compile(
+    r"\[/?(?:B|I|U|S|LIGHT|UPPERCASE|LOWERCASE|CAPITALIZE|TABS|COLOR(?:\s+[^\]]*)?|FONT(?:\s+[^\]]*)?)\]",
+    re.IGNORECASE,
+)
+
+# Plain-text state fields that may carry Kodi formatting tags.
+_TEXT_FIELDS = ("title", "artist", "album", "tv_show")
+
+
+def strip_kodi_formatting(value: Any) -> str:
+    """Remove Kodi BBCode-style formatting tags from a label."""
+    if not value or not isinstance(value, str):
+        return value or ""
+    if "[" not in value:
+        return value
+    cleaned = _KODI_CR_RE.sub(" ", value)
+    cleaned = _KODI_BBCODE_RE.sub("", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def _sanitize_updates(updates: dict[str, Any]) -> dict[str, Any]:
+    """Return *updates* with Kodi formatting tags stripped from all labels.
+
+    Works on copies so the caller's dicts/lists are never mutated.
+    """
+    out = dict(updates)
+    for key in _TEXT_FIELDS:
+        if isinstance(out.get(key), str):
+            out[key] = strip_kodi_formatting(out[key])
+    if isinstance(out.get("season_episodes"), list):
+        out["season_episodes"] = [
+            {**ep, "title": strip_kodi_formatting(ep.get("title", ""))} if isinstance(ep, dict) else ep
+            for ep in out["season_episodes"]
+        ]
+    if isinstance(out.get("chapters"), list):
+        out["chapters"] = [
+            {**ch, "name": strip_kodi_formatting(ch.get("name", ""))} if isinstance(ch, dict) else ch
+            for ch in out["chapters"]
+        ]
+    for key in ("audio_tracks", "subtitle_tracks"):
+        if isinstance(out.get(key), list):
+            out[key] = [
+                {**t, "label": strip_kodi_formatting(t.get("label", ""))} if isinstance(t, dict) else t
+                for t in out[key]
+            ]
+    return out
 
 
 @dataclass
@@ -166,8 +218,9 @@ class StateManager:
         Apply *updates* to the state and return the diff dict.
 
         Only keys whose value actually changed are included in the diff.
+        Kodi formatting tags ([B], [COLOR …], …) are stripped from labels.
         """
-        for key, value in updates.items():
+        for key, value in _sanitize_updates(updates).items():
             if hasattr(self._state, key):
                 setattr(self._state, key, value)
 

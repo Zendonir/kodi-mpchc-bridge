@@ -120,6 +120,15 @@ _STRINGS: dict[str, dict[str, str]] = {
         "tc_pillow_missing": "(Pillow not installed)",
         "tc_off":            "Off",
 
+        # Media browser (UC Remote)
+        "browse_favourites":     "Favourites",
+        "browse_live_tv":        "Live TV",
+        "browse_radio":          "Radio",
+        "browse_video_addons":   "Video add-ons",
+        "browse_music_addons":   "Music add-ons",
+        "browse_all_channels":   "All channels",
+        "browse_now":            "Now",
+        "browse_next":           "Next",
     },
 
     # ── German ────────────────────────────────────────────────────────────────
@@ -188,6 +197,15 @@ _STRINGS: dict[str, dict[str, str]] = {
         "tc_pillow_missing": "(Pillow nicht installiert)",
         "tc_off":            "Aus",
 
+        # Media browser (UC Remote)
+        "browse_favourites":     "Favoriten",
+        "browse_live_tv":        "Live-TV",
+        "browse_radio":          "Radio",
+        "browse_video_addons":   "Video-Addons",
+        "browse_music_addons":   "Musik-Addons",
+        "browse_all_channels":   "Alle Kan\u00e4le",
+        "browse_now":            "Jetzt",
+        "browse_next":           "Danach",
     },
 
     # ── French ────────────────────────────────────────────────────────────────
@@ -256,6 +274,15 @@ _STRINGS: dict[str, dict[str, str]] = {
         "tc_pillow_missing": "(Pillow non install\u00e9)",
         "tc_off":            "D\u00e9sactiv\u00e9",
 
+        # Media browser (UC Remote)
+        "browse_favourites":     "Favoris",
+        "browse_live_tv":        "TV en direct",
+        "browse_radio":          "Radio",
+        "browse_video_addons":   "Extensions vid\u00e9o",
+        "browse_music_addons":   "Extensions musique",
+        "browse_all_channels":   "Toutes les cha\u00eenes",
+        "browse_now":            "Maintenant",
+        "browse_next":           "Ensuite",
     },
 
     # ── Spanish ───────────────────────────────────────────────────────────────
@@ -324,6 +351,15 @@ _STRINGS: dict[str, dict[str, str]] = {
         "tc_pillow_missing": "(Pillow no instalado)",
         "tc_off":            "Desactivado",
 
+        # Media browser (UC Remote)
+        "browse_favourites":     "Favoritos",
+        "browse_live_tv":        "TV en directo",
+        "browse_radio":          "Radio",
+        "browse_video_addons":   "Complementos de v\u00eddeo",
+        "browse_music_addons":   "Complementos de m\u00fasica",
+        "browse_all_channels":   "Todos los canales",
+        "browse_now":            "Ahora",
+        "browse_next":           "Despu\u00e9s",
     },
 
     # ── Italian ───────────────────────────────────────────────────────────────
@@ -392,6 +428,15 @@ _STRINGS: dict[str, dict[str, str]] = {
         "tc_pillow_missing": "(Pillow non installato)",
         "tc_off":            "Disattivato",
 
+        # Media browser (UC Remote)
+        "browse_favourites":     "Preferiti",
+        "browse_live_tv":        "TV in diretta",
+        "browse_radio":          "Radio",
+        "browse_video_addons":   "Add-on video",
+        "browse_music_addons":   "Add-on musica",
+        "browse_all_channels":   "Tutti i canali",
+        "browse_now":            "Ora",
+        "browse_next":           "Dopo",
     },
 }
 

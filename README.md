@@ -31,6 +31,7 @@ A lightweight Windows bridge that connects **Kodi** and **MPC-HC** (clsid2 fork)
 - **Rich TV episode info** — series title, season, episode number, season/episode counts ("Episode 5 of 15 · Season 2 of 3"), episode rating
 - **Music metadata** — artist, album
 - **Track details** — language, codec, channels, forced/default flags for audio and subtitle tracks; chapter timestamps
+- **Clean labels** — Kodi formatting tags (`[B]`, `[COLOR …]`, `[CR]`, …) are stripped from titles, episode names, chapters and track labels before they are pushed
 
 ### Cover Art
 - **Kodi library artwork** — fetches from Kodi's texture cache with configurable mode per media type:
@@ -71,6 +72,7 @@ A lightweight Windows bridge that connects **Kodi** and **MPC-HC** (clsid2 fork)
 ### Server & API
 - **WebSocket push** — real-time state updates; `state_full` on connect, `state_patch` on every change
 - **REST API** — full HTTP API (see [API](#api) section)
+- **Media browser API** — Kodi favourites, Live TV / Radio channels (with Now/Next EPG) and video / music add-ons for remote media browsers
 - **In-browser log viewer** — filterable by level (DEBUG / INFO / WARNING / ERROR) and keyword, with auto-refresh
 - **Built-in web UI** — dark-theme control and monitoring page served on the bridge port
 - **Keyboard shortcuts in web UI** — arrow keys, Enter, Esc, Space, `[`/`]` for custom seek
@@ -227,6 +229,27 @@ POST /api/kiosk/restart   — kill Kodi and relaunch
 GET  /api/kiosk/status    — { "kodi_running": bool, "explorer_hidden": bool }
 ```
 
+### Media browser endpoints
+
+```
+GET  /api/browse?id=root           — folder listing (root, favourites, pvr/tv, pvr/tv/<group>,
+                                     pvr/radio, pvr/radio/<group>, addons/video, addons/audio)
+POST /api/browse/play {"id": "…"}  — start an item: channel/<id>, addon/<addonid>,
+                                     file/<path> (media favourite), window/<window>/<param>
+GET  /api/image?url=<kodi art>     — thumbnail proxy for browse items (via Kodi's image proxy)
+```
+
+A listing looks like:
+
+```json
+{ "id": "pvr/tv/2", "title": "Live-TV", "items": [
+  { "id": "channel/7", "title": "1. Das Erste", "subtitle": "Jetzt: Tagesschau | Danach: Tatort",
+    "kind": "channel", "thumbnail": "/api/image?url=image%3A%2F%2F…", "can_play": true, "can_browse": false } ] }
+```
+
+Empty or unavailable roots (no PVR backend, no favourites, …) are omitted from `root`.
+Ids longer than 255 characters are skipped (UC Remote limit); thumbnail URLs are relative to the bridge.
+
 ---
 
 ## State fields
@@ -317,13 +340,63 @@ Editable via **tray → Settings**, the **web UI Settings card**, or directly wi
 ## Building from source
 
 ```bat
-pip install aiohttp yarl Pillow pystray pyinstaller
+pip install aiohttp yarl Pillow pystray
+:: Build PyInstaller's bootloader yourself (fewer antivirus false positives,
+:: needs Visual Studio Build Tools) — or use "pip install pyinstaller" instead
+set PYINSTALLER_COMPILE_BOOTLOADER=1
+pip install --no-binary pyinstaller pyinstaller
+set BRIDGE_VERSION=1.2.3
 pyinstaller bridge.spec
 :: Installer (requires Inno Setup 6)
-iscc /DAppVersion=1.2.3 installer.iss
+iscc /DAppVersion=1.2.3 /DAppVersionNumeric=1.2.3.0 installer.iss
 ```
 
-Output: `dist\kodi-bridge.exe` and `dist\kodi-mpchc-bridge-setup-1.2.3.exe`
+Output: `dist\kodi-bridge\kodi-bridge.exe` and `dist\kodi-mpchc-bridge-setup-1.2.3.exe`
+
+---
+
+## Microsoft Defender
+
+Unsigned PyInstaller apps are sometimes flagged by Microsoft Defender
+(typically `Trojan:Win32/Wacatac…!ml` — the `!ml` suffix means a
+machine-learning guess, not a real signature). The bridge also does things
+that look unusual to heuristics: it can replace the Windows shell, restart
+Explorer and send keystrokes to MPC-HC.
+
+To reduce false positives the release build:
+
+- compiles PyInstaller's bootloader itself instead of using the prebuilt one,
+- does not use UPX compression,
+- embeds an icon and full version information in `kodi-bridge.exe` and the installer,
+- publishes a SHA256 checksum next to every installer,
+- signs the exe and the installer when code signing is configured (see below).
+
+**If Defender still removes the bridge**
+
+1. Restore it: *Windows Security → Virus & threat protection → Protection history* → select the entry → *Actions → Allow*.
+2. Add an exclusion for the install folder (PowerShell as administrator):
+   ```powershell
+   Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\Programs\kodi-mpchc-bridge"
+   ```
+3. Report the false positive to Microsoft so it is fixed for everyone:
+   <https://www.microsoft.com/wdsi/filesubmission> → *Software developer* (or *Home customer*) →
+   upload the installer or `kodi-bridge.exe` → *Incorrectly detected as malware*.
+
+**Enabling code signing (maintainers)**
+
+The release workflow signs with [Azure Artifact Signing](https://learn.microsoft.com/azure/artifact-signing/)
+when these are configured in the GitHub repository (*Settings → Secrets and variables → Actions*):
+
+| Type | Name | Value |
+|------|------|-------|
+| Variable | `SIGNING_ENDPOINT` | Account endpoint, e.g. `https://weu.codesigning.azure.net/` |
+| Variable | `SIGNING_ACCOUNT` | Signing account name |
+| Variable | `SIGNING_PROFILE` | Certificate profile name |
+| Secret | `AZURE_TENANT_ID` | Tenant of the app registration |
+| Secret | `AZURE_CLIENT_ID` | App registration with the *Artifact Signing Certificate Profile Signer* role |
+| Secret | `AZURE_CLIENT_SECRET` | Client secret of that app registration |
+
+Without `SIGNING_ENDPOINT` the signing steps are skipped and the build is unchanged.
 
 ---
 

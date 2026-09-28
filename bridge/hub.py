@@ -19,10 +19,11 @@ import re
 import sys
 from typing import Any
 
+from bridge.browse import KodiBrowser
 from bridge.config import ConfigManager
 from bridge.kodi_client import KodiClient
 from bridge.mkv_parser import parse_mkv, tracks_to_dicts
-from bridge.mpchc_client import MpcHcClient
+from bridge.mpchc_client import MpcHcClient, match_track as _match_track
 from bridge.router import CommandRouter
 from bridge.server import BridgeServer
 from bridge.state import StateManager
@@ -226,64 +227,53 @@ def _is_explorer_running() -> bool:
         return True  # assume running to avoid double-start
 
 
-def _match_track(tracks: list[dict], current_name: str) -> int:
-    """
-    Match MPC-HC's current track string against parsed MKV track list.
-    Returns 0-based index, or -1 for 'No subtitles'.
-    """
-    if not current_name or not tracks:
-        return 0
-    cur = current_name.lower()
+def _remove_shell_registry() -> None:
+    """Delete bridge's HKCU Winlogon Shell key so Explorer becomes shell again on next login."""
+    if sys.platform != "win32":
+        return
+    try:
+        import winreg
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows NT\CurrentVersion\Winlogon",
+            access=winreg.KEY_SET_VALUE,
+        ) as key:
+            winreg.DeleteValue(key, "Shell")
+        _LOG.info("Boot target: removed bridge shell registry key")
+    except FileNotFoundError:
+        pass  # key was not set — nothing to do
+    except Exception as exc:
+        _LOG.warning("Boot target: failed to remove shell registry key: %s", exc)
 
-    # "S: No subtitles" — no active subtitle track
-    if "no subtitles" in cur:
-        return -1
 
-    # MPC-HC's virtual auto-forced track — match our synthetic "Forced (auto)" entry
-    if "forced subtitles" in cur:
-        for t in tracks:
-            if t.get("label", "").lower() == "forced (auto)":
-                return t["pos"]
-        return 0
-
-    lang_m = re.search(r'\[([a-z]{3})\]', cur)
-    cur_lang = lang_m.group(1) if lang_m else ""
-    _CODEC_HINTS = {
-        "truehd": "A_TRUEHD", "eac3": "A_EAC3", "e-ac3": "A_EAC3",
-        "dts-hd": "A_DTS", "dts": "A_DTS",
-        "ac3": "A_AC3", "aac": "A_AAC", "flac": "A_FLAC",
-        "mp3": "A_MPEG", "opus": "A_OPUS", "vorbis": "A_VORBIS",
-        "vobsub": "S_VOBSUB", "ass": "S_TEXT/ASS",
-        "subrip": "S_TEXT/UTF8", "pgs": "S_HDMV/PGS",
-    }
-    cur_codec = ""
-    for hint, codec in _CODEC_HINTS.items():
-        if hint in cur:
-            cur_codec = codec
-            break
-
-    # Whether the MPC-HC name marks this as a forced track
-    name_is_forced = "[forced]" in cur
-
-    best_pos, best_score = 0, -1
-    for t in tracks:
-        score = 0
-        if cur_lang and t.get("language", "").lower() == cur_lang:
-            score += 10
-        if cur_codec and t.get("codec", "").upper().startswith(cur_codec.upper().split("/")[0]):
-            score += 5
-        if t.get("label") and t["label"].lower() in cur:
-            score += 3
-        # Forced flag: strongly reward an exact forced/non-forced match,
-        # penalise a mismatch so forced tracks don't steal non-forced slots.
-        track_is_forced = t.get("forced", False)
-        if name_is_forced == track_is_forced:
-            score += 8
-        else:
-            score -= 4
-        if score > best_score:
-            best_score, best_pos = score, t["pos"]
-    return best_pos
+def _ensure_autostart_task() -> None:
+    """Create KodiMpcHcBridge scheduled task so bridge autostarts on login (frozen mode only)."""
+    if sys.platform != "win32":
+        return
+    if not getattr(sys, "frozen", False):
+        return  # dev/source mode — no installed exe to register
+    import subprocess
+    exe = sys.executable
+    script = "\r\n".join([
+        f"$act = New-ScheduledTaskAction -Execute '{exe}'",
+        "$tri = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME",
+        "$pri = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited",
+        "$set = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero)"
+        " -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries",
+        "Register-ScheduledTask -TaskName 'KodiMpcHcBridge' -Action $act -Trigger $tri"
+        " -Principal $pri -Settings $set -Force -ErrorAction Stop",
+    ])
+    try:
+        subprocess.run(
+            ["powershell.exe", "-WindowStyle", "Hidden", "-NoProfile",
+             "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
+            creationflags=subprocess.CREATE_NO_WINDOW,
+            capture_output=True,
+            timeout=15.0,
+        )
+        _LOG.info("Boot target: autostart scheduled task created/updated")
+    except Exception as exc:
+        _LOG.warning("Boot target: failed to create autostart task: %s", exc)
 
 
 def _show_resume_dialog(
@@ -527,6 +517,7 @@ class Hub:
             on_kiosk_windows=self.switch_to_windows,
             on_kiosk_restart=self.restart_kodi,
             on_kiosk_status=self._kiosk_status,
+            browser=KodiBrowser(self._kodi),
         )
 
     # ------------------------------------------------------------------
@@ -596,7 +587,7 @@ class Hub:
         if cfg.shell_mode or self._explorer_hidden:
             _set_explorer_visible(True)
             self._explorer_hidden = False
-        await self._kodi.stop()
+        await self._kodi.shutdown()
         await self._mpchc.stop()
         await self._server.stop()
         _LOG.info("Hub stopped")
@@ -609,6 +600,12 @@ class Hub:
 
         if new_active == "mpchc" and not self._mpchc_active:
             self._mpchc_active = True
+            # Fresh (re)activation: drop the remembered position/duration of the
+            # previous playback.  They still hold the END position of the last
+            # file — the auto-next check below must never combine them with the
+            # newly started file.
+            self._mpchc_last_position = 0.0
+            self._mpchc_last_duration = 0.0
             _filepath = updates.get("filepath", "")
             updates["media_type"] = _detect_media_type(_filepath)
             # Clear stale video / metadata from any previous player so the
@@ -674,6 +671,19 @@ class Hub:
                     lambda t: _LOG.warning("Kodi sync task raised: %s", t.exception())
                     if not t.cancelled() and t.exception() else None
                 )
+
+        # ── Reset stale position/duration when the file changes ──────────────
+        # Must happen BEFORE the tracking + auto-next blocks below.  Without
+        # this, _mpchc_last_position still holds the END position of the
+        # previous episode after a file switch (MPC-HC reports position=0 for
+        # the new file, which the ">0" filter below ignores).  Episodes of a
+        # season have near-identical lengths, so the auto-next check would see
+        # "≤ 5 s remaining" for the just-started episode and immediately skip
+        # ahead again — rippling through the whole playlist.
+        _fp_now = updates.get("filepath")
+        if _fp_now and _fp_now != self._last_filepath:
+            self._mpchc_last_position = 0.0
+            self._mpchc_last_duration = 0.0
 
         # Track position and duration from every MPC-HC poll (used for Kodi sync on stop).
         # Only update when the value is non-zero: MPC-HC reports position=0 when it
@@ -1052,7 +1062,11 @@ class Hub:
         """
         loop = asyncio.get_running_loop()
         self._suppress_track_sync_until = loop.time() + 3.0
-        asyncio.create_task(self._sync_tracks_after(3.1))
+        _task = asyncio.create_task(self._sync_tracks_after(3.1))
+        _task.add_done_callback(
+            lambda t: _LOG.warning("Deferred track sync raised: %s", t.exception())
+            if not t.cancelled() and t.exception() else None
+        )
 
     async def _sync_tracks_after(self, delay: float) -> None:
         """Wait *delay* seconds then push the actual MPC-HC audio/subtitle tracks."""
@@ -1316,14 +1330,25 @@ class Hub:
         else:
             self._config.update({"hide_explorer": False, "shell_mode": False})
             _LOG.info("Boot target → windows (hide_explorer=False, shell_mode=False saved)")
-            # Start Explorer if not already running (non-destructive: does NOT kill Kodi)
-            if sys.platform == "win32" and not _is_explorer_running():
+            if sys.platform == "win32":
                 import subprocess
-                try:
-                    subprocess.Popen(["explorer.exe"])
-                    _LOG.info("Boot target: started explorer.exe")
-                except Exception as exc:
-                    _LOG.warning("Boot target: failed to start explorer.exe: %s", exc)
+                # Start Explorer first — if the bridge is the shell Explorer is
+                # not running and the user would have no desktop otherwise.
+                if not _is_explorer_running():
+                    try:
+                        subprocess.Popen(
+                            ["explorer.exe"],
+                            creationflags=subprocess.CREATE_NO_WINDOW,
+                        )
+                        _LOG.info("Boot target: started explorer.exe")
+                    except Exception as exc:
+                        _LOG.warning("Boot target: failed to start explorer.exe: %s", exc)
+                # Remove bridge from Windows shell registry so Explorer becomes
+                # the shell on next login (safe no-op if key was never set)
+                _remove_shell_registry()
+                # Ensure an autostart scheduled task exists so the bridge still
+                # launches on next login (previously shell-mode had no task)
+                _ensure_autostart_task()
         await self._push({"boot_target": value})
         return True
 

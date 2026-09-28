@@ -1,0 +1,30 @@
+# Static checks for the bridge — catches real bugs (undefined names, shadowed
+# methods, unused variables, syntax errors) without enforcing a code style.
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flake8:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install flake8
+        run: python -m pip install --upgrade pip flake8
+
+      - name: Lint with flake8 (pyflakes errors + syntax errors only)
+        run: python -m flake8 bridge main.py service.py gui.py --select=E9,F --show-source --statistics

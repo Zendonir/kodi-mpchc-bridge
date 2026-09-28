@@ -11,7 +11,6 @@ Language is detected from the OS UI locale automatically.
 from __future__ import annotations
 
 import logging
-import sys
 import threading
 import tkinter as tk
 from tkinter import messagebox

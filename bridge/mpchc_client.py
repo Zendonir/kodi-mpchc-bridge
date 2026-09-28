@@ -83,6 +83,66 @@ def _post_wm_command(cmd_id: int) -> bool:
     return False
 
 
+def match_track(tracks: list[dict], current_name: str) -> int:
+    """
+    Match MPC-HC's current track string against a parsed MKV track list.
+    Returns 0-based index, or -1 for 'No subtitles'.
+    """
+    if not current_name or not tracks:
+        return 0
+    cur = current_name.lower()
+
+    # "S: No subtitles" — no active subtitle track
+    if "no subtitles" in cur:
+        return -1
+
+    # MPC-HC's virtual auto-forced track — match our synthetic "Forced (auto)" entry
+    if "forced subtitles" in cur:
+        for t in tracks:
+            if t.get("label", "").lower() == "forced (auto)":
+                return t["pos"]
+        return 0
+
+    lang_m = re.search(r'\[([a-z]{3})\]', cur)
+    cur_lang = lang_m.group(1) if lang_m else ""
+    _CODEC_HINTS = {
+        "truehd": "A_TRUEHD", "eac3": "A_EAC3", "e-ac3": "A_EAC3",
+        "dts-hd": "A_DTS", "dts": "A_DTS",
+        "ac3": "A_AC3", "aac": "A_AAC", "flac": "A_FLAC",
+        "mp3": "A_MPEG", "opus": "A_OPUS", "vorbis": "A_VORBIS",
+        "vobsub": "S_VOBSUB", "ass": "S_TEXT/ASS",
+        "subrip": "S_TEXT/UTF8", "pgs": "S_HDMV/PGS",
+    }
+    cur_codec = ""
+    for hint, codec in _CODEC_HINTS.items():
+        if hint in cur:
+            cur_codec = codec
+            break
+
+    # Whether the MPC-HC name marks this as a forced track
+    name_is_forced = "[forced]" in cur
+
+    best_pos, best_score = 0, -1
+    for t in tracks:
+        score = 0
+        if cur_lang and t.get("language", "").lower() == cur_lang:
+            score += 10
+        if cur_codec and t.get("codec", "").upper().startswith(cur_codec.upper().split("/")[0]):
+            score += 5
+        if t.get("label") and t["label"].lower() in cur:
+            score += 3
+        # Forced flag: strongly reward an exact forced/non-forced match,
+        # penalise a mismatch so forced tracks don't steal non-forced slots.
+        track_is_forced = t.get("forced", False)
+        if name_is_forced == track_is_forced:
+            score += 8
+        else:
+            score -= 4
+        if score > best_score:
+            best_score, best_pos = score, t["pos"]
+    return best_pos
+
+
 def _ms_to_hmsms(ms: int) -> str:
     """Convert milliseconds to MPC-HC position string H:MM:SS:mmm."""
     ms = max(0, ms)
@@ -151,6 +211,44 @@ class MpcHcClient:
     async def set_volume(self, volume: int) -> bool:
         """Set volume 0-100."""
         return await self._get("/command.html", {"wm_command": -2, "volume": max(0, min(100, volume))})
+
+    async def get_track_names(self) -> dict[str, str] | None:
+        """
+        Fetch the currently active audio/subtitle track display names.
+
+        Returns ``{"audiotrack": ..., "subtitletrack": ...}`` (raw MPC-HC
+        display strings, may be empty) or None when MPC-HC is unreachable.
+        """
+        fields = await self._fetch_status()
+        if fields is None:
+            return None
+        return {
+            "audiotrack": fields.get("audiotrack", ""),
+            "subtitletrack": fields.get("subtitletrack", ""),
+        }
+
+    def select_track_direct(self, kind: str, pos: int) -> bool:
+        """
+        Absolute track selection via Win32 WM_COMMAND (menu-item IDs).
+
+        Posts the wm_command for track *pos* directly to the MPC-HC window —
+        a single message, independent of which track is currently active, so
+        there is no NEXT/PREV cycling and no race window.  Returns False when
+        the message could not be posted (non-Windows, window not found, or
+        pos < 0); the caller then falls back to HTTP cycling.  Whether the
+        switch actually landed on the right track must be verified afterwards
+        via get_track_names() — some builds map the ID ranges differently.
+        """
+        if pos < 0:
+            return False
+        base = _AUDIO_BASE if kind == "audio" else _SUB_BASE
+        posted = _post_wm_command(base + pos)
+        _LOG.info(
+            "%s direct-select: pos=%d (wm_id=%d) → %s",
+            "AUDIO" if kind == "audio" else "SUB", pos, base + pos,
+            "posted" if posted else "window not found",
+        )
+        return posted
 
     async def set_audio_track(self, target: int, current: int, total: int) -> bool:
         """Cycle to audio track *target* via HTTP next/prev commands."""
